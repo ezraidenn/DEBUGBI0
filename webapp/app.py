@@ -517,12 +517,29 @@ def get_stat_details(device_id, stat_type):
         
         if stat_type == 'total':
             # Total events with timestamps
-            event_list = [{
-                'datetime': format_local_time(e.get('datetime')),
-                'user': e.get('user_id', 'N/A'),
-                'event_type': classify_event(e.get('event_code', '0'))[1],
-                'event_code': e.get('event_code', 'N/A')
-            } for e in events[-50:]]  # Last 50 events
+            event_list = []
+            for e in events[-50:]:  # Last 50 events
+                user_id = e.get('user_id')
+                # Convertir user_id a string si es necesario
+                if isinstance(user_id, dict):
+                    user_id = str(user_id.get('id', 'N/A'))
+                elif user_id is None:
+                    user_id = 'N/A'
+                else:
+                    user_id = str(user_id)
+                
+                event_code = e.get('event_code')
+                if event_code is None:
+                    event_code = 'N/A'
+                else:
+                    event_code = str(event_code)
+                
+                event_list.append({
+                    'datetime': format_local_time(e.get('datetime')),
+                    'user': user_id,
+                    'event_type': classify_event(event_code)[1],
+                    'event_code': event_code
+                })
             
             return jsonify({
                 'title': 'Total de Eventos',
@@ -533,12 +550,22 @@ def get_stat_details(device_id, stat_type):
         
         elif stat_type == 'granted':
             # Access granted events
-            granted_events = [e for e in events if e.get('event_code') in EVENT_CODES['access_granted']]
-            event_list = [{
-                'datetime': format_local_time(e.get('datetime')),
-                'user': e.get('user_id', 'N/A'),
-                'door': e.get('door_name', 'N/A')
-            } for e in granted_events[-50:]]
+            granted_events = [e for e in events if e.get('event_code') in EVENT_CODES['ACCESS_GRANTED']]
+            event_list = []
+            for e in granted_events[-50:]:
+                user_id = e.get('user_id')
+                if isinstance(user_id, dict):
+                    user_id = str(user_id.get('id', 'N/A'))
+                elif user_id is None:
+                    user_id = 'N/A'
+                else:
+                    user_id = str(user_id)
+                
+                event_list.append({
+                    'datetime': format_local_time(e.get('datetime')),
+                    'user': user_id,
+                    'door': e.get('door_name', 'N/A')
+                })
             
             return jsonify({
                 'title': 'Accesos Concedidos',
@@ -549,12 +576,23 @@ def get_stat_details(device_id, stat_type):
         
         elif stat_type == 'denied':
             # Access denied events
-            denied_events = [e for e in events if e.get('event_code') in EVENT_CODES['access_denied']]
-            event_list = [{
-                'datetime': format_local_time(e.get('datetime')),
-                'user': e.get('user_id', 'N/A'),
-                'reason': classify_event(e.get('event_code', '0'))[1]
-            } for e in denied_events[-50:]]
+            denied_events = [e for e in events if e.get('event_code') in EVENT_CODES['ACCESS_DENIED']]
+            event_list = []
+            for e in denied_events[-50:]:
+                user_id = e.get('user_id')
+                if isinstance(user_id, dict):
+                    user_id = str(user_id.get('id', 'N/A'))
+                elif user_id is None:
+                    user_id = 'N/A'
+                else:
+                    user_id = str(user_id)
+                
+                event_code = e.get('event_code', '0')
+                event_list.append({
+                    'datetime': format_local_time(e.get('datetime')),
+                    'user': user_id,
+                    'reason': classify_event(str(event_code))[1]
+                })
             
             return jsonify({
                 'title': 'Accesos Denegados',
@@ -569,29 +607,52 @@ def get_stat_details(device_id, stat_type):
             user_events = {}
             
             for e in events:
-                user_id = e.get('user_id')
-                if user_id and user_id != 'N/A':
-                    user_ids.add(user_id)
-                    if user_id not in user_events:
-                        user_events[user_id] = {
-                            'user_id': user_id,
-                            'total_events': 0,
-                            'granted': 0,
-                            'denied': 0,
-                            'last_access': None
-                        }
-                    
-                    user_events[user_id]['total_events'] += 1
-                    
-                    if e.get('event_code') in EVENT_CODES['access_granted']:
-                        user_events[user_id]['granted'] += 1
-                    elif e.get('event_code') in EVENT_CODES['access_denied']:
-                        user_events[user_id]['denied'] += 1
-                    
-                    event_time = e.get('datetime')
-                    if event_time:
-                        if not user_events[user_id]['last_access'] or event_time > user_events[user_id]['last_access']:
-                            user_events[user_id]['last_access'] = event_time
+                user_id_obj = e.get('user_id')
+                
+                # Extraer información del usuario
+                if isinstance(user_id_obj, dict):
+                    user_id_num = user_id_obj.get('user_id')
+                    user_name = user_id_obj.get('name')  # El nombre está DENTRO del dict
+                else:
+                    user_id_num = user_id_obj
+                    user_name = None
+                
+                # Determinar la clave única para agrupar
+                # Prioridad: user_name > user_id
+                if user_name and user_name != 'N/A' and user_name != '-':
+                    # Usar nombre como clave
+                    unique_key = user_name
+                    display_name = user_name
+                elif user_id_num and user_id_num != 'N/A' and user_id_num != '-':
+                    # Usar ID como clave
+                    unique_key = str(user_id_num)
+                    display_name = str(user_id_num)
+                else:
+                    continue  # Saltar eventos sin usuario identificable
+                
+                user_ids.add(unique_key)
+                if unique_key not in user_events:
+                    user_events[unique_key] = {
+                        'user_id': unique_key,
+                        'user_name': display_name,
+                        'total_events': 0,
+                        'granted': 0,
+                        'denied': 0,
+                        'last_access': None
+                    }
+                
+                user_events[unique_key]['total_events'] += 1
+                
+                event_code = e.get('event_code')
+                if event_code in EVENT_CODES['ACCESS_GRANTED']:
+                    user_events[unique_key]['granted'] += 1
+                elif event_code in EVENT_CODES['ACCESS_DENIED']:
+                    user_events[unique_key]['denied'] += 1
+                
+                event_time = e.get('datetime')
+                if event_time:
+                    if not user_events[unique_key]['last_access'] or event_time > user_events[unique_key]['last_access']:
+                        user_events[unique_key]['last_access'] = event_time
             
             # Format user data
             user_list = []
@@ -599,7 +660,7 @@ def get_stat_details(device_id, stat_type):
                 last_access = format_local_time(user_data['last_access'])
                 
                 user_list.append({
-                    'user_id': user_data['user_id'],
+                    'user_id': user_data['user_name'],  # Mostrar nombre en lugar de ID
                     'total_events': user_data['total_events'],
                     'granted': user_data['granted'],
                     'denied': user_data['denied'],
