@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Debug General - BioStar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bug"></i> Debug General - Todos los Checadores</h2>
+    <div>
+        <button class="btn btn-success" onclick="exportAll()">
+            <i class="bi bi-file-earmark-excel"></i> Exportar Todo
+        </button>
+        <button class="btn btn-primary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Checador</th>
+                        <th>Ubicación</th>
+                        <th class="text-center">Total Eventos</th>
+                        <th class="text-center">Accesos Concedidos</th>
+                        <th class="text-center">Accesos Denegados</th>
+                        <th class="text-center">Usuarios Únicos</th>
+                        <th class="text-center">Primer Evento</th>
+                        <th class="text-center">Último Evento</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in summaries %}
+                    <tr>
+                        <td>
+                            <strong>
+                                {% if item.device.alias %}
+                                    {{ item.device.alias }}
+                                {% else %}
+                                    {{ item.device.name }}
+                                {% endif %}
+                            </strong>
+                            <br><small class="text-muted">ID: {{ item.device.id }}</small>
+                        </td>
+                        <td>
+                            {% if item.device.location %}
+                                <i class="bi bi-geo-alt"></i> {{ item.device.location }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary">{{ item.summary.total_events }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success">{{ item.summary.access_granted }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-danger">{{ item.summary.access_denied }}</span>
+                        </td>
+                        <td class="text-center">
+                            {{ item.summary.unique_users }}
+                        </td>
+                        <td class="text-center">
+                            {% if item.summary.first_event %}
+                                <small>{{ item.summary.first_event.strftime('%H:%M:%S') }}</small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if item.summary.last_event %}
+                                <small>{{ item.summary.last_event.strftime('%H:%M:%S') }}</small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('debug_device', device_id=item.device.id) }}" 
+                               class="btn btn-sm btn-primary" title="Ver detalles">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <button onclick="exportDevice({{ item.device.id }})" 
+                                    class="btn btn-sm btn-success" title="Exportar">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-secondary">
+                        <td colspan="2"><strong>TOTAL</strong></td>
+                        <td class="text-center"><strong>{{ summaries|sum(attribute='summary.total_events') }}</strong></td>
+                        <td class="text-center"><strong>{{ summaries|sum(attribute='summary.access_granted') }}</strong></td>
+                        <td class="text-center"><strong>{{ summaries|sum(attribute='summary.access_denied') }}</strong></td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportDevice(deviceId) {
+    fetch(`/debug/device/${deviceId}/export`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✓ ${data.message}\nArchivo: ${data.filename}`);
+            } else {
+                alert(`✗ Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            alert('Error al exportar: ' + error);
+        });
+}
+
+function exportAll() {
+    if (!confirm('¿Exportar debug de todos los checadores?')) return;
+    
+    const devices = {{ summaries|map(attribute='device.id')|list|tojson }};
+    let completed = 0;
+    
+    devices.forEach(deviceId => {
+        fetch(`/debug/device/${deviceId}/export`)
+            .then(response => response.json())
+            .then(data => {
+                completed++;
+                if (completed === devices.length) {
+                    alert(`✓ Exportación completada: ${devices.length} archivos generados`);
+                }
+            });
+    });
+}
+</script>
+{% endblock %}

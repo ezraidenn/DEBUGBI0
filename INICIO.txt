@@ -1,0 +1,172 @@
+================================================================================
+🚀 BIENVENIDO AL SISTEMA DE DEBUG DE CHECADORES BIOSTAR
+================================================================================
+
+Este proyecto te permite monitorear y obtener logs de debug de todos los
+checadores (dispositivos) conectados a BioStar 2.
+
+================================================================================
+📋 PASOS PARA COMENZAR
+================================================================================
+
+1. INSTALAR DEPENDENCIAS
+   ----------------------
+   Abre una terminal en esta carpeta y ejecuta:
+   
+   pip install -r requirements.txt
+   
+   Esto instalará: requests, pandas, openpyxl, python-dotenv, etc.
+
+
+2. VERIFICAR CREDENCIALES
+   -----------------------
+   El archivo .env ya contiene las credenciales:
+   
+   BIOSTAR_HOST=https://10.0.0.100
+   BIOSTAR_USER=rcetina
+   BIOSTAR_PASSWORD=aP1su.ser
+   
+   Si necesitas cambiarlas, edita el archivo .env
+
+
+3. PROBAR CONEXIÓN
+   ----------------
+   Ejecuta el test rápido:
+   
+   python quick_test.py
+   
+   Esto verificará:
+   ✓ Conexión a BioStar
+   ✓ Autenticación
+   ✓ Lista de checadores
+   ✓ Eventos del día
+
+
+4. USAR EL SISTEMA COMPLETO
+   -------------------------
+   Ejecuta el menú principal:
+   
+   python src/main.py
+   
+   Opciones disponibles:
+   • Listar todos los checadores
+   • Ver debug del día de un checador
+   • Asignar nombres personalizados (alias)
+   • Exportar reportes a Excel
+
+================================================================================
+📚 DOCUMENTACIÓN DISPONIBLE
+================================================================================
+
+README.md              - Documentación completa del proyecto
+GUIA_RAPIDA.md        - Guía de inicio rápido
+CODIGOS_EVENTOS.md    - Referencia de códigos de eventos
+ESTRUCTURA.txt        - Estructura del proyecto
+
+================================================================================
+🔧 SCRIPTS ÚTILES
+================================================================================
+
+quick_test.py                  - Test rápido de conexión
+listar_tipos_eventos.py        - Lista todos los tipos de eventos
+src/main.py                    - Menú principal interactivo
+examples/ejemplo_basico.py     - Ejemplos de código
+
+================================================================================
+💡 CASOS DE USO COMUNES
+================================================================================
+
+1. VER DEBUG DEL DÍA DE UN CHECADOR
+   ----------------------------------
+   python src/main.py
+   → Opción 2
+   → Ingresar ID del checador
+   → Ver resumen y exportar a Excel
+
+
+2. ASIGNAR NOMBRES A LOS CHECADORES
+   ----------------------------------
+   python src/main.py
+   → Opción 3
+   → Seleccionar checador
+   → Asignar alias, ubicación y notas
+
+
+3. EXPORTAR DEBUG DE TODOS LOS CHECADORES
+   ----------------------------------------
+   python src/main.py
+   → Opción 4
+   → Se generarán archivos Excel en data/outputs/
+
+
+4. OBTENER LISTA DE CÓDIGOS DE EVENTOS
+   -------------------------------------
+   python listar_tipos_eventos.py
+   → Se generará archivo tipos_eventos_biostar.txt
+
+================================================================================
+📊 ARCHIVOS GENERADOS
+================================================================================
+
+Los reportes se guardan en:
+data/outputs/
+
+Formato de nombres:
+debug_[NombreChecador]_[FechaHora].xlsx
+
+Cada archivo Excel contiene:
+• Hoja "Eventos": Todos los eventos del día
+• Hoja "Resumen": Estadísticas generales
+• Hoja "Por Tipo": Conteo de eventos por tipo
+
+================================================================================
+🔍 CÓDIGOS DE EVENTOS MÁS COMUNES
+================================================================================
+
+4864  - ✅ Acceso concedido
+4865  - ❌ Acceso denegado
+20736 - 🚨 Puerta forzada
+20737 - ⚠️  Puerta abierta por mucho tiempo
+28672 - 🔌 Dispositivo conectado
+28673 - 🔌 Dispositivo desconectado
+
+Ver CODIGOS_EVENTOS.md para la lista completa
+
+================================================================================
+⚠️  SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+ERROR: "Error al autenticar"
+→ Verifica las credenciales en .env
+→ Asegúrate de que el servidor esté accesible
+
+ERROR: "No se encontraron dispositivos"
+→ Verifica que haya dispositivos configurados en BioStar
+→ Revisa los permisos del usuario
+
+ERROR: "ModuleNotFoundError"
+→ Instala las dependencias: pip install -r requirements.txt
+
+================================================================================
+📞 INFORMACIÓN ADICIONAL
+================================================================================
+
+Documentación oficial de BioStar 2 API:
+https://bs2api.biostar2.com/
+
+Soporte de Suprema:
+https://support.supremainc.com/
+
+================================================================================
+✅ LISTO PARA COMENZAR
+================================================================================
+
+Ejecuta ahora:
+
+    python quick_test.py
+
+Para verificar que todo funciona correctamente.
+
+¡Buena suerte! 🚀
+
+================================================================================
