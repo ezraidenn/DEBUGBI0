@@ -179,216 +179,7 @@
     </div>
 </div>
 
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
-const DEVICE_ID = {{ device.id }};
-let socket = null;
-let isRealtimeEnabled = false;
-
-function exportDebug() {
-    fetch('/debug/device/{{ device.id }}/export')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(`✓ ${data.message}\n\nArchivo: ${data.filename}`);
-            } else {
-                alert(`✗ Error: ${data.error}`);
-            }
-        })
-        .catch(error => {
-            alert('Error al exportar: ' + error);
-        });
-}
-
-function toggleRealtime() {
-    if (isRealtimeEnabled) {
-        stopRealtime();
-    } else {
-        startRealtime();
-    }
-}
-
-function startRealtime() {
-    console.log('⚡ Iniciando monitoreo en TIEMPO REAL...');
-    console.log('📍 Device ID:', DEVICE_ID);
-    
-    // Connect to WebSocket
-    socket = io('/realtime', {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5
-    });
-    
-    socket.on('connect', function() {
-        console.log('✓ Conectado al servidor en tiempo real');
-        console.log('📡 Socket ID:', socket.id);
-        
-        // Request monitoring for this device
-        console.log('📤 Enviando solicitud de monitoreo para dispositivo:', DEVICE_ID);
-        socket.emit('monitor_device', { device_id: DEVICE_ID });
-        
-        // Update UI
-        isRealtimeEnabled = true;
-        const btn = document.getElementById('realtimeBtn');
-        const indicator = document.getElementById('realtimeIndicator');
-        const btnText = document.getElementById('realtimeBtnText');
-        
-        btn.classList.remove('btn-success');
-        btn.classList.add('btn-danger');
-        indicator.classList.add('connected');
-        btnText.textContent = 'Detener Tiempo Real';
-        
-        showNotification('⚡ Tiempo Real ACTIVADO - Esperando eventos...', 'success');
-    });
-    
-    socket.on('monitoring', function(data) {
-        console.log('📊 Estado de monitoreo:', data);
-    });
-    
-    socket.on('new_event', function(data) {
-        console.log('🔔 NUEVO EVENTO RECIBIDO:', data);
-        console.log('   - Device ID:', data.device_id);
-        console.log('   - Usuario:', data.user_name);
-        console.log('   - Tipo:', data.event_type);
-        console.log('   - Fecha:', data.datetime);
-        
-        if (data.device_id === DEVICE_ID) {
-            console.log('✅ Evento es para este dispositivo, procesando...');
-            handleNewEvent(data);
-        } else {
-            console.log('⚠️ Evento es para otro dispositivo, ignorando');
-        }
-    });
-    
-    socket.on('disconnect', function() {
-        console.log('✗ Desconectado del servidor');
-        const indicator = document.getElementById('realtimeIndicator');
-        indicator.classList.remove('connected');
-        showNotification('⚠️ Desconectado del servidor', 'warning');
-    });
-    
-    socket.on('connect_error', function(error) {
-        console.error('❌ Error de conexión:', error);
-        showNotification('❌ Error de conexión WebSocket', 'danger');
-    });
-    
-    socket.on('error', function(error) {
-        console.error('❌ Error:', error);
-    });
-}
-
-function stopRealtime() {
-    console.log('⏸ Deteniendo tiempo real...');
-    
-    if (socket) {
-        socket.emit('stop_monitor_device', { device_id: DEVICE_ID });
-        socket.disconnect();
-        socket = null;
-    }
-    
-    isRealtimeEnabled = false;
-    const btn = document.getElementById('realtimeBtn');
-    const indicator = document.getElementById('realtimeIndicator');
-    const btnText = document.getElementById('realtimeBtnText');
-    
-    btn.classList.remove('btn-danger');
-    btn.classList.add('btn-success');
-    indicator.classList.remove('connected');
-    btnText.textContent = 'Activar Tiempo Real';
-    
-    showNotification('⏸ Tiempo Real DETENIDO', 'info');
-}
-
-function handleNewEvent(eventData) {
-    // Show notification
-    const eventType = eventData.event_type || 'Evento';
-    const userName = eventData.user_name || 'Desconocido';
-    showNotification(`🔔 ${eventType}: ${userName}`, 'warning');
-    
-    // Play sound (optional)
-    playNotificationSound();
-    
-    // Update summary
-    updateSummaryRealtime();
-    
-    // Add event to table (if table exists)
-    addEventToTable(eventData);
-}
-
-function updateSummaryRealtime() {
-    fetch('/api/device/{{ device.id }}/summary')
-        .then(response => response.json())
-        .then(data => {
-            // Update summary cards with animation
-            animateNumberChange('.stat-card h2', data.total_events);
-            animateNumberChange('.stat-card.success h2', data.access_granted);
-            animateNumberChange('.stat-card.danger h2', data.access_denied);
-            animateNumberChange('.stat-card.warning h2', data.unique_users);
-            
-            // Update time info
-            if (data.first_event && data.last_event) {
-                const timeInfo = document.querySelector('.alert-info');
-                if (timeInfo) {
-                    timeInfo.innerHTML = `<i class="bi bi-clock"></i> 
-                        <strong>Primer evento:</strong> ${data.first_event} | 
-                        <strong>Último evento:</strong> ${data.last_event}`;
-                }
-            }
-        });
-}
-
-function animateNumberChange(selector, newValue) {
-    const elements = document.querySelectorAll(selector);
-    if (elements.length > 0) {
-        const element = elements[0];
-        const oldValue = parseInt(element.textContent);
-        if (oldValue !== newValue) {
-            element.style.transition = 'all 0.3s ease';
-            element.style.transform = 'scale(1.2)';
-            element.style.color = '#28a745';
-            element.textContent = newValue;
-            
-            setTimeout(() => {
-                element.style.transform = 'scale(1)';
-                element.style.color = '';
-            }, 300);
-        }
-    }
-}
-
-function addEventToTable(eventData) {
-    const tbody = document.querySelector('table tbody');
-    if (!tbody) return;
-    
-    // Create new row
-    const row = document.createElement('tr');
-    row.classList.add('new-event-highlight');
-    
-    // Format datetime
-    const datetime = new Date(eventData.datetime).toLocaleString('es-MX');
-    
-    // Determine badge color
-    let badgeClass = 'bg-secondary';
-    if (eventData.event_code === '4864') badgeClass = 'bg-success';
-    else if (eventData.event_code === '4865') badgeClass = 'bg-danger';
-    else if (eventData.event_code === '20736') badgeClass = 'bg-warning';
-    
-    row.innerHTML = `
-        <td>${datetime}</td>
-        <td><span class="badge ${badgeClass}">${eventData.event_type || 'Evento'}</span></td>
-        <td><code>${eventData.event_code}</code></td>
-        <td>
-            ${eventData.user_name ? `<strong>${eventData.user_name}</strong><br><small class="text-muted">ID: ${eventData.user_id}</small>` : '<span class="text-muted">-</span>'}
-        </td>
-        <td><span class="text-muted">-</span></td>
-    `;
-    
-    // Insert at the beginning
-    tbody.insertBefore(row, tbody.firstChild);
-}
-
-
 // ==================== SSE REALTIME (AUTO-START) ====================
 
 let eventSource = null;
@@ -528,26 +319,18 @@ function toggleRealtime() {
 }
 
 function updateRealtimeUI(active) {
-    const btn = document.getElementById('realtimeBtn');
-    const indicator = document.getElementById('realtimeIndicator');
-    const btnText = document.getElementById('realtimeBtnText');
     const statusBadge = document.getElementById('realtimeStatus');
-    const eventCounter = document.getElementById('eventCounter');
     
-    if (active) {
-        indicator.classList.add('connected');
-        btnText.textContent = 'Tiempo Real Activo';
-        btn.classList.add('active');
-        if (statusBadge) statusBadge.style.display = 'block';
-    } else {
-        indicator.classList.remove('connected');
-        btnText.textContent = 'Activar Tiempo Real';
-        btn.classList.remove('active');
-        if (statusBadge) statusBadge.style.display = 'none';
-    }
-    
-    if (eventCounter) {
-        eventCounter.textContent = `${eventCount} eventos recibidos`;
+    if (statusBadge) {
+        if (active) {
+            statusBadge.classList.remove('bg-warning', 'bg-danger');
+            statusBadge.classList.add('bg-success');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real Activo';
+        } else {
+            statusBadge.classList.remove('bg-success', 'bg-warning');
+            statusBadge.classList.add('bg-danger');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
+        }
     }
 }
 
