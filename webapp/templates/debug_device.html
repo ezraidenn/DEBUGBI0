@@ -394,33 +394,49 @@ function addEventToTable(eventData) {
 let eventSource = null;
 let isRealtimeActive = false;
 let eventCount = 0;
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 999; // Intentos infinitos
+let reconnectDelay = 3000; // 3 segundos
+let lastHeartbeat = Date.now();
+let heartbeatCheckInterval = null;
 
 function startRealtimeSSE() {
-    if (eventSource) {
+    if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
         console.log('⚠️ SSE ya está activo');
         return;
     }
     
     const deviceId = {{ device.id }};
-    console.log(`🚀 Iniciando SSE para dispositivo ${deviceId}`);
+    console.log(`🚀 Iniciando SSE para dispositivo: ${deviceId} (intento ${reconnectAttempts + 1})`);
     
-    // Crear conexión SSE
+    // Cerrar conexión anterior si existe
+    if (eventSource) {
+        eventSource.close();
+    }
+    
     eventSource = new EventSource(`/stream/device/${deviceId}?interval=2`);
     isRealtimeActive = true;
+    lastHeartbeat = Date.now();
     
     // Update UI
     updateRealtimeUI(true);
+    
+    // Iniciar verificación de heartbeat
+    startHeartbeatCheck();
     
     // Evento: Conexión establecida
     eventSource.addEventListener('connection', function(e) {
         const data = JSON.parse(e.data);
         console.log('✅ Conectado a SSE:', data);
+        reconnectAttempts = 0; // Reset intentos al conectar exitosamente
+        lastHeartbeat = Date.now();
     });
     
     // Evento: Nuevo evento
     eventSource.addEventListener('new_event', function(e) {
         const event = JSON.parse(e.data);
         console.log('📥 Nuevo evento:', event);
+        lastHeartbeat = Date.now();
         
         // Agregar evento a la tabla
         addEventToTable(event);
@@ -434,29 +450,62 @@ function startRealtimeSSE() {
     // Evento: Heartbeat
     eventSource.addEventListener('heartbeat', function(e) {
         console.log('💓 Heartbeat recibido');
+        lastHeartbeat = Date.now();
     });
     
     // Evento: Error
     eventSource.addEventListener('error', function(e) {
-        const data = e.data ? JSON.parse(e.data) : {};
-        console.error('❌ Error SSE:', data);
-    });
-    
-    // Error de conexión
-    eventSource.onerror = function(e) {
-        console.error('❌ Error de conexión SSE:', e);
+        console.error('❌ Error en SSE:', e);
         
         if (eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔌 Conexión cerrada, reintentando en 5s...');
-            stopRealtimeSSE();
-            
-            setTimeout(() => {
-                if (!isRealtimeActive) {
-                    startRealtimeSSE();
-                }
-            }, 5000);
+            console.log('🔄 Conexión cerrada, reconectando...');
+            attemptReconnect();
         }
-    };
+    });
+    
+    // Detectar cuando la pestaña vuelve a estar activa
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && eventSource && eventSource.readyState === EventSource.CLOSED) {
+            console.log('👁️ Pestaña activa de nuevo, reconectando...');
+            attemptReconnect();
+        }
+    });
+}
+
+function startHeartbeatCheck() {
+    // Limpiar intervalo anterior
+    if (heartbeatCheckInterval) {
+        clearInterval(heartbeatCheckInterval);
+    }
+    
+    // Verificar heartbeat cada 30 segundos
+    heartbeatCheckInterval = setInterval(function() {
+        const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+        
+        // Si no hay heartbeat en 45 segundos, reconectar
+        if (timeSinceLastHeartbeat > 45000) {
+            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
+            attemptReconnect();
+        }
+    }, 30000);
+}
+
+function attemptReconnect() {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+        console.error('❌ Máximo de intentos de reconexión alcanzado');
+        stopRealtimeSSE();
+        return;
+    }
+    
+    reconnectAttempts++;
+    stopRealtimeSSE();
+    
+    const delay = Math.min(reconnectDelay * reconnectAttempts, 30000); // Max 30 segundos
+    console.log(`⏳ Reconectando en ${delay / 1000}s...`);
+    
+    setTimeout(function() {
+        startRealtimeSSE();
+    }, delay);
 }
 
 function stopRealtimeSSE() {

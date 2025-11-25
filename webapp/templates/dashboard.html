@@ -128,29 +128,49 @@ deviceStats[{{ device.id }}] = {
 {% endfor %}
 
 // ==================== CONECTAR AUTOMÁTICAMENTE AL CARGAR ====================
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 999;
+let reconnectDelay = 3000;
+let lastHeartbeat = Date.now();
+let heartbeatCheckInterval = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Iniciando tiempo real automáticamente...');
     connectRealtimeStream();
+    startHeartbeatCheck();
 });
 
 function connectRealtimeStream() {
-    console.log('🔌 Conectando a stream de tiempo real...');
+    if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+        console.log('⚠️ SSE ya está activo');
+        return;
+    }
+    
+    console.log(`🔌 Conectando a stream de tiempo real... (intento ${reconnectAttempts + 1})`);
     
     const statusBadge = document.getElementById('realtimeStatus');
     if (statusBadge) {
-        statusBadge.classList.remove('bg-success');
+        statusBadge.classList.remove('bg-success', 'bg-danger');
         statusBadge.classList.add('bg-warning');
         statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
     }
     
+    // Cerrar conexión anterior si existe
+    if (eventSource) {
+        eventSource.close();
+    }
+    
     eventSource = new EventSource('/stream/all-devices?interval=2');
+    lastHeartbeat = Date.now();
     
     eventSource.addEventListener('connection', (e) => {
         const data = JSON.parse(e.data);
         console.log('✅ Conectado al stream:', data);
+        reconnectAttempts = 0; // Reset intentos
+        lastHeartbeat = Date.now();
         
         if (statusBadge) {
-            statusBadge.classList.remove('bg-warning');
+            statusBadge.classList.remove('bg-warning', 'bg-danger');
             statusBadge.classList.add('bg-success');
             statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real';
         }
@@ -159,6 +179,7 @@ function connectRealtimeStream() {
     eventSource.addEventListener('new_event', (e) => {
         const event = JSON.parse(e.data);
         console.log('📥 Nuevo evento:', event);
+        lastHeartbeat = Date.now();
         
         // Actualizar estadísticas del dispositivo
         updateDeviceStats(event);
@@ -166,6 +187,7 @@ function connectRealtimeStream() {
     
     eventSource.addEventListener('heartbeat', (e) => {
         console.log('💓 Heartbeat recibido');
+        lastHeartbeat = Date.now();
     });
     
     eventSource.onerror = (error) => {
@@ -178,10 +200,54 @@ function connectRealtimeStream() {
         }
         
         if (eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔄 Reconectando en 5 segundos...');
-            setTimeout(connectRealtimeStream, 5000);
+            console.log('🔄 Conexión cerrada, reconectando...');
+            attemptReconnect();
         }
     };
+    
+    // Detectar cuando la pestaña vuelve a estar activa
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && eventSource && eventSource.readyState === EventSource.CLOSED) {
+            console.log('👁️ Pestaña activa de nuevo, reconectando...');
+            attemptReconnect();
+        }
+    });
+}
+
+function startHeartbeatCheck() {
+    if (heartbeatCheckInterval) {
+        clearInterval(heartbeatCheckInterval);
+    }
+    
+    heartbeatCheckInterval = setInterval(function() {
+        const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+        
+        if (timeSinceLastHeartbeat > 45000) {
+            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
+            attemptReconnect();
+        }
+    }, 30000);
+}
+
+function attemptReconnect() {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+        console.error('❌ Máximo de intentos alcanzado');
+        return;
+    }
+    
+    reconnectAttempts++;
+    
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+    
+    const delay = Math.min(reconnectDelay * reconnectAttempts, 30000);
+    console.log(`⏳ Reconectando en ${delay / 1000}s...`);
+    
+    setTimeout(function() {
+        connectRealtimeStream();
+    }, delay);
 }
 
 function updateDeviceStats(event) {
