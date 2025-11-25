@@ -7,15 +7,10 @@
     <h2>
         <i class="bi bi-speedometer2"></i>
         Dashboard
+        <span class="badge bg-success ms-2" id="realtimeStatus">
+            <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real
+        </span>
     </h2>
-    <div class="page-header-actions">
-        <button class="btn btn-dashboard-primary" id="autoRefreshBtn" onclick="toggleAutoRefresh()">
-            <i class="bi bi-play-circle-fill"></i> Auto-actualización
-        </button>
-        <button class="btn btn-dashboard-secondary" onclick="location.reload()">
-            <i class="bi bi-arrow-clockwise"></i> Actualizar
-        </button>
-    </div>
 </div>
 
 {% if error %}
@@ -65,7 +60,7 @@
         <div class="row">
             {% for device in devices %}
             <div class="col-md-4 mb-4">
-                <div class="device-card" onclick="location.href='{{ url_for('debug_device', device_id=device.id) }}'">
+                <div class="device-card" data-device-id="{{ device.id }}" onclick="location.href='{{ url_for('debug_device', device_id=device.id) }}'">
                     <div class="device-card-header">
                         <div>
                             <h5>
@@ -120,36 +115,154 @@
 
 {% block extra_js %}
 <script>
-let autoRefreshInterval = null;
-let isAutoRefreshEnabled = false;
+let eventSource = null;
+let deviceStats = {}; // {device_id: {total_events, access_granted, access_denied}}
 
-function toggleAutoRefresh() {
-    const btn = document.getElementById('autoRefreshBtn');
+// Inicializar stats desde el servidor
+{% for device in devices %}
+deviceStats[{{ device.id }}] = {
+    total_events: {{ device.summary.total_events }},
+    access_granted: {{ device.summary.access_granted }},
+    access_denied: {{ device.summary.access_denied }}
+};
+{% endfor %}
+
+// ==================== CONECTAR AUTOMÁTICAMENTE AL CARGAR ====================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Iniciando tiempo real automáticamente...');
+    connectRealtimeStream();
+});
+
+function connectRealtimeStream() {
+    console.log('🔌 Conectando a stream de tiempo real...');
     
-    if (isAutoRefreshEnabled) {
-        // Disable auto-refresh
-        clearInterval(autoRefreshInterval);
-        isAutoRefreshEnabled = false;
-        btn.innerHTML = '<i class="bi bi-play-circle"></i> Auto-actualización';
-        btn.classList.remove('btn-danger');
-        btn.classList.add('btn-success');
-        console.log('⏸ Auto-actualización desactivada');
-    } else {
-        // Enable auto-refresh
-        isAutoRefreshEnabled = true;
-        btn.innerHTML = '<i class="bi bi-pause-circle"></i> Detener Auto-actualización';
-        btn.classList.remove('btn-success');
-        btn.classList.add('btn-danger');
-        
-        // Refresh page every 10 seconds
-        autoRefreshInterval = setInterval(() => {
-            console.log('🔄 Actualizando dashboard...');
-            location.reload();
-        }, 10000);
-        
-        console.log('▶ Auto-actualización activada (cada 10 segundos)');
+    const statusBadge = document.getElementById('realtimeStatus');
+    if (statusBadge) {
+        statusBadge.classList.remove('bg-success');
+        statusBadge.classList.add('bg-warning');
+        statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
     }
+    
+    eventSource = new EventSource('/stream/all-devices?interval=2');
+    
+    eventSource.addEventListener('connection', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('✅ Conectado al stream:', data);
+        
+        if (statusBadge) {
+            statusBadge.classList.remove('bg-warning');
+            statusBadge.classList.add('bg-success');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real';
+        }
+    });
+    
+    eventSource.addEventListener('new_event', (e) => {
+        const event = JSON.parse(e.data);
+        console.log('📥 Nuevo evento:', event);
+        
+        // Actualizar estadísticas del dispositivo
+        updateDeviceStats(event);
+    });
+    
+    eventSource.addEventListener('heartbeat', (e) => {
+        console.log('💓 Heartbeat recibido');
+    });
+    
+    eventSource.onerror = (error) => {
+        console.error('❌ Error en SSE:', error);
+        
+        if (statusBadge) {
+            statusBadge.classList.remove('bg-success', 'bg-warning');
+            statusBadge.classList.add('bg-danger');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
+        }
+        
+        if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('🔄 Reconectando en 5 segundos...');
+            setTimeout(connectRealtimeStream, 5000);
+        }
+    };
 }
+
+function updateDeviceStats(event) {
+    const deviceId = event.device_id || event.source_device_id;
+    if (!deviceId) return;
+    
+    // Inicializar si no existe
+    if (!deviceStats[deviceId]) {
+        deviceStats[deviceId] = {
+            total_events: 0,
+            access_granted: 0,
+            access_denied: 0
+        };
+    }
+    
+    // Incrementar total
+    deviceStats[deviceId].total_events++;
+    
+    // Incrementar según tipo
+    if (event.badge_class === 'success') {
+        deviceStats[deviceId].access_granted++;
+    } else if (event.badge_class === 'danger') {
+        deviceStats[deviceId].access_denied++;
+    }
+    
+    // Actualizar UI del dispositivo
+    updateDeviceCard(deviceId);
+    
+    // Actualizar totales generales
+    updateGlobalStats();
+}
+
+function updateDeviceCard(deviceId) {
+    const stats = deviceStats[deviceId];
+    if (!stats) {
+        console.warn('No stats found for device:', deviceId);
+        return;
+    }
+    
+    // Buscar la card del dispositivo por data-device-id
+    const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
+    if (!card) {
+        console.warn('Card not found for device:', deviceId);
+        return;
+    }
+    
+    // Actualizar los números
+    const statDivs = card.querySelectorAll('.device-stat strong');
+    if (statDivs[0]) statDivs[0].textContent = stats.total_events;
+    if (statDivs[1]) statDivs[1].textContent = stats.access_granted;
+    if (statDivs[2]) statDivs[2].textContent = stats.access_denied;
+    
+    console.log(`✅ Updated card for device ${deviceId}:`, stats);
+    
+    // Animación de actualización
+    card.style.transition = 'transform 0.2s';
+    card.style.transform = 'scale(1.02)';
+    setTimeout(() => {
+        card.style.transform = 'scale(1)';
+    }, 200);
+}
+
+function updateGlobalStats() {
+    // Calcular totales
+    let totalEvents = 0;
+    let totalGranted = 0;
+    let totalDenied = 0;
+    
+    for (const deviceId in deviceStats) {
+        totalEvents += deviceStats[deviceId].total_events;
+        totalGranted += deviceStats[deviceId].access_granted;
+        totalDenied += deviceStats[deviceId].access_denied;
+    }
+    
+    // Actualizar cards de estadísticas globales
+    const statCards = document.querySelectorAll('.stat-card h2');
+    if (statCards[1]) statCards[1].textContent = totalEvents;
+    if (statCards[2]) statCards[2].textContent = totalGranted;
+    if (statCards[3]) statCards[3].textContent = totalDenied;
+}
+
 
 // ==================== CLEAR DASHBOARD CACHE ====================
 

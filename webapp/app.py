@@ -19,8 +19,18 @@ import pytz
 
 from webapp.models import db, User, init_db
 from webapp.realtime_monitor import RealtimeMonitor
+from webapp.realtime_sse import RealtimeSSE, create_sse_response
+from webapp.cache_manager import init_cache, cache_manager, cached
+from webapp.monitoring import init_monitoring, monitor_error, monitor_event
+from webapp.pagination import paginate_list
 from src.api.device_monitor import DeviceMonitor, EVENT_CODES
 from src.utils.config import Config
+
+try:
+    from flask_compress import Compress
+    COMPRESS_AVAILABLE = True
+except ImportError:
+    COMPRESS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -139,11 +149,41 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-i
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///biostar_users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Cache configuration
+app.config['REDIS_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+app.config['CACHE_ENABLED'] = os.environ.get('CACHE_ENABLED', 'true').lower() == 'true'
+
+# Initialize compression for better performance
+if COMPRESS_AVAILABLE:
+    compress = Compress()
+    compress.init_app(app)
+    app.config['COMPRESS_MIMETYPES'] = [
+        'text/html', 'text/css', 'text/xml', 'application/json',
+        'application/javascript', 'text/javascript'
+    ]
+    app.config['COMPRESS_LEVEL'] = 6
+    app.config['COMPRESS_MIN_SIZE'] = 500
+    logger.info("✓ Compresión HTTP habilitada")
+
 # Initialize SocketIO for real-time updates
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Initialize database
 init_db(app)
+
+# Initialize cache system
+try:
+    init_cache(app, redis_url=app.config['REDIS_URL'], enabled=app.config['CACHE_ENABLED'])
+    logger.info("✓ Sistema de caché inicializado")
+except Exception as e:
+    logger.warning(f"⚠ No se pudo inicializar caché: {e}")
+
+# Initialize monitoring and health checks
+try:
+    init_monitoring(app)
+    logger.info("✓ Sistema de monitoreo inicializado")
+except Exception as e:
+    logger.warning(f"⚠ No se pudo inicializar monitoreo: {e}")
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -788,6 +828,51 @@ def user_delete(user_id):
     return jsonify({'success': True, 'message': f'Usuario {user.username} eliminado'})
 
 
+# ==================== REALTIME SSE ROUTES ====================
+
+@app.route('/stream/device/<int:device_id>')
+@login_required
+def stream_device_events(device_id):
+    """
+    Stream SSE de eventos en tiempo real para un dispositivo específico.
+    Más eficiente que WebSockets para streaming unidireccional.
+    """
+    monitor = get_monitor()
+    if not monitor:
+        return jsonify({'error': 'Error al conectar con BioStar'}), 500
+    
+    # Crear gestor SSE
+    sse = RealtimeSSE(monitor)
+    
+    # Intervalo de polling (2 segundos por defecto)
+    interval = request.args.get('interval', 2, type=int)
+    interval = max(1, min(interval, 10))  # Entre 1 y 10 segundos
+    
+    # Retornar stream SSE
+    return create_sse_response(sse.stream_device_events(device_id, interval))
+
+
+@app.route('/stream/all-devices')
+@login_required
+def stream_all_devices():
+    """
+    Stream SSE de eventos en tiempo real para todos los dispositivos.
+    """
+    monitor = get_monitor()
+    if not monitor:
+        return jsonify({'error': 'Error al conectar con BioStar'}), 500
+    
+    # Crear gestor SSE
+    sse = RealtimeSSE(monitor)
+    
+    # Intervalo de polling (3 segundos por defecto para todos)
+    interval = request.args.get('interval', 3, type=int)
+    interval = max(2, min(interval, 15))  # Entre 2 y 15 segundos
+    
+    # Retornar stream SSE
+    return create_sse_response(sse.stream_all_devices(interval))
+
+
 # ==================== API ROUTES ====================
 
 @app.route('/api/devices')
@@ -819,6 +904,76 @@ def api_device_summary(device_id):
         summary['last_event'] = summary['last_event'].strftime('%H:%M:%S')
     
     return jsonify(summary)
+
+
+@app.route('/api/device/<int:device_id>/events')
+@login_required
+def api_device_events(device_id):
+    """API endpoint to get device events with pagination."""
+    try:
+        monitor = get_monitor()
+        if not monitor:
+            return jsonify({'error': 'Error al conectar con BioStar'}), 500
+        
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        per_page = min(per_page, 200)  # Max 200 items per page
+        
+        # Get events and filter by time
+        events = monitor.get_device_events_today(device_id)
+        events = filter_events_by_time(events)
+        
+        # Convert datetime to local time
+        for event in events:
+            if event.get('datetime'):
+                local_time = utc_to_local(event['datetime'])
+                event['datetime'] = local_time.isoformat() if local_time else None
+        
+        # Paginate
+        paginated = paginate_list(events, page=page, per_page=per_page)
+        
+        return jsonify(paginated)
+    
+    except Exception as e:
+        monitor_error('api_device_events')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cache/stats')
+@login_required
+def api_cache_stats():
+    """API endpoint to get cache statistics."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        cache_mgr = app.extensions.get('cache_manager')
+        if cache_mgr:
+            stats = cache_mgr.get_stats()
+            return jsonify(stats)
+        else:
+            return jsonify({'error': 'Cache no disponible'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+@login_required
+def api_cache_clear():
+    """API endpoint to clear cache (admin only)."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        cache_mgr = app.extensions.get('cache_manager')
+        if cache_mgr:
+            cache_mgr.clear_all()
+            return jsonify({'success': True, 'message': 'Cache limpiado'})
+        else:
+            return jsonify({'error': 'Cache no disponible'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

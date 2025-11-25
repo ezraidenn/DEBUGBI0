@@ -60,21 +60,13 @@
     </div>
 </div>
 
-<!-- Action Buttons -->
-<div class="action-buttons-container mb-3">
-    <button class="btn btn-realtime" id="realtimeBtn" onclick="toggleRealtime()">
-        <span class="realtime-indicator" id="realtimeIndicator"></span>
-        <i class="bi bi-broadcast"></i>
-        <span id="realtimeBtnText">Activar Tiempo Real</span>
-    </button>
-    <button class="btn btn-refresh" onclick="location.reload()">
-        <i class="bi bi-arrow-clockwise"></i> Actualizar
-    </button>
-    <button class="btn btn-export" onclick="exportDebug()">
-        <i class="bi bi-download"></i> Exportar
-    </button>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-back">
-        <i class="bi bi-arrow-left"></i> Volver
+<!-- Realtime Status Badge -->
+<div class="mb-3">
+    <span class="badge bg-success" id="realtimeStatus" style="font-size: 14px; padding: 8px 12px;">
+        <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real Activo
+    </span>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-secondary ms-2">
+        <i class="bi bi-arrow-left"></i> Volver al Dashboard
     </a>
 </div>
 
@@ -396,51 +388,252 @@ function addEventToTable(eventData) {
     tbody.insertBefore(row, tbody.firstChild);
 }
 
-function showNotification(message, type) {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
-    notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+
+// ==================== SSE REALTIME (AUTO-START) ====================
+
+let eventSource = null;
+let isRealtimeActive = false;
+let eventCount = 0;
+
+function startRealtimeSSE() {
+    if (eventSource) {
+        console.log('⚠️ SSE ya está activo');
+        return;
+    }
     
-    document.body.appendChild(notification);
+    const deviceId = {{ device.id }};
+    console.log(`🚀 Iniciando SSE para dispositivo ${deviceId}`);
     
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 5000);
+    // Crear conexión SSE
+    eventSource = new EventSource(`/stream/device/${deviceId}?interval=2`);
+    isRealtimeActive = true;
+    
+    // Update UI
+    updateRealtimeUI(true);
+    
+    // Evento: Conexión establecida
+    eventSource.addEventListener('connection', function(e) {
+        const data = JSON.parse(e.data);
+        console.log('✅ Conectado a SSE:', data);
+    });
+    
+    // Evento: Nuevo evento
+    eventSource.addEventListener('new_event', function(e) {
+        const event = JSON.parse(e.data);
+        console.log('📥 Nuevo evento:', event);
+        
+        // Agregar evento a la tabla
+        addEventToTable(event);
+        
+        // Actualizar contadores
+        updateCounters(event);
+        
+        eventCount++;
+    });
+    
+    // Evento: Heartbeat
+    eventSource.addEventListener('heartbeat', function(e) {
+        console.log('💓 Heartbeat recibido');
+    });
+    
+    // Evento: Error
+    eventSource.addEventListener('error', function(e) {
+        const data = e.data ? JSON.parse(e.data) : {};
+        console.error('❌ Error SSE:', data);
+    });
+    
+    // Error de conexión
+    eventSource.onerror = function(e) {
+        console.error('❌ Error de conexión SSE:', e);
+        
+        if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('🔌 Conexión cerrada, reintentando en 5s...');
+            stopRealtimeSSE();
+            
+            setTimeout(() => {
+                if (!isRealtimeActive) {
+                    startRealtimeSSE();
+                }
+            }, 5000);
+        }
+    };
 }
 
-function playNotificationSound() {
-    // Simple beep using Web Audio API
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (e) {
-        console.log('No se pudo reproducir sonido');
+function stopRealtimeSSE() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+        isRealtimeActive = false;
+        updateRealtimeUI(false);
+        console.log('🛑 SSE detenido');
+    }
+}
+
+function toggleRealtime() {
+    if (isRealtimeActive) {
+        stopRealtimeSSE();
+        showNotification('info', '<i class="bi bi-pause-circle"></i> Monitoreo en tiempo real pausado');
+    } else {
+        startRealtimeSSE();
+    }
+}
+
+function updateRealtimeUI(active) {
+    const btn = document.getElementById('realtimeBtn');
+    const indicator = document.getElementById('realtimeIndicator');
+    const btnText = document.getElementById('realtimeBtnText');
+    const statusBadge = document.getElementById('realtimeStatus');
+    const eventCounter = document.getElementById('eventCounter');
+    
+    if (active) {
+        indicator.classList.add('connected');
+        btnText.textContent = 'Tiempo Real Activo';
+        btn.classList.add('active');
+        if (statusBadge) statusBadge.style.display = 'block';
+    } else {
+        indicator.classList.remove('connected');
+        btnText.textContent = 'Activar Tiempo Real';
+        btn.classList.remove('active');
+        if (statusBadge) statusBadge.style.display = 'none';
+    }
+    
+    if (eventCounter) {
+        eventCounter.textContent = `${eventCount} eventos recibidos`;
+    }
+}
+
+function addEventToTable(event) {
+    // Buscar tbody - la tabla está dentro de .table-responsive
+    const tbody = document.querySelector('.table-responsive tbody');
+    if (!tbody) {
+        console.error('⚠️ No se encontró tbody de la tabla de eventos');
+        console.log('Tablas disponibles:', document.querySelectorAll('tbody'));
+        return;
+    }
+    
+    // Verificar si el evento ya existe (evitar duplicados)
+    const existingRows = tbody.querySelectorAll('tr');
+    for (let row of existingRows) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 3) {
+            const existingCode = cells[2].textContent.trim();
+            const existingTime = cells[0].textContent.trim();
+            const newCode = event.event_code || '';
+            const newTime = event.datetime_full ? new Date(event.datetime_full).toLocaleString('es-MX').replace(',', '') : '';
+            
+            if (existingCode === newCode && existingTime.includes(newTime.split(' ')[1])) {
+                console.log('⏭️ Evento ya existe, saltando:', event.id);
+                return;
+            }
+        }
+    }
+    
+    console.log('➕ Agregando evento a tabla:', event);
+    
+    // Crear nueva fila
+    const row = document.createElement('tr');
+    row.className = 'new-event-highlight';
+    
+    // Formatear fecha/hora en formato YYYY-MM-DD HH:MM:SS
+    let dateTimeStr = '-';
+    if (event.datetime_full) {
+        const dt = new Date(event.datetime_full);
+        const year = dt.getFullYear();
+        const month = String(dt.getMonth() + 1).padStart(2, '0');
+        const day = String(dt.getDate()).padStart(2, '0');
+        const hours = String(dt.getHours()).padStart(2, '0');
+        const minutes = String(dt.getMinutes()).padStart(2, '0');
+        const seconds = String(dt.getSeconds()).padStart(2, '0');
+        dateTimeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    } else if (event.datetime) {
+        dateTimeStr = event.datetime;
+    }
+    
+    // Usar badge_class y event_label del servidor (misma lógica que la tabla original)
+    const badgeClass = event.badge_class || 'secondary';
+    const eventLabel = event.event_label || event.event_type || 'Otro Evento';
+    const eventBadge = `<span class="badge bg-${badgeClass}">${eventLabel}</span>`;
+    
+    // Formatear usuario (nombre + ID)
+    let userHtml = '<span class="text-muted">-</span>';
+    if (event.user && event.user !== 'Desconocido') {
+        userHtml = `<strong>${event.user}</strong>`;
+        if (event.user_id) {
+            userHtml += `<br><small class="text-muted">ID: ${event.user_id}</small>`;
+        }
+    }
+    
+    // Formatear código
+    let codeHtml = event.event_code ? `<code>${event.event_code}</code>` : '-';
+    
+    // Formatear puerta
+    let doorHtml = event.door || '-';
+    
+    // Orden de columnas: Fecha/Hora | Tipo de Evento | Código | Usuario | Puerta
+    row.innerHTML = `
+        <td>${dateTimeStr}</td>
+        <td>${eventBadge}</td>
+        <td>${codeHtml}</td>
+        <td>${userHtml}</td>
+        <td>${doorHtml}</td>
+    `;
+    
+    // Insertar al inicio de la tabla
+    tbody.insertBefore(row, tbody.firstChild);
+    console.log('✅ Evento agregado a la tabla');
+    
+    // Limitar a 100 filas
+    while (tbody.children.length > 100) {
+        tbody.removeChild(tbody.lastChild);
+    }
+    
+    // Remover highlight después de 3 segundos
+    setTimeout(() => {
+        row.classList.remove('new-event-highlight');
+    }, 3000);
+    
+    // Actualizar contador de eventos recibidos
+    eventCount++;
+    updateRealtimeUI(true);
+}
+
+function updateCounters(event) {
+    // Actualizar contador total
+    const totalCard = document.querySelector('.stat-card h2');
+    if (totalCard) {
+        const current = parseInt(totalCard.textContent) || 0;
+        totalCard.textContent = current + 1;
+    }
+    
+    // Actualizar contador de concedidos/denegados
+    if (event.is_granted) {
+        const grantedCard = document.querySelectorAll('.stat-card.success h2')[0];
+        if (grantedCard) {
+            const current = parseInt(grantedCard.textContent) || 0;
+            grantedCard.textContent = current + 1;
+        }
+    } else if (event.is_denied) {
+        const deniedCard = document.querySelectorAll('.stat-card.danger h2')[0];
+        if (deniedCard) {
+            const current = parseInt(deniedCard.textContent) || 0;
+            deniedCard.textContent = current + 1;
+        }
     }
 }
 
 // Auto-start realtime on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Página cargada - Listo para tiempo real');
-    console.log('💡 Click en "Activar Tiempo Real" para monitoreo instantáneo');
+    console.log('🚀 Página cargada - Iniciando tiempo real automático');
+    
+    // Iniciar SSE automáticamente
+    setTimeout(() => {
+        startRealtimeSSE();
+    }, 500);
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    stopRealtimeSSE();
 });
 
 // ==================== CLEAR CACHE AND RELOAD ====================
@@ -469,8 +662,6 @@ function clearCacheAndReload() {
             btn.classList.remove('btn-clear-cache');
             btn.classList.add('btn-success');
             
-            // Show notification
-            showNotification('success', data.message);
             
             // Reload page after 1 second
             setTimeout(() => {
@@ -481,8 +672,6 @@ function clearCacheAndReload() {
             btn.innerHTML = '<i class="bi bi-x-circle"></i> Error';
             btn.classList.remove('btn-clear-cache');
             btn.classList.add('btn-danger');
-            
-            showNotification('error', data.error || 'Error al limpiar cache');
             
             // Restore button after 2 seconds
             setTimeout(() => {

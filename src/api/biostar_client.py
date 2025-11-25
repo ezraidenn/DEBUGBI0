@@ -78,6 +78,35 @@ class BioStarAPIClient:
             logger.error(f"Error de conexión al autenticar: {str(e)}")
             return False
     
+    def get_event_types(self) -> List[Dict]:
+        """
+        Obtiene la lista de todos los tipos de evento configurados.
+        
+        Returns:
+            Lista de tipos de evento con códigos y nombres
+        """
+        if not self.token:
+            logger.error("No hay token de sesión. Ejecuta login() primero.")
+            return []
+        
+        url = f"{self.host}/api/event_types"
+        headers = {"bs-session-id": self.token}
+        
+        try:
+            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                event_types = data.get('EventTypeCollection', {}).get('rows', [])
+                logger.info(f"✓ {len(event_types)} tipos de evento encontrados")
+                return event_types
+            else:
+                logger.error(f"✗ Error al obtener tipos de evento: {response.status_code}")
+                return []
+        except Exception as e:
+            logger.error(f"✗ Error: {str(e)}")
+            return []
+    
     def get_all_devices(self) -> List[Dict]:
         """
         Obtiene la lista de todos los dispositivos/lectores configurados.
