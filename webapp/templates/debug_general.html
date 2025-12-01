@@ -3,32 +3,31 @@
 {% block title %}Debug General - BioStar{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-bug"></i> Debug General - Todos los Checadores</h2>
-    <div>
-        <button class="btn btn-success" onclick="exportAll()">
-            <i class="bi bi-file-earmark-excel"></i> Exportar Todo
+<div class="page-header">
+    <h2><i class="bi bi-bug"></i> Debug General</h2>
+    <div class="page-header-actions">
+        <button class="btn btn-success btn-sm" onclick="exportAll()">
+            <i class="bi bi-file-earmark-excel"></i> <span class="hide-mobile">Exportar</span>
         </button>
-        <button class="btn btn-primary" onclick="location.reload()">
-            <i class="bi bi-arrow-clockwise"></i> Actualizar
+        <button class="btn btn-primary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> <span class="hide-mobile">Actualizar</span>
         </button>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<!-- Desktop: Tabla -->
+<div class="card hide-mobile">
+    <div class="card-body p-0 p-md-3">
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover mb-0">
                 <thead>
                     <tr>
                         <th>Checador</th>
                         <th>Ubicación</th>
-                        <th class="text-center">Total Eventos</th>
-                        <th class="text-center">Accesos Concedidos</th>
-                        <th class="text-center">Accesos Denegados</th>
-                        <th class="text-center">Usuarios Únicos</th>
-                        <th class="text-center">Primer Evento</th>
-                        <th class="text-center">Último Evento</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">Ok</th>
+                        <th class="text-center">No</th>
+                        <th class="text-center">Usuarios</th>
                         <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -45,13 +44,7 @@
                             </strong>
                             <br><small class="text-muted">ID: {{ item.device.id }}</small>
                         </td>
-                        <td>
-                            {% if item.device.location %}
-                                <i class="bi bi-geo-alt"></i> {{ item.device.location }}
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
+                        <td>{{ item.device.location or '-' }}</td>
                         <td class="text-center">
                             <span class="badge bg-primary">{{ item.summary.total_events }}</span>
                         </td>
@@ -61,32 +54,12 @@
                         <td class="text-center">
                             <span class="badge bg-danger">{{ item.summary.access_denied }}</span>
                         </td>
-                        <td class="text-center">
-                            {{ item.summary.unique_users }}
-                        </td>
-                        <td class="text-center">
-                            {% if item.summary.first_event %}
-                                <small>{{ item.summary.first_event.strftime('%H:%M:%S') }}</small>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if item.summary.last_event %}
-                                <small>{{ item.summary.last_event.strftime('%H:%M:%S') }}</small>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
+                        <td class="text-center">{{ item.summary.unique_users }}</td>
                         <td class="text-center">
                             <a href="{{ url_for('debug_device', device_id=item.device.id) }}" 
-                               class="btn btn-sm btn-primary" title="Ver detalles">
-                                <i class="bi bi-eye"></i>
+                               class="btn btn-sm btn-primary" title="Ver">
+                                <i class="bi bi-eye"></i> Ver
                             </a>
-                            <button onclick="exportDevice({{ item.device.id }})" 
-                                    class="btn btn-sm btn-success" title="Exportar">
-                                <i class="bi bi-download"></i>
-                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -97,10 +70,72 @@
                         <td class="text-center"><strong>{{ summaries|sum(attribute='summary.total_events') }}</strong></td>
                         <td class="text-center"><strong>{{ summaries|sum(attribute='summary.access_granted') }}</strong></td>
                         <td class="text-center"><strong>{{ summaries|sum(attribute='summary.access_denied') }}</strong></td>
-                        <td colspan="4"></td>
+                        <td colspan="2"></td>
                     </tr>
                 </tfoot>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile: Lista de Cards -->
+<div class="device-summary-list hide-desktop">
+    {% for item in summaries %}
+    <div class="device-summary-card">
+        <div class="device-summary-header">
+            <div class="device-summary-name">
+                <strong>
+                    {% if item.device.alias %}
+                        {{ item.device.alias }}
+                    {% else %}
+                        {{ item.device.name }}
+                    {% endif %}
+                </strong>
+                <small class="text-muted">ID: {{ item.device.id }}</small>
+            </div>
+            <a href="{{ url_for('debug_device', device_id=item.device.id) }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-eye"></i>
+            </a>
+        </div>
+        <div class="device-summary-stats">
+            <div class="stat-item">
+                <span class="badge bg-primary">{{ item.summary.total_events }}</span>
+                <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="badge bg-success">{{ item.summary.access_granted }}</span>
+                <span class="stat-label">Ok</span>
+            </div>
+            <div class="stat-item">
+                <span class="badge bg-danger">{{ item.summary.access_denied }}</span>
+                <span class="stat-label">No</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ item.summary.unique_users }}</span>
+                <span class="stat-label">Usuarios</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <!-- Totales en móvil -->
+    <div class="device-summary-card total-card">
+        <div class="device-summary-header">
+            <strong>TOTALES</strong>
+        </div>
+        <div class="device-summary-stats">
+            <div class="stat-item">
+                <span class="badge bg-primary">{{ summaries|sum(attribute='summary.total_events') }}</span>
+                <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="badge bg-success">{{ summaries|sum(attribute='summary.access_granted') }}</span>
+                <span class="stat-label">Ok</span>
+            </div>
+            <div class="stat-item">
+                <span class="badge bg-danger">{{ summaries|sum(attribute='summary.access_denied') }}</span>
+                <span class="stat-label">No</span>
+            </div>
         </div>
     </div>
 </div>

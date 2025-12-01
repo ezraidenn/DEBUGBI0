@@ -314,7 +314,15 @@ class DeviceMonitor:
         logger.info(f"Obteniendo eventos del dispositivo {device_id}...")
         logger.info(f"  Rango: {start_date.strftime('%Y-%m-%d %H:%M')} - {end_date.strftime('%Y-%m-%d %H:%M')}")
         
-        return self.client.search_events(conditions, limit=limit)
+        events = self.client.search_events(conditions, limit=limit)
+        
+        # DEBUG: Ver estructura del primer evento
+        if events and len(events) > 0:
+            sample = events[0]
+            logger.warning(f"[ESTRUCTURA EVENTO RAW] Keys: {list(sample.keys())}")
+            logger.warning(f"[ESTRUCTURA user_id] Valor: {sample.get('user_id')} | Tipo: {type(sample.get('user_id')).__name__}")
+        
+        return events
     
     def get_device_events_by_type(self, device_id: int, event_codes: List[str],
                                   start_date: datetime, end_date: datetime,
@@ -369,6 +377,15 @@ class DeviceMonitor:
         processed = []
         
         for event in events:
+            # Extraer user_id de forma robusta
+            user_data = event.get('user_id')
+            if isinstance(user_data, dict):
+                user_id = user_data.get('user_id') or user_data.get('id')
+                user_name = user_data.get('name', '')
+            else:
+                user_id = user_data
+                user_name = ''
+            
             record = {
                 'id': event.get('id'),
                 'datetime': event.get('datetime'),
@@ -377,8 +394,8 @@ class DeviceMonitor:
                 'device_name': event.get('device_id', {}).get('name'),
                 'event_code': event.get('event_type_id', {}).get('code'),
                 'event_type': event.get('event_type_id', {}).get('name', ''),
-                'user_id': event.get('user_id', {}).get('user_id'),
-                'user_name': event.get('user_id', {}).get('name'),
+                'user_id': user_id,
+                'user_name': user_name,
                 'door_id': event.get('door_id', [{}])[0].get('id') if event.get('door_id') else None,
                 'door_name': event.get('door_id', [{}])[0].get('name') if event.get('door_id') else None,
             }
@@ -486,6 +503,12 @@ class DeviceMonitor:
         """
         events = self.get_device_events_today(device_id)
         
+        # Debug: ver estructura de un evento RAW
+        if events and len(events) > 0:
+            sample = events[0]
+            user_raw = sample.get('user_id')
+            logger.warning(f"[DEBUG-RAW] Device {device_id}: user_id RAW = {user_raw} (tipo: {type(user_raw).__name__})")
+        
         # Filtrar eventos por horario (5:30 AM - 11:59 PM hora local)
         events = self._filter_events_by_time(events)
         
@@ -501,19 +524,39 @@ class DeviceMonitor:
                 'last_event': None
             }
         
-        # Contar accesos concedidos (todos los códigos de ACCESS_GRANTED)
-        access_granted = 0
-        access_denied = 0
+        # Filtrar solo accesos concedidos
+        granted_df = df[df['event_code'].isin(EVENT_CODES['ACCESS_GRANTED'])] if 'event_code' in df.columns else df
         
-        if 'event_code' in df.columns:
-            access_granted = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_GRANTED'])])
-            access_denied = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_DENIED'])])
+        access_granted = len(granted_df)
+        access_denied = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_DENIED'])]) if 'event_code' in df.columns else 0
+        
+        # Calcular usuarios únicos SOLO de accesos concedidos
+        unique_users = 0
+        if 'user_id' in granted_df.columns and not granted_df.empty:
+            # Debug: ver los primeros user_ids
+            raw_user_ids = granted_df['user_id'].tolist()
+            if raw_user_ids:
+                logger.warning(f"[DEBUG-DF] Primeros 5 user_ids del DataFrame: {raw_user_ids[:5]}")
+                logger.warning(f"[DEBUG-DF] Tipos: {[type(x).__name__ for x in raw_user_ids[:5]]}")
+            
+            valid_user_ids = set()
+            for uid in raw_user_ids:
+                # Si es diccionario, extraer el user_id
+                if isinstance(uid, dict):
+                    uid = uid.get('user_id') or uid.get('id')
+                # Convertir a string y validar
+                uid_str = str(uid) if uid is not None else ''
+                if uid_str and uid_str not in ['', 'None', 'nan', 'NaN', '<NA>']:
+                    valid_user_ids.add(uid_str)
+            
+            logger.warning(f"[DEBUG-DF] Total eventos: {len(raw_user_ids)}, Usuarios únicos: {len(valid_user_ids)}")
+            unique_users = len(valid_user_ids)
         
         return {
             'total_events': len(df),
             'access_granted': access_granted,
             'access_denied': access_denied,
-            'unique_users': df['user_id'].nunique() if 'user_id' in df.columns else 0,
-            'first_event': df['datetime'].min() if 'datetime' in df.columns else None,
-            'last_event': df['datetime'].max() if 'datetime' in df.columns else None
+            'unique_users': unique_users,
+            'first_event': granted_df['datetime'].min() if 'datetime' in granted_df.columns and not granted_df.empty else None,
+            'last_event': granted_df['datetime'].max() if 'datetime' in granted_df.columns and not granted_df.empty else None
         }

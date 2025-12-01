@@ -30,22 +30,25 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-people"></i> Gestión de Usuarios</h2>
-    <a href="{{ url_for('user_create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Nuevo Usuario
-    </a>
+<div class="page-header">
+    <h2><i class="bi bi-people"></i> Usuarios</h2>
+    <div class="page-header-actions">
+        <a href="{{ url_for('user_create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> <span class="hide-mobile">Nuevo</span>
+        </a>
+    </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<!-- Desktop: Tabla -->
+<div class="card hide-mobile">
+    <div class="card-body p-0 p-md-3">
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover users-table mb-0">
                 <thead>
                     <tr>
                         <th>Usuario</th>
                         <th>Email</th>
-                        <th>Nombre Completo</th>
+                        <th>Nombre</th>
                         <th>Rol</th>
                         <th>Estado</th>
                         <th>Último Acceso</th>
@@ -65,27 +68,21 @@
                         <td>{{ user.full_name or '-' }}</td>
                         <td>
                             {% if user.is_admin %}
-                                <span class="badge bg-danger">
-                                    <i class="bi bi-shield-check"></i> Administrador
-                                </span>
+                                <span class="badge bg-danger">Admin</span>
                             {% else %}
-                                <span class="badge bg-secondary">Usuario</span>
+                                <span class="badge bg-secondary">User</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if user.is_active %}
-                                <span class="badge bg-success">
-                                    <i class="bi bi-check-circle"></i> Activo
-                                </span>
+                                <span class="badge bg-success">Activo</span>
                             {% else %}
-                                <span class="badge bg-secondary">
-                                    <i class="bi bi-x-circle"></i> Inactivo
-                                </span>
+                                <span class="badge bg-secondary">Inactivo</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if user.last_login %}
-                                <small>{{ user.last_login.strftime('%Y-%m-%d %H:%M') }}</small>
+                                <small>{{ user.last_login.strftime('%d/%m/%Y %H:%M') }}</small>
                             {% else %}
                                 <span class="text-muted">Nunca</span>
                             {% endif %}
@@ -108,6 +105,60 @@
             </table>
         </div>
     </div>
+</div>
+
+<!-- Mobile: Lista de Cards -->
+<div class="user-list hide-desktop">
+    {% for user in users %}
+    <div class="user-card">
+        <div class="user-card-header">
+            <div class="user-info">
+                <strong>{{ user.username }}</strong>
+                {% if user.id == current_user.id %}
+                    <span class="badge bg-info" style="font-size: 9px;">Tú</span>
+                {% endif %}
+                <small class="text-muted d-block">{{ user.email }}</small>
+            </div>
+            <div class="user-badges">
+                {% if user.is_admin %}
+                    <span class="badge bg-danger">Admin</span>
+                {% else %}
+                    <span class="badge bg-secondary">User</span>
+                {% endif %}
+                {% if user.is_active %}
+                    <span class="badge bg-success">Activo</span>
+                {% else %}
+                    <span class="badge bg-secondary">Inactivo</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="user-card-body">
+            {% if user.full_name %}
+            <div class="user-detail">
+                <i class="bi bi-person"></i> {{ user.full_name }}
+            </div>
+            {% endif %}
+            <div class="user-detail">
+                <i class="bi bi-clock"></i> 
+                {% if user.last_login %}
+                    {{ user.last_login.strftime('%d/%m %H:%M') }}
+                {% else %}
+                    Nunca
+                {% endif %}
+            </div>
+        </div>
+        <div class="user-card-actions">
+            <a href="{{ url_for('user_edit', user_id=user.id) }}" class="btn btn-sm btn-edit">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% if user.id != current_user.id %}
+            <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" class="btn btn-sm btn-delete">
+                <i class="bi bi-trash"></i> Eliminar
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
 </div>
 
 <script>

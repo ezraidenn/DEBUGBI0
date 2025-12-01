@@ -60,88 +60,115 @@
     </div>
 </div>
 
-<!-- Realtime Status Badge -->
-<div class="mb-3">
-    <span class="badge bg-success" id="realtimeStatus" style="font-size: 14px; padding: 8px 12px;">
-        <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real Activo
+<!-- Realtime Status Badge & Back Button -->
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <span class="badge bg-success" id="realtimeStatus" style="font-size: 12px; padding: 6px 10px;">
+        <i class="bi bi-circle-fill" style="font-size: 6px;"></i> Tiempo Real
     </span>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-secondary ms-2">
-        <i class="bi bi-arrow-left"></i> Volver al Dashboard
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-secondary">
+        <i class="bi bi-arrow-left"></i> <span class="hide-mobile">Volver</span>
     </a>
 </div>
 
-<!-- Summary Cards - Clickeable -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card stat-card stat-card-clickable" onclick="showStatDetails({{ device.id }}, 'total')">
-            <div class="card-body">
-                <h6 class="text-muted">Total Eventos</h6>
-                <h2>{{ summary.total_events }}</h2>
-                <small class="text-muted">Hoy <i class="bi bi-chevron-right"></i></small>
-            </div>
+<!-- Summary Cards -->
+<div class="row mb-3 mb-md-4">
+    <div class="col-6 col-md-3 mb-2">
+        <div class="stat-card success">
+            <h6>Accesos</h6>
+            <h2 id="statTotal">{{ summary.total_events }}</h2>
+            <small>Concedidos hoy</small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card success stat-card-clickable" onclick="showStatDetails({{ device.id }}, 'granted')">
-            <div class="card-body">
-                <h6 class="text-muted">Accesos Concedidos</h6>
-                <h2>{{ summary.access_granted }}</h2>
-                <small class="text-muted">Exitosos <i class="bi bi-chevron-right"></i></small>
-            </div>
+    <div class="col-6 col-md-3 mb-2">
+        <div class="stat-card">
+            <h6>Usuarios</h6>
+            <h2 id="statUsers">{{ summary.unique_users }}</h2>
+            <small>Únicos</small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card danger stat-card-clickable" onclick="showStatDetails({{ device.id }}, 'denied')">
-            <div class="card-body">
-                <h6 class="text-muted">Accesos Denegados</h6>
-                <h2>{{ summary.access_denied }}</h2>
-                <small class="text-muted">Rechazados <i class="bi bi-chevron-right"></i></small>
-            </div>
+    {% if is_checador and pairs_data %}
+    <div class="col-6 col-md-3 mb-2">
+        <div class="stat-card warning" style="cursor: pointer;" onclick="togglePendingList()">
+            <h6>No han salido</h6>
+            <h2 id="statPending">{{ pairs_data.pending|length }}</h2>
+            <small>Ver lista <i class="bi bi-chevron-right"></i></small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card warning stat-card-clickable" onclick="showStatDetails({{ device.id }}, 'users')">
-            <div class="card-body">
-                <h6 class="text-muted">Usuarios Únicos</h6>
-                <h2>{{ summary.unique_users }}</h2>
-                <small class="text-muted">Diferentes <i class="bi bi-chevron-right"></i></small>
-            </div>
+    <div class="col-6 col-md-3 mb-2">
+        <div class="stat-card" style="background: #e8f5e9;">
+            <h6>Completos</h6>
+            <h2 id="statComplete">{{ pairs_data.complete|length }}</h2>
+            <small>Entrada + Salida</small>
         </div>
     </div>
+    {% endif %}
 </div>
 
 {% if summary.first_event %}
-<div class="alert alert-info">
+<div class="alert alert-info mb-3">
     <i class="bi bi-clock"></i> 
-    <strong>Primer evento:</strong> {{ summary.first_event.strftime('%H:%M:%S') }} | 
-    <strong>Último evento:</strong> {{ summary.last_event.strftime('%H:%M:%S') }}
+    <strong>Primer acceso:</strong> {{ summary.first_event.strftime('%H:%M:%S') }} 
+    <span class="hide-mobile">|</span>
+    <br class="hide-desktop">
+    <strong>Último:</strong> {{ summary.last_event.strftime('%H:%M:%S') }}
 </div>
 {% endif %}
 
-<!-- Events Table -->
+<!-- Pending Users (No han salido) - Solo para Checadores -->
+{% if is_checador and pairs_data and pairs_data.pending %}
+<div class="card mb-3" id="pendingCard" style="display: none; border-left: 4px solid #ff9800;">
+    <div class="card-header bg-warning bg-opacity-25">
+        <h5 class="mb-0">
+            <i class="bi bi-exclamation-triangle"></i> 
+            Usuarios que NO han salido ({{ pairs_data.pending|length }})
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="pending-list">
+            {% for user in pairs_data.pending %}
+            <div class="pending-item">
+                <div class="pending-user">
+                    <i class="bi bi-person-fill"></i>
+                    <strong>{{ user.user_name }}</strong>
+                    <small class="text-muted">#{{ user.user_id }}</small>
+                </div>
+                <div class="pending-time">
+                    <i class="bi bi-box-arrow-in-right text-success"></i>
+                    Entrada: {{ user.first_event.strftime('%H:%M:%S') if user.first_event else '-' }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Events Section -->
 <div class="card">
     <div class="card-header">
         <h5 class="mb-0"><i class="bi bi-list-ul"></i> Eventos del Día</h5>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0 p-md-3">
         {% if events %}
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
+        
+        <!-- Desktop: Tabla normal -->
+        <div class="table-responsive hide-mobile">
+            <table class="table table-striped table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Fecha/Hora</th>
-                        <th>Tipo de Evento</th>
+                        <th>Hora</th>
+                        <th>Tipo</th>
                         <th>Código</th>
                         <th>Usuario</th>
                         <th>Puerta</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="eventsTableBody">
                     {% for event in events %}
                     <tr>
                         <td>
                             {% if event.datetime %}
-                                {{ event.datetime.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {{ event.datetime.strftime('%H:%M:%S') }}
                             {% else %}
                                 -
                             {% endif %}
@@ -159,27 +186,73 @@
                                 <span class="text-muted">-</span>
                             {% endif %}
                         </td>
-                        <td>
-                            {% if event.door_name %}
-                                {{ event.door_name }}
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
+                        <td>{{ event.door_name or '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        
+        <!-- Mobile: Lista de Cards -->
+        <div class="event-list hide-desktop" id="eventsListMobile">
+            {% for event in events %}
+            {% set badge_class, event_label = classify_event(event.event_code) %}
+            <div class="event-item {% if badge_class == 'success' %}access-granted{% elif badge_class == 'danger' %}access-denied{% elif badge_class == 'warning' %}door-event{% endif %}">
+                <div class="event-item-header">
+                    <span class="event-time">
+                        <i class="bi bi-clock"></i>
+                        {% if event.datetime %}
+                            {{ event.datetime.strftime('%H:%M:%S') }}
+                        {% else %}
+                            --:--:--
+                        {% endif %}
+                    </span>
+                    <span class="badge bg-{{ badge_class }}">{{ event.event_type or event_label }}</span>
+                </div>
+                {% if event.user_name or event.door_name %}
+                <div class="event-item-body">
+                    {% if event.user_name %}
+                    <div class="event-user">
+                        <i class="bi bi-person-fill"></i>
+                        <span>{{ event.user_name }}</span>
+                        <small>#{{ event.user_id }}</small>
+                    </div>
+                    {% endif %}
+                    {% if event.door_name %}
+                    <div class="event-door">
+                        <i class="bi bi-door-open"></i>
+                        <span>{{ event.door_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
         {% else %}
-        <div class="alert alert-info mb-0">
-            <i class="bi bi-info-circle"></i> No hay eventos registrados hoy para este checador.
+        <div class="alert alert-info mb-0 m-3">
+            <i class="bi bi-info-circle"></i> No hay eventos registrados hoy.
         </div>
         {% endif %}
     </div>
 </div>
 
 <script>
+// ==================== TOGGLE PENDING LIST ====================
+
+function togglePendingList() {
+    const card = document.getElementById('pendingCard');
+    if (card) {
+        if (card.style.display === 'none') {
+            card.style.display = 'block';
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            card.style.display = 'none';
+        }
+    }
+}
+
 // ==================== SSE REALTIME (AUTO-START) ====================
 
 let eventSource = null;

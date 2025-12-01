@@ -19,47 +19,52 @@
 </div>
 {% else %}
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-md-3 animate-scale-in" style="animation-delay: 0.1s;">
+<!-- Statistics Cards - Solo Accesos Concedidos -->
+<div class="row mb-3 mb-md-4">
+    <div class="col-6 col-md-4 animate-scale-in" style="animation-delay: 0.1s;">
         <div class="stat-card">
-            <h6>Total Checadores</h6>
-            <h2>{{ devices|length }}</h2>
-            <small><i class="bi bi-hdd-network-fill"></i> Dispositivos activos</small>
+            <h6>Dispositivos</h6>
+            <h2>{{ total_devices }}</h2>
+            <small><i class="bi bi-hdd-network-fill"></i> Activos</small>
         </div>
     </div>
-    <div class="col-md-3 animate-scale-in" style="animation-delay: 0.2s;">
-        <div class="stat-card">
-            <h6>Eventos Hoy</h6>
-            <h2>{{ devices|sum(attribute='summary.total_events') }}</h2>
-            <small><i class="bi bi-calendar-check-fill"></i> Total registrados</small>
-        </div>
-    </div>
-    <div class="col-md-3 animate-scale-in" style="animation-delay: 0.3s;">
+    <div class="col-6 col-md-4 animate-scale-in" style="animation-delay: 0.2s;">
         <div class="stat-card success">
-            <h6>Accesos Concedidos</h6>
-            <h2>{{ devices|sum(attribute='summary.access_granted') }}</h2>
-            <small><i class="bi bi-check-circle-fill"></i> Exitosos</small>
+            <h6>Accesos Hoy</h6>
+            <h2>{{ total_granted }}</h2>
+            <small><i class="bi bi-check-circle-fill"></i> Concedidos</small>
         </div>
     </div>
-    <div class="col-md-3 animate-scale-in" style="animation-delay: 0.4s;">
-        <div class="stat-card danger">
-            <h6>Accesos Denegados</h6>
-            <h2>{{ devices|sum(attribute='summary.access_denied') }}</h2>
-            <small><i class="bi bi-x-circle-fill"></i> Rechazados</small>
+    <div class="col-12 col-md-4 animate-scale-in" style="animation-delay: 0.3s;">
+        <div class="stat-card">
+            <h6>Usuarios Únicos</h6>
+            <h2>{{ total_users }}</h2>
+            <small><i class="bi bi-people-fill"></i> Hoy</small>
         </div>
     </div>
 </div>
 
-<!-- Devices Grid -->
-<div class="card animate-fade-in" style="animation-delay: 0.5s;">
+<!-- Devices by Type -->
+{% for device_type, devices in devices_by_type.items() %}
+<div class="card animate-fade-in mb-4" style="animation-delay: {{ loop.index * 0.1 }}s;">
     <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-hdd-network-fill"></i> Checadores Activos</h5>
+        <h5 class="mb-0">
+            {% if device_type == 'checador' %}
+            <i class="bi bi-fingerprint"></i> Checadores
+            {% elif device_type == 'puerta' %}
+            <i class="bi bi-door-open"></i> Puertas
+            {% elif device_type == 'facial' %}
+            <i class="bi bi-person-bounding-box"></i> Faciales
+            {% else %}
+            <i class="bi bi-hdd-network"></i> Otros
+            {% endif %}
+            <span class="badge bg-secondary ms-2">{{ devices|length }}</span>
+        </h5>
     </div>
     <div class="card-body">
         <div class="row">
             {% for device in devices %}
-            <div class="col-md-4 mb-4">
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
                 <div class="device-card" data-device-id="{{ device.id }}" onclick="location.href='{{ url_for('debug_device', device_id=device.id) }}'">
                     <div class="device-card-header">
                         <div>
@@ -82,21 +87,17 @@
                     
                     <div class="device-stats">
                         <div class="device-stat">
-                            <strong>{{ device.summary.total_events }}</strong>
-                            <small>Eventos</small>
-                        </div>
-                        <div class="device-stat">
                             <strong style="color: var(--success);">{{ device.summary.access_granted }}</strong>
-                            <small>Concedidos</small>
+                            <small>Accesos</small>
                         </div>
                         <div class="device-stat">
-                            <strong style="color: var(--danger);">{{ device.summary.access_denied }}</strong>
-                            <small>Denegados</small>
+                            <strong>{{ device.summary.unique_users }}</strong>
+                            <small>Usuarios</small>
                         </div>
                     </div>
                     
                     <button class="btn btn-device-debug w-100" onclick="event.stopPropagation(); location.href='{{ url_for('debug_device', device_id=device.id) }}'">
-                        <i class="bi bi-bug-fill"></i> Ver Debug en Tiempo Real
+                        <i class="bi bi-bug-fill"></i> Ver Debug
                     </button>
                 </div>
             </div>
@@ -104,8 +105,9 @@
         </div>
     </div>
 </div>
+{% endfor %}
 
-{% if not devices %}
+{% if not devices_by_type %}
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> No se encontraron checadores.
 </div>
@@ -116,16 +118,23 @@
 {% block extra_js %}
 <script>
 let eventSource = null;
-let deviceStats = {}; // {device_id: {total_events, access_granted, access_denied}}
+let deviceStats = {}; // {device_id: {total_events, access_granted, access_denied, users: Set}}
+let allowedDeviceIds = new Set(); // IDs de dispositivos que el usuario puede ver
 
-// Inicializar stats desde el servidor
+// Inicializar stats desde el servidor (solo dispositivos permitidos)
+{% for device_type, devices in devices_by_type.items() %}
 {% for device in devices %}
-deviceStats[{{ device.id }}] = {
+allowedDeviceIds.add('{{ device.id }}');
+deviceStats['{{ device.id }}'] = {
     total_events: {{ device.summary.total_events }},
     access_granted: {{ device.summary.access_granted }},
-    access_denied: {{ device.summary.access_denied }}
+    access_denied: {{ device.summary.access_denied|default(0) }},
+    users: new Set()  // Para rastrear usuarios únicos
 };
 {% endfor %}
+{% endfor %}
+
+console.log('📋 Dispositivos permitidos:', Array.from(allowedDeviceIds));
 
 // ==================== CONECTAR AUTOMÁTICAMENTE AL CARGAR ====================
 let reconnectAttempts = 0;
@@ -251,24 +260,35 @@ function attemptReconnect() {
 }
 
 function updateDeviceStats(event) {
-    const deviceId = event.device_id || event.source_device_id;
+    const deviceId = String(event.device_id || event.source_device_id);
     if (!deviceId) return;
+    
+    // IMPORTANTE: Solo procesar dispositivos que el usuario puede ver
+    if (!allowedDeviceIds.has(deviceId)) {
+        console.log(`⏭️ Ignorando evento de dispositivo no permitido: ${deviceId}`);
+        return;
+    }
     
     // Inicializar si no existe
     if (!deviceStats[deviceId]) {
         deviceStats[deviceId] = {
             total_events: 0,
             access_granted: 0,
-            access_denied: 0
+            access_denied: 0,
+            users: new Set()
         };
     }
     
     // Incrementar total
     deviceStats[deviceId].total_events++;
     
-    // Incrementar según tipo
+    // Incrementar según tipo y rastrear usuario
     if (event.badge_class === 'success') {
         deviceStats[deviceId].access_granted++;
+        // Agregar usuario al set (para contar únicos)
+        if (event.user_id) {
+            deviceStats[deviceId].users.add(String(event.user_id));
+        }
     } else if (event.badge_class === 'danger') {
         deviceStats[deviceId].access_denied++;
     }
@@ -311,22 +331,26 @@ function updateDeviceCard(deviceId) {
 }
 
 function updateGlobalStats() {
-    // Calcular totales
-    let totalEvents = 0;
+    // Calcular totales SOLO de dispositivos permitidos
     let totalGranted = 0;
-    let totalDenied = 0;
+    let allUsers = new Set();
     
-    for (const deviceId in deviceStats) {
-        totalEvents += deviceStats[deviceId].total_events;
-        totalGranted += deviceStats[deviceId].access_granted;
-        totalDenied += deviceStats[deviceId].access_denied;
+    for (const deviceId of allowedDeviceIds) {
+        const stats = deviceStats[deviceId];
+        if (stats) {
+            totalGranted += stats.access_granted;
+            // Unir usuarios de todos los dispositivos
+            if (stats.users) {
+                stats.users.forEach(u => allUsers.add(u));
+            }
+        }
     }
     
     // Actualizar cards de estadísticas globales
+    // [0] = Dispositivos, [1] = Accesos Hoy, [2] = Usuarios Únicos
     const statCards = document.querySelectorAll('.stat-card h2');
-    if (statCards[1]) statCards[1].textContent = totalEvents;
-    if (statCards[2]) statCards[2].textContent = totalGranted;
-    if (statCards[3]) statCards[3].textContent = totalDenied;
+    if (statCards[1]) statCards[1].textContent = totalGranted;
+    if (statCards[2]) statCards[2].textContent = allUsers.size;
 }
 
 

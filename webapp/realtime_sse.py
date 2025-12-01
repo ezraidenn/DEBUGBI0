@@ -93,19 +93,38 @@ class RealtimeSSE:
             'door_name': event.get('door_id', [{}])[0].get('name') if event.get('door_id') else None,
         }
     
-    def get_new_events(self, device_id: int) -> List[Dict[str, Any]]:
+    def _get_event_code(self, event: Dict[str, Any]) -> str:
+        """Extrae el código de evento de un evento RAW."""
+        event_type = event.get('event_type_id')
+        if isinstance(event_type, dict):
+            return event_type.get('code', '')
+        return str(event_type) if event_type else ''
+    
+    def get_new_events(self, device_id: int, only_granted: bool = True) -> List[Dict[str, Any]]:
         """
         Obtiene eventos nuevos desde el último poll.
         
         Args:
             device_id: ID del dispositivo
+            only_granted: Si True, solo retorna accesos concedidos
             
         Returns:
             Lista de eventos nuevos (procesados)
         """
+        # Códigos de acceso concedido
+        ACCESS_GRANTED_CODES = [
+            '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
+            '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
+            '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
+        ]
+        
         try:
             # Obtener todos los eventos de hoy (RAW de la API)
             raw_events = self.monitor.get_device_events_today(device_id)
+            
+            # Filtrar solo accesos concedidos si se requiere
+            if only_granted:
+                raw_events = [e for e in raw_events if self._get_event_code(e) in ACCESS_GRANTED_CODES]
             
             # Procesar eventos RAW a formato normalizado
             all_events = [self._process_raw_event(e) for e in raw_events]

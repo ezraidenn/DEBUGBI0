@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Dispositivos - BioStar{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2><i class="bi bi-gear"></i> Configuración de Dispositivos</h2>
+</div>
+
+<!-- Dispositivos -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="bi bi-hdd-network"></i> Dispositivos</h5>
+        <div class="d-flex gap-2 flex-wrap">
+            <select id="filterType" class="form-select form-select-sm" style="width: auto;" onchange="filterDevices()">
+                <option value="">Todos los tipos</option>
+                <option value="checador">Checador</option>
+                <option value="puerta">Puerta</option>
+                <option value="facial">Facial</option>
+                <option value="otro">Otro</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <!-- Desktop: Tabla -->
+        <div class="table-responsive hide-mobile">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Ubicación</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="devicesTableBody">
+                    {% for device in devices %}
+                    {% set config = device_configs.get(device.id) %}
+                    <tr data-type="{{ config.device_type if config else '' }}">
+                        <td><code>{{ device.id }}</code></td>
+                        <td>
+                            <strong>{{ config.alias if config and config.alias else device.name }}</strong>
+                            {% if config and config.alias and config.alias != device.name %}
+                            <br><small class="text-muted">{{ device.name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'primary' if (config and config.device_type == 'checador') or not config else 'secondary' if config and config.device_type == 'puerta' else 'info' if config and config.device_type == 'facial' else 'dark' }}">
+                                {{ (config.device_type if config else 'checador')|capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ config.location if config and config.location else device.location or '-' }}</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-primary" 
+                                    data-device-id="{{ device.id }}"
+                                    data-device-name="{{ device.name }}"
+                                    data-device-location="{{ device.location or '' }}"
+                                    data-config-alias="{{ config.alias if config and config.alias else '' }}"
+                                    data-config-location="{{ config.location if config and config.location else '' }}"
+                                    data-config-type="{{ config.device_type if config else 'checador' }}"
+                                    data-config-category="{{ config.category_id if config and config.category_id else '' }}"
+                                    data-config-pairs="{{ 'true' if config and config.supports_pairs else 'false' }}"
+                                    onclick="editDeviceFromButton(this)">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Mobile: Cards -->
+        <div class="device-config-list hide-desktop">
+            {% for device in devices %}
+            {% set config = device_configs.get(device.id) %}
+            <div class="device-config-card" 
+                 data-type="{{ config.device_type if config else 'checador' }}" 
+                 data-category="{{ config.category_id if config and config.category_id else '' }}">
+                <div class="device-config-header">
+                    <div class="device-config-name">
+                        <strong>{{ config.alias if config and config.alias else device.name }}</strong>
+                        <small class="text-muted">ID: {{ device.id }}</small>
+                    </div>
+                    <span class="badge bg-{{ 'primary' if (config and config.device_type == 'checador') or not config else 'secondary' }}">
+                        {{ (config.device_type if config else 'checador')|capitalize }}
+                    </span>
+                </div>
+                <div class="device-config-body">
+                    {% if config and config.category %}
+                    <div class="device-config-detail">
+                        <i class="bi bi-tag"></i>
+                        <span style="color: {{ config.category.color }};">{{ config.category.name }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="device-config-detail">
+                        <i class="bi bi-geo-alt"></i>
+                        <span>{{ config.location if config and config.location else device.location or 'Sin ubicación' }}</span>
+                    </div>
+                    <div class="device-config-detail">
+                        <i class="bi bi-arrow-left-right"></i>
+                        <span>Pares: {% if config and config.supports_pairs %}Sí{% else %}No{% endif %}</span>
+                    </div>
+                </div>
+                <div class="device-config-actions">
+                    <button class="btn btn-sm btn-primary w-100" 
+                            data-device-id="{{ device.id }}"
+                            data-device-name="{{ device.name }}"
+                            data-device-location="{{ device.location or '' }}"
+                            data-config-alias="{{ config.alias if config and config.alias else '' }}"
+                            data-config-location="{{ config.location if config and config.location else '' }}"
+                            data-config-type="{{ config.device_type if config else 'checador' }}"
+                            data-config-category="{{ config.category_id if config and config.category_id else '' }}"
+                            data-config-pairs="{{ 'true' if config and config.supports_pairs else 'false' }}"
+                            onclick="editDeviceFromButton(this)">
+                        <i class="bi bi-pencil"></i> Configurar
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Dispositivo -->
+<div class="modal fade" id="deviceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configurar Dispositivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="deviceForm" onsubmit="saveDevice(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="deviceId" name="device_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">ID BioStar</label>
+                        <input type="text" class="form-control" id="deviceBiostarId" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nombre Original</label>
+                        <input type="text" class="form-control" id="deviceOriginalName" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Alias (nombre personalizado)</label>
+                        <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Ubicación</label>
+                        <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Dispositivo</label>
+                        <select class="form-select" id="deviceType" name="device_type">
+                            <option value="checador">Checador (huella/facial)</option>
+                            <option value="puerta">Puerta (solo salida)</option>
+                            <option value="facial">Facial dedicado</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                        <div class="alert alert-info mt-2 mb-0">
+                            <small>
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Checador:</strong> Aplica lógica de pares (entrada/salida)<br>
+                                <strong>Puerta:</strong> Sin lógica de pares
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Mobile Cards para config */
+.device-config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.device-config-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.device-config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.device-config-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.device-config-name strong {
+    font-size: 15px;
+}
+
+.device-config-body {
+    margin-bottom: 12px;
+}
+
+.device-config-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.device-config-detail i {
+    width: 16px;
+    color: #999;
+}
+
+</style>
+
+<script>
+// Editar dispositivo desde botón con data attributes
+function editDeviceFromButton(button) {
+    const deviceId = button.dataset.deviceId;
+    const deviceName = button.dataset.deviceName;
+    const deviceLocation = button.dataset.deviceLocation;
+    const configAlias = button.dataset.configAlias;
+    const configLocation = button.dataset.configLocation;
+    const configType = button.dataset.configType;
+    
+    document.getElementById('deviceId').value = deviceId;
+    document.getElementById('deviceBiostarId').value = deviceId;
+    document.getElementById('deviceOriginalName').value = deviceName;
+    document.getElementById('deviceAlias').value = configAlias;
+    document.getElementById('deviceLocation').value = configLocation || deviceLocation;
+    document.getElementById('deviceType').value = configType || 'checador';
+    
+    new bootstrap.Modal(document.getElementById('deviceModal')).show();
+}
+
+// Guardar dispositivo
+function saveDevice(event) {
+    event.preventDefault();
+    const form = document.getElementById('deviceForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    
+    // Asegurar que device_id esté presente
+    const deviceId = document.getElementById('deviceId').value;
+    if (!deviceId) {
+        alert('Error: No se encontró el ID del dispositivo');
+        return;
+    }
+    data.device_id = deviceId;
+    
+    console.log('Guardando dispositivo:', data);
+    
+    fetch(`/config/devices/${deviceId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error('Error en la respuesta: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('Resultado:', result);
+        if (result.success) {
+            // Cerrar modal y recargar
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deviceModal'));
+            if (modal) modal.hide();
+            // Esperar un momento antes de recargar para que se vea el cambio
+            setTimeout(() => location.reload(), 500);
+        } else {
+            alert('Error: ' + (result.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al guardar: ' + error.message);
+    });
+}
+
+// Filtrar dispositivos por tipo
+function filterDevices() {
+    const typeFilter = document.getElementById('filterType').value;
+    
+    // Filtrar tabla
+    document.querySelectorAll('#devicesTableBody tr').forEach(row => {
+        const matchType = !typeFilter || row.dataset.type === typeFilter;
+        row.style.display = matchType ? '' : 'none';
+    });
+    
+    // Filtrar cards
+    document.querySelectorAll('.device-config-card').forEach(card => {
+        const matchType = !typeFilter || card.dataset.type === typeFilter;
+        card.style.display = matchType ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

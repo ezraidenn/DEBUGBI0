@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta
 import pytz
 
-from webapp.models import db, User, init_db
+from webapp.models import db, User, DeviceCategory, DeviceConfig, UserDevicePermission, init_db, get_or_create_device_config
 from webapp.realtime_monitor import RealtimeMonitor
 from webapp.realtime_sse import RealtimeSSE, create_sse_response
 from webapp.cache_manager import init_cache, cache_manager, cached
@@ -301,29 +301,102 @@ def logout():
     return redirect(url_for('login'))
 
 
+# ==================== DEBUG ENDPOINT (TEMPORAL) ====================
+
+@app.route('/api/debug-events/<int:device_id>')
+@login_required
+def debug_events_structure(device_id):
+    """Debug: Ver estructura real de eventos de la API."""
+    monitor = get_monitor()
+    if not monitor:
+        return jsonify({'error': 'No monitor'}), 500
+    
+    events = monitor.get_device_events_today(device_id)
+    
+    # Tomar solo los primeros 3 eventos
+    sample_events = events[:3] if events else []
+    
+    # Extraer solo la parte de user_id para debug
+    user_samples = []
+    for e in sample_events:
+        user_samples.append({
+            'event_id': e.get('id'),
+            'user_id_raw': e.get('user_id'),
+            'user_id_type': type(e.get('user_id')).__name__
+        })
+    
+    return jsonify({
+        'device_id': device_id,
+        'total_events': len(events),
+        'user_samples': user_samples
+    })
+
+
 # ==================== DASHBOARD ROUTES ====================
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Main dashboard."""
+    """Main dashboard - Solo muestra accesos concedidos."""
     # Get monitor instance
     monitor = get_monitor()
     if not monitor:
         flash('Error al conectar con BioStar. Verifica la configuración.', 'danger')
-        return render_template('dashboard.html', devices=[], error=True)
+        return render_template('dashboard.html', devices_by_type={}, error=True)
     
     # Get all devices
-    devices = monitor.get_all_devices(refresh=True)
+    all_devices = monitor.get_all_devices(refresh=True)
     
-    # Get summary for each device
-    devices_with_summary = []
+    # Get device configurations
+    device_configs = {config.device_id: config for config in DeviceConfig.query.all()}
+    # También guardar con string key
+    for config in DeviceConfig.query.all():
+        device_configs[str(config.device_id)] = config
+    
+    # Filtrar dispositivos según permisos del usuario
+    if current_user.is_admin or current_user.can_see_all_events:
+        devices = all_devices
+    else:
+        # Solo dispositivos asignados al usuario
+        allowed_ids = current_user.get_allowed_device_ids()
+        if allowed_ids is not None:
+            # Convertir a strings para comparación
+            allowed_ids_str = [str(d) for d in allowed_ids]
+            devices = [d for d in all_devices if str(d['id']) in allowed_ids_str]
+        else:
+            devices = all_devices
+    
+    # Agrupar por tipo y calcular resumen
+    devices_by_type = {}
+    total_granted = 0
+    total_users = 0
+    
     for device in devices:
         summary = monitor.get_debug_summary(device['id'])
+        summary['total_events'] = summary['access_granted']
         device['summary'] = summary
-        devices_with_summary.append(device)
+        total_granted += summary['access_granted']
+        total_users += summary['unique_users']
+        
+        # Obtener tipo del dispositivo
+        config = device_configs.get(device['id']) or device_configs.get(str(device['id']))
+        device_type = config.device_type if config else 'checador'
+        device['device_type'] = device_type
+        
+        if device_type not in devices_by_type:
+            devices_by_type[device_type] = []
+        devices_by_type[device_type].append(device)
     
-    return render_template('dashboard.html', devices=devices_with_summary)
+    # Ordenar tipos: checador primero, luego alfabético
+    type_order = {'checador': 0, 'puerta': 1, 'facial': 2, 'otro': 3}
+    sorted_types = sorted(devices_by_type.keys(), key=lambda x: type_order.get(x, 99))
+    devices_by_type = {t: devices_by_type[t] for t in sorted_types}
+    
+    return render_template('dashboard.html', 
+                           devices_by_type=devices_by_type, 
+                           total_granted=total_granted,
+                           total_users=total_users,
+                           total_devices=len(devices))
 
 
 @app.route('/debug/general')
@@ -358,54 +431,46 @@ def debug_device(device_id):
         flash('Error al conectar con BioStar.', 'danger')
         return redirect(url_for('dashboard'))
     
+    # Get device config
+    device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
+    
     # Get all devices first to populate cache
     all_devices = monitor.get_all_devices(refresh=True)
-    print(f"DEBUG: Total devices: {len(all_devices)}")
-    print(f"DEBUG: Looking for device_id: {device_id}")
-    print(f"DEBUG: Device IDs available: {[d['id'] for d in all_devices]}")
     
     # Get device info
     device = monitor.get_device_by_id(device_id)
     
     if not device:
-        print(f"DEBUG: Device {device_id} NOT FOUND")
         flash(f'Dispositivo {device_id} no encontrado.', 'danger')
         return redirect(url_for('dashboard'))
     
-    print(f"DEBUG: Device found: {device['name']}")
-    
     # Get events and filter by time (5:30 AM - 11:59 PM)
     events = monitor.get_device_events_today(device_id)
-    print(f"DEBUG: Total events before filter: {len(events)}")
-    
-    # Log some event times before filter
-    print("DEBUG: Sample times BEFORE filter (first 5):")
-    for i, e in enumerate(events[:5]):
-        if e.get('datetime'):
-            local_t = utc_to_local(e['datetime'])
-            if local_t:
-                print(f"  Event {i+1}: {local_t.strftime('%H:%M:%S')}")
-    
     events = filter_events_by_time(events)
-    print(f"DEBUG: Total events after filter: {len(events)}")
-    print(f"DEBUG: Filtered out: {336 - len(events)} events")
     
-    # Log some event times after filter
-    print("DEBUG: Sample times AFTER filter (first 5):")
-    for i, e in enumerate(events[:5]):
-        if e.get('datetime'):
-            local_t = utc_to_local(e['datetime'])
-            if local_t:
-                print(f"  Event {i+1}: {local_t.strftime('%H:%M:%S')}")
+    # FILTER: Only show ACCESS GRANTED events
+    ACCESS_GRANTED_CODES = [
+        '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
+        '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
+        '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
+    ]
+    
+    def get_event_code(event):
+        """Extract event code from event_type_id (can be dict or direct value)."""
+        event_type = event.get('event_type_id')
+        if isinstance(event_type, dict):
+            return event_type.get('code')
+        return str(event_type) if event_type else None
+    
+    granted_events = [e for e in events if get_event_code(e) in ACCESS_GRANTED_CODES]
     
     # Calculate first and last event BEFORE converting to local
     first_event_dt = None
     last_event_dt = None
-    if events:
-        for event in events:
+    if granted_events:
+        for event in granted_events:
             event_dt = event.get('datetime')
             if event_dt:
-                # Convert to datetime if string
                 if isinstance(event_dt, str):
                     from dateutil import parser
                     event_dt = parser.parse(event_dt)
@@ -415,37 +480,84 @@ def debug_device(device_id):
                 if not last_event_dt or event_dt > last_event_dt:
                     last_event_dt = event_dt
     
-    # Convert datetime to local time for display
-    for event in events:
-        if event.get('datetime'):
-            local_time = utc_to_local(event['datetime'])
-            event['datetime'] = local_time
+    # Convert to dataframe (this properly extracts nested fields)
+    df = monitor.events_to_dataframe(granted_events)
     
-    df = monitor.events_to_dataframe(events)
+    # Convert datetime to local time for display
+    if not df.empty and 'datetime' in df.columns:
+        df['datetime'] = df['datetime'].apply(lambda x: utc_to_local(x) if x else None)
     
     # Convert to list of dicts for template
     events_list = df.to_dict('records') if not df.empty else []
     
-    # Get summary and override with filtered event times
-    summary = monitor.get_debug_summary(device_id)
+    # Calculate PAIRS logic (for checadores)
+    # Es checador si: no tiene config (default) O si está configurado como checador
+    is_checador = (not device_config) or (device_config.device_type == 'checador')
     
-    # Override first/last with filtered events
-    if first_event_dt:
-        summary['first_event'] = utc_to_local(first_event_dt)
-        print(f"DEBUG: First event (local): {summary['first_event'].strftime('%H:%M:%S')}")
-    else:
-        summary['first_event'] = None
+    # Inicializar pairs_data siempre para checadores
+    pairs_data = {
+        'complete': [],
+        'pending': [],
+        'multiple': []
+    } if is_checador else None
+    
+    if is_checador and events_list:
+        # Group events by user
+        user_events = {}
+        for event in events_list:
+            user_id = event.get('user_id')
+            if user_id and user_id != '' and user_id is not None:
+                if user_id not in user_events:
+                    user_events[user_id] = {
+                        'user_name': event.get('user_name') or 'Desconocido',
+                        'events': []
+                    }
+                user_events[user_id]['events'].append(event)
         
-    if last_event_dt:
-        summary['last_event'] = utc_to_local(last_event_dt)
-        print(f"DEBUG: Last event (local): {summary['last_event'].strftime('%H:%M:%S')}")
-    else:
-        summary['last_event'] = None
+        # Classify users into pairs_data
+        for user_id, data in user_events.items():
+            count = len(data['events'])
+            first_event = min(data['events'], key=lambda x: x['datetime'] if x.get('datetime') else datetime.min)
+            
+            user_info = {
+                'user_id': user_id,
+                'user_name': data['user_name'],
+                'event_count': count,
+                'first_event': first_event['datetime']
+            }
+            
+            if count == 2:
+                last_event = max(data['events'], key=lambda x: x['datetime'] if x.get('datetime') else datetime.min)
+                user_info['last_event'] = last_event['datetime']
+                pairs_data['complete'].append(user_info)
+            elif count == 1:
+                pairs_data['pending'].append(user_info)
+            else:
+                pairs_data['multiple'].append(user_info)
+    
+    # Get summary - use events_list which has processed user_ids
+    unique_users = set()
+    for e in events_list:
+        uid = e.get('user_id')
+        if uid and uid != '' and uid is not None:
+            unique_users.add(uid)
+    
+    summary = {
+        'total_events': len(events_list),
+        'access_granted': len(events_list),
+        'access_denied': 0,
+        'unique_users': len(unique_users),
+        'first_event': utc_to_local(first_event_dt) if first_event_dt else None,
+        'last_event': utc_to_local(last_event_dt) if last_event_dt else None
+    }
     
     return render_template('debug_device.html', 
                          device=device, 
+                         device_config=device_config,
                          events=events_list, 
-                         summary=summary)
+                         summary=summary,
+                         pairs_data=pairs_data,
+                         is_checador=is_checador)
 
 
 @app.route('/debug/device/<int:device_id>/export')
@@ -754,6 +866,8 @@ def user_create():
         password = request.form.get('password')
         full_name = request.form.get('full_name')
         is_admin = request.form.get('is_admin') == 'on'
+        can_see_all_events = request.form.get('can_see_all_events') == 'on'
+        can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
         # Validate
         if User.query.filter_by(username=username).first():
@@ -769,17 +883,43 @@ def user_create():
             username=username,
             email=email,
             full_name=full_name,
-            is_admin=is_admin
+            is_admin=is_admin,
+            can_see_all_events=can_see_all_events,
+            can_manage_devices=can_manage_devices
         )
         user.set_password(password)
         
         db.session.add(user)
         db.session.commit()
         
+        # Assign devices
+        device_ids = request.form.getlist('devices')
+        for device_id in device_ids:
+            permission = UserDevicePermission(
+                user_id=user.id,
+                device_id=int(device_id),
+                can_view=True,
+                can_export=True
+            )
+            db.session.add(permission)
+        db.session.commit()
+        
         flash(f'Usuario {username} creado exitosamente.', 'success')
         return redirect(url_for('users_list'))
     
-    return render_template('user_form.html', user=None, action='create')
+    # Get devices for assignment
+    monitor = get_monitor()
+    devices = []
+    if monitor:
+        devices = monitor.get_all_devices() or []
+        # Enrich with local config
+        for device in devices:
+            config = DeviceConfig.query.filter_by(device_id=device.get('id')).first()
+            if config and config.alias:
+                device['alias'] = config.alias
+    
+    return render_template('user_form.html', user=None, action='create', 
+                           devices=devices, assigned_devices=[])
 
 
 @app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
@@ -798,17 +938,49 @@ def user_edit(user_id):
         user.full_name = request.form.get('full_name')
         user.is_admin = request.form.get('is_admin') == 'on'
         user.is_active = request.form.get('is_active') == 'on'
+        user.can_see_all_events = request.form.get('can_see_all_events') == 'on'
+        user.can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
         # Update password if provided
         password = request.form.get('password')
         if password:
             user.set_password(password)
         
+        # Update device permissions
+        # First, remove all existing permissions
+        UserDevicePermission.query.filter_by(user_id=user.id).delete()
+        
+        # Then add new ones
+        device_ids = request.form.getlist('devices')
+        for device_id in device_ids:
+            permission = UserDevicePermission(
+                user_id=user.id,
+                device_id=int(device_id),
+                can_view=True,
+                can_export=True
+            )
+            db.session.add(permission)
+        
         db.session.commit()
         flash(f'Usuario {user.username} actualizado exitosamente.', 'success')
         return redirect(url_for('users_list'))
     
-    return render_template('user_form.html', user=user, action='edit')
+    # Get devices for assignment
+    monitor = get_monitor()
+    devices = []
+    if monitor:
+        devices = monitor.get_all_devices() or []
+        # Enrich with local config
+        for device in devices:
+            config = DeviceConfig.query.filter_by(device_id=device.get('id')).first()
+            if config and config.alias:
+                device['alias'] = config.alias
+    
+    # Get assigned device IDs
+    assigned_devices = [p.device_id for p in user.device_permissions.all()]
+    
+    return render_template('user_form.html', user=user, action='edit',
+                           devices=devices, assigned_devices=assigned_devices)
 
 
 @app.route('/users/<int:user_id>/delete', methods=['POST'])
@@ -973,6 +1145,144 @@ def api_cache_clear():
         else:
             return jsonify({'error': 'Cache no disponible'}), 404
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== DEVICE CONFIGURATION ROUTES ====================
+
+@app.route('/config/devices')
+@login_required
+def config_devices():
+    """Device configuration page (admin only)."""
+    if not current_user.is_admin and not current_user.can_manage_devices:
+        flash('No tienes permisos para acceder a esta página.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get devices from BioStar
+    monitor = get_monitor()
+    devices = []
+    if monitor:
+        devices = monitor.get_all_devices() or []
+    
+    # Debug: ver tipo de device.id
+    if devices:
+        print(f"[CONFIG] Ejemplo device.id: {devices[0].get('id')} (tipo: {type(devices[0].get('id'))})")
+    
+    # Get local configurations - usar string como key porque device.id viene como string de la API
+    device_configs = {}
+    for config in DeviceConfig.query.all():
+        # Guardar con ambos tipos de key para asegurar match
+        device_configs[config.device_id] = config
+        device_configs[str(config.device_id)] = config
+        print(f"[CONFIG] Cargado: device_id={config.device_id}, type={config.device_type}")
+    
+    print(f"[CONFIG] Total configs cargadas: {len(DeviceConfig.query.all())}")
+    
+    return render_template('config_devices.html', 
+                           devices=devices, 
+                           device_configs=device_configs)
+
+
+@app.route('/config/devices/<int:device_id>', methods=['POST'])
+@login_required
+def config_device_save(device_id):
+    """Save device configuration."""
+    if not current_user.is_admin and not current_user.can_manage_devices:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        print(f"[CONFIG] Guardando dispositivo {device_id}: {data}")
+        
+        # Get or create config
+        config = DeviceConfig.query.filter_by(device_id=device_id).first()
+        if not config:
+            config = DeviceConfig(device_id=device_id)
+            db.session.add(config)
+            print(f"[CONFIG] Creando nueva configuración para {device_id}")
+        else:
+            print(f"[CONFIG] Actualizando configuración existente para {device_id}")
+        
+        # Update fields
+        config.alias = data.get('alias') or None
+        config.location = data.get('location') or None
+        config.device_type = data.get('device_type', 'checador')
+        
+        print(f"[CONFIG] Valores: alias={config.alias}, location={config.location}, type={config.device_type}")
+        
+        db.session.commit()
+        print(f"[CONFIG] Guardado exitoso para {device_id}")
+        
+        return jsonify({'success': True, 'message': 'Configuración guardada'})
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/config/categories', methods=['POST'])
+@login_required
+def config_category_create():
+    """Create new device category."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        
+        # Check if name exists
+        if DeviceCategory.query.filter_by(name=data.get('name')).first():
+            return jsonify({'error': 'Ya existe una categoría con ese nombre'}), 400
+        
+        category = DeviceCategory(
+            name=data.get('name'),
+            color=data.get('color', '#6c757d'),
+            icon=data.get('icon', 'bi-hdd'),
+            description=data.get('description')
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'id': category.id, 'message': 'Categoría creada'})
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/config/categories/<int:category_id>', methods=['PUT', 'DELETE'])
+@login_required
+def config_category_update(category_id):
+    """Update or delete device category."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    category = DeviceCategory.query.get_or_404(category_id)
+    
+    if request.method == 'DELETE':
+        if category.devices.count() > 0:
+            return jsonify({'error': 'No se puede eliminar: tiene dispositivos asignados'}), 400
+        
+        db.session.delete(category)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Categoría eliminada'})
+    
+    # PUT - Update
+    try:
+        data = request.get_json()
+        
+        category.name = data.get('name', category.name)
+        category.color = data.get('color', category.color)
+        category.icon = data.get('icon', category.icon)
+        category.description = data.get('description', category.description)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Categoría actualizada'})
+    
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 

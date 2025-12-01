@@ -3,29 +3,31 @@
 {% block title %}{% if action == 'create' %}Crear{% else %}Editar{% endif %} Usuario - BioStar{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
     <h2>
         <i class="bi bi-person-{% if action == 'create' %}plus{% else %}gear{% endif %}"></i> 
-        {% if action == 'create' %}Crear Nuevo Usuario{% else %}Editar Usuario{% endif %}
+        {% if action == 'create' %}Nuevo Usuario{% else %}Editar Usuario{% endif %}
     </h2>
-    <a href="{{ url_for('users_list') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
+    <div class="page-header-actions">
+        <a href="{{ url_for('users_list') }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> <span class="hide-mobile">Volver</span>
+        </a>
+    </div>
 </div>
 
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-12 col-md-10 col-lg-8">
         <div class="card">
             <div class="card-body">
                 <form method="POST">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-12 col-md-6 mb-3">
                             <label for="username" class="form-label">Usuario *</label>
                             <input type="text" class="form-control" id="username" name="username" 
                                    value="{{ user.username if user else '' }}" required>
                         </div>
                         
-                        <div class="col-md-6 mb-3">
+                        <div class="col-12 col-md-6 mb-3">
                             <label for="email" class="form-label">Email *</label>
                             <input type="email" class="form-control" id="email" name="email" 
                                    value="{{ user.email if user else '' }}" required>
@@ -50,40 +52,98 @@
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-12 col-md-6 mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin"
                                        {% if user and user.is_admin %}checked{% endif %}>
                                 <label class="form-check-label" for="is_admin">
                                     <i class="bi bi-shield-check"></i> Administrador
                                 </label>
-                                <br><small class="text-muted">Puede gestionar usuarios y configuración</small>
+                                <br><small class="text-muted">Acceso completo</small>
                             </div>
                         </div>
                         
                         {% if action == 'edit' %}
-                        <div class="col-md-6 mb-3">
+                        <div class="col-12 col-md-6 mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
                                        {% if user.is_active %}checked{% endif %}>
                                 <label class="form-check-label" for="is_active">
                                     <i class="bi bi-check-circle"></i> Cuenta Activa
                                 </label>
-                                <br><small class="text-muted">Usuario puede iniciar sesión</small>
+                                <br><small class="text-muted">Puede iniciar sesión</small>
                             </div>
                         </div>
                         {% endif %}
                     </div>
                     
+                    <!-- Permisos Especiales -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-3"><i class="bi bi-key"></i> Permisos Especiales</h6>
+                            <div class="row">
+                                <div class="col-12 col-md-6 mb-2">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="can_see_all_events" name="can_see_all_events"
+                                               {% if user and user.can_see_all_events %}checked{% endif %}>
+                                        <label class="form-check-label" for="can_see_all_events">
+                                            Ver todos los eventos
+                                        </label>
+                                        <br><small class="text-muted">Incluye denegados y otros</small>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6 mb-2">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="can_manage_devices" name="can_manage_devices"
+                                               {% if user and user.can_manage_devices %}checked{% endif %}>
+                                        <label class="form-check-label" for="can_manage_devices">
+                                            Gestionar dispositivos
+                                        </label>
+                                        <br><small class="text-muted">Configurar checadores</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Asignación de Dispositivos -->
+                    {% if devices %}
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-3">
+                                <i class="bi bi-hdd-network"></i> Dispositivos Asignados
+                                <small class="text-muted fw-normal">(Admin ve todos)</small>
+                            </h6>
+                            <div class="row">
+                                {% for device in devices %}
+                                <div class="col-12 col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="device_{{ device.id }}" 
+                                               name="devices" 
+                                               value="{{ device.id }}"
+                                               {% if device.id in assigned_devices %}checked{% endif %}>
+                                        <label class="form-check-label" for="device_{{ device.id }}">
+                                            {{ device.alias or device.name }}
+                                            <small class="text-muted">(ID: {{ device.id }})</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     <hr>
                     
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('users_list') }}" class="btn btn-secondary">
+                    <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                        <a href="{{ url_for('users_list') }}" class="btn btn-secondary order-2 order-sm-1">
                             <i class="bi bi-x-circle"></i> Cancelar
                         </a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary order-1 order-sm-2">
                             <i class="bi bi-check-circle"></i> 
-                            {% if action == 'create' %}Crear Usuario{% else %}Guardar Cambios{% endif %}
+                            {% if action == 'create' %}Crear{% else %}Guardar{% endif %}
                         </button>
                     </div>
                 </form>

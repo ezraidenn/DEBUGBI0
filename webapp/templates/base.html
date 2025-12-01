@@ -54,14 +54,22 @@
                         </a>
                     </li>
                     
-                    {% if current_user.is_admin %}
+                    {% if current_user.is_admin or current_user.can_manage_devices %}
                     <li class="nav-item">
                         <div class="sidebar-heading">ADMINISTRACIÓN</div>
                     </li>
+                    {% if current_user.is_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}" href="{{ url_for('users_list') }}">
                             <i class="bi bi-people-fill"></i>
                             <span>Usuarios</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'config_devices' %}active{% endif %}" href="{{ url_for('config_devices') }}">
+                            <i class="bi bi-gear-fill"></i>
+                            <span>Configuración</span>
                         </a>
                     </li>
                     {% endif %}
