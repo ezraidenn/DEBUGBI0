@@ -60,4 +60,4 @@ def init_db(app):
             admin.set_password('admin123')  # Cambiar en producción
             db.session.add(admin)
             db.session.commit()
-            print("✓ Usuario admin creado (usuario: admin, password: admin123)")
+            print("[OK] Usuario admin creado (usuario: admin, password: admin123)")
