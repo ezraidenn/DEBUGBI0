@@ -188,8 +188,25 @@ def init_db(app):
                 print(f"[OK] Categoría '{cat_data['name']}' creada")
         
         # Crear usuario admin por defecto si no existe
+        import os
+        import secrets
+        
         admin = User.query.filter_by(username='admin').first()
         if not admin:
+            # Usar contraseña de variable de entorno o generar una segura
+            admin_password = os.environ.get('ADMIN_DEFAULT_PASSWORD')
+            
+            if not admin_password:
+                # Generar contraseña segura aleatoria
+                admin_password = secrets.token_urlsafe(16)
+                print("=" * 60)
+                print("⚠️  CONTRASEÑA ADMIN GENERADA AUTOMÁTICAMENTE")
+                print(f"    Usuario: admin")
+                print(f"    Contraseña: {admin_password}")
+                print("    ¡GUARDA ESTA CONTRASEÑA! No se mostrará de nuevo.")
+                print("    Cámbiala después del primer inicio de sesión.")
+                print("=" * 60)
+            
             admin = User(
                 username='admin',
                 email='admin@biostar.local',
@@ -198,9 +215,9 @@ def init_db(app):
                 can_see_all_events=True,
                 can_manage_devices=True
             )
-            admin.set_password('admin123')  # Cambiar en producción
+            admin.set_password(admin_password)
             db.session.add(admin)
-            print("[OK] Usuario admin creado (usuario: admin, password: admin123)")
+            print("[OK] Usuario admin creado")
         else:
             # Actualizar admin existente con nuevos permisos
             if not admin.can_see_all_events:

@@ -146,9 +146,26 @@ def classify_event(event_code):
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///biostar_users.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# ============================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ============================================
+from webapp.security import (
+    configure_flask_security,
+    check_login_rate_limit,
+    record_login_success,
+    record_login_failure,
+    validate_password,
+    get_password_policy_text,
+    sanitize_input,
+    rate_limit_api,
+    audit_logger,
+    SecurityConfig
+)
+
+# Aplicar configuración de seguridad (SECRET_KEY, sesiones, headers, etc.)
+configure_flask_security(app)
+logger.info("✓ Configuración de seguridad aplicada")
 
 # Cache configuration
 app.config['REDIS_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
@@ -166,8 +183,9 @@ if COMPRESS_AVAILABLE:
     app.config['COMPRESS_MIN_SIZE'] = 500
     logger.info("✓ Compresión HTTP habilitada")
 
-# Initialize SocketIO for real-time updates
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# Initialize SocketIO for real-time updates (restringir origins en producción)
+allowed_origins = "*" if os.environ.get('FLASK_ENV') != 'production' else None
+socketio = SocketIO(app, cors_allowed_origins=allowed_origins, async_mode='threading')
 
 # Initialize database
 init_db(app)
@@ -266,28 +284,47 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page."""
+    """Login page con protección contra fuerza bruta."""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = sanitize_input(request.form.get('username', ''), max_length=50)
+        password = request.form.get('password', '')
         remember = request.form.get('remember', False)
+        
+        # Rate limiting por IP y usuario
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+        rate_key = f"{client_ip}:{username}"
+        
+        # Verificar rate limit
+        allowed, error_msg = check_login_rate_limit(rate_key)
+        if not allowed:
+            flash(error_msg, 'danger')
+            return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
             if not user.is_active:
                 flash('Tu cuenta está desactivada. Contacta al administrador.', 'danger')
+                audit_logger.log_event('LOGIN_INACTIVE', {'user': username}, client_ip)
                 return redirect(url_for('login'))
             
+            # Login exitoso
             login_user(user, remember=remember)
             user.update_last_login()
+            record_login_success(rate_key)
             
+            # Verificar redirección segura
             next_page = request.args.get('next')
+            if next_page and not next_page.startswith('/'):
+                next_page = None  # Prevenir open redirect
+            
             return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         else:
+            # Login fallido
+            record_login_failure(rate_key)
             flash('Usuario o contraseña incorrectos.', 'danger')
     
     return render_template('login.html')
@@ -297,7 +334,9 @@ def login():
 @login_required
 def logout():
     """Logout user."""
+    username = current_user.username
     logout_user()
+    audit_logger.log_event('LOGOUT', {'user': username})
     flash('Has cerrado sesión exitosamente.', 'success')
     return redirect(url_for('login'))
 
@@ -926,15 +965,22 @@ def user_create():
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        full_name = request.form.get('full_name')
+        # Sanitizar inputs
+        username = sanitize_input(request.form.get('username', ''), max_length=50)
+        email = sanitize_input(request.form.get('email', ''), max_length=120)
+        password = request.form.get('password', '')
+        full_name = sanitize_input(request.form.get('full_name', ''), max_length=100)
         is_admin = request.form.get('is_admin') == 'on'
         can_see_all_events = request.form.get('can_see_all_events') == 'on'
         can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
-        # Validate
+        # Validar contraseña con política de seguridad
+        is_valid, error_msg = validate_password(password)
+        if not is_valid:
+            flash(error_msg, 'danger')
+            return redirect(url_for('user_create'))
+        
+        # Validate username
         if User.query.filter_by(username=username).first():
             flash('El nombre de usuario ya existe.', 'danger')
             return redirect(url_for('user_create'))
@@ -953,6 +999,13 @@ def user_create():
             can_manage_devices=can_manage_devices
         )
         user.set_password(password)
+        
+        # Auditoría
+        audit_logger.log_event('USER_CREATE', {
+            'user': current_user.username,
+            'created_user': username,
+            'is_admin': is_admin
+        })
         
         db.session.add(user)
         db.session.commit()
@@ -1000,18 +1053,31 @@ def user_edit(user_id):
     user = User.query.get_or_404(user_id)
     
     if request.method == 'POST':
-        user.username = request.form.get('username')
-        user.email = request.form.get('email')
-        user.full_name = request.form.get('full_name')
+        # Sanitizar inputs
+        user.username = sanitize_input(request.form.get('username', ''), max_length=50)
+        user.email = sanitize_input(request.form.get('email', ''), max_length=120)
+        user.full_name = sanitize_input(request.form.get('full_name', ''), max_length=100)
         user.is_admin = request.form.get('is_admin') == 'on'
         user.is_active = request.form.get('is_active') == 'on'
         user.can_see_all_events = request.form.get('can_see_all_events') == 'on'
         user.can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
-        # Update password if provided
-        password = request.form.get('password')
+        # Update password if provided (con validación)
+        password = request.form.get('password', '')
         if password:
+            is_valid, error_msg = validate_password(password)
+            if not is_valid:
+                flash(error_msg, 'danger')
+                return redirect(url_for('user_edit', user_id=user_id))
             user.set_password(password)
+        
+        # Auditoría
+        audit_logger.log_event('USER_EDIT', {
+            'user': current_user.username,
+            'edited_user': user.username,
+            'is_admin': user.is_admin,
+            'is_active': user.is_active
+        })
         
         # Update device permissions
         # First, remove all existing permissions
@@ -1060,16 +1126,28 @@ def user_edit(user_id):
 def user_delete(user_id):
     """Delete user (admin only)."""
     if not current_user.is_admin:
+        audit_logger.log_event('USER_DELETE_DENIED', {
+            'user': current_user.username,
+            'target_user_id': user_id
+        })
         return jsonify({'error': 'No autorizado'}), 403
     
     if user_id == current_user.id:
         return jsonify({'error': 'No puedes eliminar tu propio usuario'}), 400
     
     user = User.query.get_or_404(user_id)
+    deleted_username = user.username
+    
+    # Auditoría ANTES de eliminar
+    audit_logger.log_event('USER_DELETE', {
+        'user': current_user.username,
+        'deleted_user': deleted_username
+    })
+    
     db.session.delete(user)
     db.session.commit()
     
-    return jsonify({'success': True, 'message': f'Usuario {user.username} eliminado'})
+    return jsonify({'success': True, 'message': f'Usuario {deleted_username} eliminado'})
 
 
 # ==================== REALTIME SSE ROUTES ====================
