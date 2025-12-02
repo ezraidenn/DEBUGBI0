@@ -119,6 +119,14 @@ class SecurityConfig:
     # ==================== ENCRYPTION ====================
     ENCRYPT_SENSITIVE_DATA = get_env_bool('ENCRYPT_SENSITIVE_DATA', True)
     ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
+    
+    # ==================== PRODUCCIÓN ====================
+    # Ocultar información sensible en producción
+    HIDE_SERVER_INFO = get_env_bool('HIDE_SERVER_INFO', True)  # Ocultar versión servidor
+    DISABLE_DEBUG_TOOLBAR = get_env_bool('DISABLE_DEBUG_TOOLBAR', True)  # Sin debug toolbar
+    SUPPRESS_CONSOLE_LOGS = get_env_bool('SUPPRESS_CONSOLE_LOGS', False)  # Suprimir console.log en prod
+    MINIFY_HTML = get_env_bool('MINIFY_HTML', False)  # Minificar HTML
+    REMOVE_COMMENTS = get_env_bool('REMOVE_COMMENTS', True)  # Remover comentarios HTML
 
 
 # ============================================
@@ -461,6 +469,52 @@ def add_security_headers(response):
     if SecurityConfig.FORCE_HTTPS:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     
+    # Ocultar información del servidor
+    if SecurityConfig.HIDE_SERVER_INFO:
+        response.headers['Server'] = 'WebServer'  # Ocultar versión real
+        response.headers['X-Powered-By'] = ''  # Remover X-Powered-By
+    
+    return response
+
+
+def production_response_filter(response):
+    """
+    Filtro para respuestas en producción.
+    Remueve información sensible del HTML/JS.
+    """
+    if os.environ.get('FLASK_ENV') != 'production':
+        return response
+    
+    # Solo procesar HTML
+    if response.content_type and 'text/html' in response.content_type:
+        try:
+            html = response.get_data(as_text=True)
+            
+            # Remover comentarios HTML (excepto condicionales IE)
+            if SecurityConfig.REMOVE_COMMENTS:
+                import re
+                html = re.sub(r'<!--(?!\[if).*?-->', '', html, flags=re.DOTALL)
+            
+            # Inyectar script para deshabilitar console.log en producción
+            if SecurityConfig.SUPPRESS_CONSOLE_LOGS:
+                suppress_script = '''
+<script>
+(function(){
+    if(typeof console !== 'undefined'){
+        console.log = function(){};
+        console.debug = function(){};
+        console.info = function(){};
+        console.warn = function(){};
+    }
+})();
+</script>
+'''
+                html = html.replace('</head>', suppress_script + '</head>')
+            
+            response.set_data(html)
+        except Exception:
+            pass  # Si falla, devolver respuesta original
+    
     return response
 
 
@@ -510,7 +564,10 @@ def configure_flask_security(app):
     # Registrar handler para headers de seguridad
     @app.after_request
     def apply_security_headers(response):
-        return add_security_headers(response)
+        response = add_security_headers(response)
+        # Aplicar filtro de producción
+        response = production_response_filter(response)
+        return response
     
     # Forzar HTTPS si está configurado
     if SecurityConfig.FORCE_HTTPS:
@@ -519,6 +576,13 @@ def configure_flask_security(app):
             if not request.is_secure and request.headers.get('X-Forwarded-Proto', 'http') != 'https':
                 url = request.url.replace('http://', 'https://', 1)
                 return redirect(url, code=301)
+    
+    # Deshabilitar modo debug en producción
+    if os.environ.get('FLASK_ENV') == 'production':
+        app.config['DEBUG'] = False
+        app.config['TESTING'] = False
+        app.config['PROPAGATE_EXCEPTIONS'] = False
+        app.config['PRESERVE_CONTEXT_ON_EXCEPTION'] = False
     
     return app
 
