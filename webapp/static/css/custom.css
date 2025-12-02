@@ -198,6 +198,10 @@ textarea {
     min-height: 48px; /* Touch target mínimo */
 }
 
+.sidebar .nav-link span {
+    color: rgba(255,255,255,0.85);
+}
+
 .sidebar .nav-link i {
     font-size: 18px;
     width: 22px;
