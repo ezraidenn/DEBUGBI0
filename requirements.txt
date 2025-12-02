@@ -18,6 +18,11 @@ SQLAlchemy==2.0.23
 # Seguridad
 Werkzeug==3.0.1
 
+# Seguridad NIVEL GOBIERNO
+cryptography>=41.0.0      # Encriptación de datos sensibles
+pyotp>=2.9.0              # 2FA - TOTP (Google Authenticator)
+qrcode[pil]>=7.4.2        # QR codes para configurar 2FA
+
 # HTTP Requests
 requests==2.31.0
 urllib3==2.1.0

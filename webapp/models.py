@@ -94,7 +94,7 @@ class UserDevicePermission(db.Model):
 # ============================================
 
 class User(UserMixin, db.Model):
-    """User model for authentication."""
+    """User model for authentication - NIVEL GOBIERNO."""
     
     __tablename__ = 'users'
     
@@ -108,21 +108,105 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     
-    # Nuevos campos de permisos
-    can_see_all_events = db.Column(db.Boolean, default=False)   # Ver eventos no-concedidos
-    can_manage_devices = db.Column(db.Boolean, default=False)   # Acceso a config dispositivos
+    # Campos de permisos
+    can_see_all_events = db.Column(db.Boolean, default=False)
+    can_manage_devices = db.Column(db.Boolean, default=False)
+    
+    # ==================== CAMPOS DE SEGURIDAD NIVEL GOBIERNO ====================
+    
+    # 2FA - Two Factor Authentication
+    totp_secret = db.Column(db.String(32), nullable=True)  # Clave secreta para TOTP
+    totp_enabled = db.Column(db.Boolean, default=False)    # Si 2FA está activado
+    
+    # Password Security
+    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)  # Fecha último cambio
+    password_history = db.Column(db.Text, nullable=True)   # JSON con hashes anteriores
+    must_change_password = db.Column(db.Boolean, default=False)  # Forzar cambio
+    
+    # Account Security
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime, nullable=True)   # Bloqueo temporal
+    is_permanently_locked = db.Column(db.Boolean, default=False)  # Bloqueo permanente
+    last_failed_login = db.Column(db.DateTime, nullable=True)
+    
+    # Session Security
+    session_token = db.Column(db.String(64), nullable=True)  # Token de sesión único
+    
+    # ==================== FIN CAMPOS DE SEGURIDAD ====================
     
     # Relación con permisos de dispositivos
     device_permissions = db.relationship('UserDevicePermission', backref='user', 
                                          lazy='dynamic', cascade='all, delete-orphan')
     
-    def set_password(self, password):
-        """Hash and set password."""
+    def set_password(self, password, save_history=True):
+        """Hash and set password con historial."""
+        old_hash = self.password_hash
         self.password_hash = generate_password_hash(password)
+        self.password_changed_at = datetime.utcnow()
+        self.must_change_password = False
+        
+        # Guardar en historial si es necesario
+        if save_history and old_hash:
+            import json
+            try:
+                history = json.loads(self.password_history) if self.password_history else []
+            except (json.JSONDecodeError, TypeError):
+                history = []
+            history.insert(0, old_hash)
+            self.password_history = json.dumps(history[:5])  # Últimas 5
     
     def check_password(self, password):
         """Check if password is correct."""
         return check_password_hash(self.password_hash, password)
+    
+    def check_password_reuse(self, new_password) -> bool:
+        """Verifica si la contraseña ya fue usada. Retorna True si es reutilizada."""
+        import json
+        if not self.password_history:
+            return False
+        
+        try:
+            history = json.loads(self.password_history)
+            for old_hash in history:
+                if check_password_hash(old_hash, new_password):
+                    return True
+        except (json.JSONDecodeError, TypeError):
+            pass
+        
+        return False
+    
+    def is_password_expired(self, max_age_days=90) -> bool:
+        """Verifica si la contraseña ha expirado."""
+        if not self.password_changed_at:
+            return True
+        age_days = (datetime.utcnow() - self.password_changed_at).days
+        return age_days >= max_age_days
+    
+    def record_failed_login(self):
+        """Registra intento fallido de login."""
+        self.failed_login_attempts += 1
+        self.last_failed_login = datetime.utcnow()
+        db.session.commit()
+    
+    def reset_failed_attempts(self):
+        """Resetea contador de intentos fallidos."""
+        self.failed_login_attempts = 0
+        self.last_failed_login = None
+        db.session.commit()
+    
+    def lock_temporarily(self, minutes=15):
+        """Bloquea la cuenta temporalmente."""
+        from datetime import timedelta
+        self.locked_until = datetime.utcnow() + timedelta(minutes=minutes)
+        db.session.commit()
+    
+    def is_locked(self) -> bool:
+        """Verifica si la cuenta está bloqueada."""
+        if self.is_permanently_locked:
+            return True
+        if self.locked_until and datetime.utcnow() < self.locked_until:
+            return True
+        return False
     
     def update_last_login(self):
         """Update last login timestamp."""

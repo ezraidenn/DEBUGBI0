@@ -148,24 +148,54 @@ def classify_event(event_code):
 app = Flask(__name__)
 
 # ============================================
-# CONFIGURACIÓN DE SEGURIDAD
+# CONFIGURACIÓN DE SEGURIDAD NIVEL GOBIERNO
 # ============================================
 from webapp.security import (
+    # Configuración base
     configure_flask_security,
+    apply_government_security,
+    SecurityConfig,
+    audit_logger,
+    
+    # Rate Limiting
     check_login_rate_limit,
     record_login_success,
     record_login_failure,
+    rate_limit_api,
+    
+    # Validación
     validate_password,
     get_password_policy_text,
     sanitize_input,
-    rate_limit_api,
-    audit_logger,
-    SecurityConfig
+    
+    # CSRF
+    CSRFProtection,
+    csrf_protect,
+    
+    # Session Security
+    SessionFingerprint,
+    session_security_check,
+    
+    # IP Whitelisting
+    IPWhitelist,
+    ip_whitelist_required,
+    
+    # 2FA
+    TwoFactorAuth,
+    TOTP_AVAILABLE,
+    
+    # Account Security
+    AccountLockout,
+    PasswordExpiration,
 )
 
-# Aplicar configuración de seguridad (SECRET_KEY, sesiones, headers, etc.)
+# Aplicar configuración de seguridad base
 configure_flask_security(app)
-logger.info("✓ Configuración de seguridad aplicada")
+logger.info("✓ Configuración de seguridad base aplicada")
+
+# Aplicar seguridad nivel gobierno
+apply_government_security(app)
+logger.info("✓ Seguridad nivel gobierno aplicada")
 
 # Cache configuration
 app.config['REDIS_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
@@ -284,37 +314,73 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page con protección contra fuerza bruta."""
+    """Login page con protección NIVEL GOBIERNO."""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
         username = sanitize_input(request.form.get('username', ''), max_length=50)
         password = request.form.get('password', '')
+        totp_code = request.form.get('totp_code', '')
         remember = request.form.get('remember', False)
         
         # Rate limiting por IP y usuario
-        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+        client_ip = IPWhitelist.get_client_ip()
         rate_key = f"{client_ip}:{username}"
+        
+        # Verificar bloqueo permanente
+        if AccountLockout.is_permanently_locked(username):
+            audit_logger.log_event('LOGIN_PERMANENT_BLOCK', {'user': username}, client_ip)
+            flash('Esta cuenta ha sido bloqueada permanentemente. Contacta al administrador.', 'danger')
+            return render_template('login.html')
         
         # Verificar rate limit
         allowed, error_msg = check_login_rate_limit(rate_key)
         if not allowed:
+            # Registrar lockout para posible bloqueo permanente
+            AccountLockout.record_lockout(username)
             flash(error_msg, 'danger')
             return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
+            # Verificar si cuenta está bloqueada en DB
+            if user.is_locked():
+                flash('Tu cuenta está bloqueada temporalmente. Intenta más tarde.', 'danger')
+                audit_logger.log_event('LOGIN_LOCKED', {'user': username}, client_ip)
+                return redirect(url_for('login'))
+            
             if not user.is_active:
                 flash('Tu cuenta está desactivada. Contacta al administrador.', 'danger')
                 audit_logger.log_event('LOGIN_INACTIVE', {'user': username}, client_ip)
                 return redirect(url_for('login'))
             
+            # Verificar 2FA si está habilitado
+            if user.totp_enabled and TOTP_AVAILABLE:
+                if not totp_code:
+                    # Mostrar formulario de 2FA
+                    session['pending_2fa_user'] = user.id
+                    return render_template('login.html', require_2fa=True, username=username)
+                
+                if not TwoFactorAuth.verify_code(user.totp_secret, totp_code):
+                    audit_logger.log_event('2FA_FAIL', {'user': username}, client_ip)
+                    flash('Código de verificación incorrecto.', 'danger')
+                    return render_template('login.html', require_2fa=True, username=username)
+            
             # Login exitoso
             login_user(user, remember=remember)
             user.update_last_login()
+            user.reset_failed_attempts()
             record_login_success(rate_key)
+            
+            # Guardar fingerprint de sesión
+            SessionFingerprint.store()
+            
+            # Verificar si debe cambiar contraseña
+            if user.must_change_password or user.is_password_expired(SecurityConfig.PASSWORD_MAX_AGE_DAYS):
+                flash('Tu contraseña ha expirado. Debes cambiarla.', 'warning')
+                return redirect(url_for('change_password'))
             
             # Verificar redirección segura
             next_page = request.args.get('next')
@@ -324,6 +390,16 @@ def login():
             return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         else:
             # Login fallido
+            if user:
+                user.record_failed_login()
+                # Bloquear temporalmente si excede intentos
+                if user.failed_login_attempts >= SecurityConfig.LOGIN_MAX_ATTEMPTS:
+                    user.lock_temporarily(SecurityConfig.LOGIN_LOCKOUT_MINUTES)
+                    audit_logger.log_event('ACCOUNT_LOCKED', {
+                        'user': username,
+                        'attempts': user.failed_login_attempts
+                    }, client_ip)
+            
             record_login_failure(rate_key)
             flash('Usuario o contraseña incorrectos.', 'danger')
     
@@ -336,9 +412,52 @@ def logout():
     """Logout user."""
     username = current_user.username
     logout_user()
+    session.clear()  # Limpiar toda la sesión
     audit_logger.log_event('LOGOUT', {'user': username})
     flash('Has cerrado sesión exitosamente.', 'success')
     return redirect(url_for('login'))
+
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Cambio de contraseña obligatorio."""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Verificar contraseña actual
+        if not current_user.check_password(current_password):
+            flash('Contraseña actual incorrecta.', 'danger')
+            return render_template('change_password.html')
+        
+        # Verificar que las nuevas coincidan
+        if new_password != confirm_password:
+            flash('Las contraseñas no coinciden.', 'danger')
+            return render_template('change_password.html')
+        
+        # Validar política de contraseñas
+        is_valid, error_msg = validate_password(new_password)
+        if not is_valid:
+            flash(error_msg, 'danger')
+            return render_template('change_password.html')
+        
+        # Verificar que no sea reutilizada
+        if current_user.check_password_reuse(new_password):
+            flash(f'No puedes reusar las últimas {SecurityConfig.PASSWORD_HISTORY_COUNT} contraseñas.', 'danger')
+            return render_template('change_password.html')
+        
+        # Cambiar contraseña
+        current_user.set_password(new_password)
+        db.session.commit()
+        
+        audit_logger.log_event('PASSWORD_CHANGE', {'user': current_user.username})
+        flash('Contraseña cambiada exitosamente.', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('change_password.html', 
+                          password_policy=get_password_policy_text())
 
 
 # ==================== API ENDPOINTS ====================

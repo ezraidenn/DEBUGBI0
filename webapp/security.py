@@ -1,19 +1,54 @@
 """
-Módulo de Seguridad para BioStar Logs Monitor.
-Implementa protecciones contra ataques comunes.
+Módulo de Seguridad NIVEL GOBIERNO para BioStar Logs Monitor.
+Implementa protecciones avanzadas contra ataques.
+
+Características:
+- CSRF Protection
+- 2FA con TOTP
+- Session Fingerprinting
+- Rate Limiting avanzado
+- Bloqueo permanente de cuentas
+- Historial de contraseñas
+- IP Whitelisting
+- Auditoría completa
+- Encriptación de datos sensibles
 """
 import os
 import re
 import logging
 import hashlib
+import hmac
+import base64
+import json
+import secrets
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 from collections import defaultdict
 import threading
 
-from flask import request, abort, jsonify, g, current_app
-from werkzeug.security import generate_password_hash
+from flask import request, abort, jsonify, g, current_app, session, redirect, url_for, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# Cryptography para encriptación
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+    print("⚠️ cryptography no instalado. Algunas funciones de encriptación no estarán disponibles.")
+
+# TOTP para 2FA
+try:
+    import pyotp
+    import qrcode
+    from io import BytesIO
+    TOTP_AVAILABLE = True
+except ImportError:
+    TOTP_AVAILABLE = False
+    print("⚠️ pyotp/qrcode no instalado. 2FA no estará disponible.")
 
 # ============================================
 # CONFIGURACIÓN DESDE VARIABLES DE ENTORNO
@@ -33,30 +68,57 @@ def get_env_int(key: str, default: int) -> int:
 
 
 class SecurityConfig:
-    """Configuración de seguridad desde variables de entorno."""
+    """Configuración de seguridad NIVEL GOBIERNO desde variables de entorno."""
     
-    # Rate Limiting
+    # ==================== RATE LIMITING ====================
     LOGIN_RATE_LIMIT = get_env_int('LOGIN_RATE_LIMIT', 5)
     LOGIN_MAX_ATTEMPTS = get_env_int('LOGIN_MAX_ATTEMPTS', 5)
     LOGIN_LOCKOUT_MINUTES = get_env_int('LOGIN_LOCKOUT_MINUTES', 15)
     API_RATE_LIMIT = get_env_int('API_RATE_LIMIT', 60)
     
-    # Password Policy
-    PASSWORD_MIN_LENGTH = get_env_int('PASSWORD_MIN_LENGTH', 8)
+    # Bloqueo permanente después de X lockouts
+    PERMANENT_LOCKOUT_AFTER = get_env_int('PERMANENT_LOCKOUT_AFTER', 3)
+    
+    # ==================== PASSWORD POLICY ====================
+    PASSWORD_MIN_LENGTH = get_env_int('PASSWORD_MIN_LENGTH', 12)  # Mínimo 12 para gobierno
     PASSWORD_REQUIRE_UPPER = get_env_bool('PASSWORD_REQUIRE_UPPER', True)
+    PASSWORD_REQUIRE_LOWER = get_env_bool('PASSWORD_REQUIRE_LOWER', True)
     PASSWORD_REQUIRE_DIGIT = get_env_bool('PASSWORD_REQUIRE_DIGIT', True)
     PASSWORD_REQUIRE_SPECIAL = get_env_bool('PASSWORD_REQUIRE_SPECIAL', True)
+    PASSWORD_HISTORY_COUNT = get_env_int('PASSWORD_HISTORY_COUNT', 5)  # No reusar últimas 5
+    PASSWORD_MAX_AGE_DAYS = get_env_int('PASSWORD_MAX_AGE_DAYS', 90)  # Forzar cambio cada 90 días
     
-    # Session
-    SESSION_LIFETIME_MINUTES = get_env_int('SESSION_LIFETIME_MINUTES', 60)
-    REMEMBER_COOKIE_DAYS = get_env_int('REMEMBER_COOKIE_DAYS', 7)
+    # ==================== SESSION ====================
+    SESSION_LIFETIME_MINUTES = get_env_int('SESSION_LIFETIME_MINUTES', 30)  # 30 min para gobierno
+    SESSION_INACTIVITY_TIMEOUT = get_env_int('SESSION_INACTIVITY_TIMEOUT', 15)  # 15 min inactividad
+    REMEMBER_COOKIE_DAYS = get_env_int('REMEMBER_COOKIE_DAYS', 1)  # Solo 1 día
+    SESSION_FINGERPRINT = get_env_bool('SESSION_FINGERPRINT', True)  # Validar IP+UA
     
-    # HTTPS
+    # ==================== 2FA ====================
+    REQUIRE_2FA = get_env_bool('REQUIRE_2FA', False)  # Activar para gobierno
+    REQUIRE_2FA_FOR_ADMIN = get_env_bool('REQUIRE_2FA_FOR_ADMIN', True)  # Obligatorio para admins
+    
+    # ==================== IP WHITELISTING ====================
+    IP_WHITELIST_ENABLED = get_env_bool('IP_WHITELIST_ENABLED', False)
+    IP_WHITELIST = os.environ.get('IP_WHITELIST', '').split(',')  # IPs separadas por coma
+    ADMIN_IP_WHITELIST = os.environ.get('ADMIN_IP_WHITELIST', '').split(',')  # Solo para admins
+    
+    # ==================== HTTPS ====================
     FORCE_HTTPS = get_env_bool('FORCE_HTTPS', False)
+    HSTS_MAX_AGE = get_env_int('HSTS_MAX_AGE', 31536000)  # 1 año
     
-    # Audit
+    # ==================== CSRF ====================
+    CSRF_ENABLED = get_env_bool('CSRF_ENABLED', True)
+    CSRF_TIME_LIMIT = get_env_int('CSRF_TIME_LIMIT', 3600)  # 1 hora
+    
+    # ==================== AUDIT ====================
     SECURITY_AUDIT_LOG = get_env_bool('SECURITY_AUDIT_LOG', True)
     AUDIT_LOG_FILE = os.environ.get('AUDIT_LOG_FILE', 'logs/security_audit.log')
+    AUDIT_ALL_REQUESTS = get_env_bool('AUDIT_ALL_REQUESTS', False)  # Log de todas las peticiones
+    
+    # ==================== ENCRYPTION ====================
+    ENCRYPT_SENSITIVE_DATA = get_env_bool('ENCRYPT_SENSITIVE_DATA', True)
+    ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
 
 
 # ============================================
@@ -483,5 +545,526 @@ def is_safe_url(target: str) -> bool:
 
 def generate_secure_token(length: int = 32) -> str:
     """Genera un token seguro."""
-    import secrets
     return secrets.token_urlsafe(length)
+
+
+# ============================================
+# CSRF PROTECTION
+# ============================================
+
+class CSRFProtection:
+    """Protección CSRF con tokens."""
+    
+    @staticmethod
+    def generate_token() -> str:
+        """Genera un token CSRF y lo guarda en sesión."""
+        if '_csrf_token' not in session:
+            session['_csrf_token'] = secrets.token_hex(32)
+        return session['_csrf_token']
+    
+    @staticmethod
+    def validate_token(token: str) -> bool:
+        """Valida un token CSRF."""
+        if not SecurityConfig.CSRF_ENABLED:
+            return True
+        
+        session_token = session.get('_csrf_token')
+        if not session_token or not token:
+            return False
+        
+        # Comparación segura contra timing attacks
+        return hmac.compare_digest(session_token, token)
+    
+    @staticmethod
+    def get_token_field() -> str:
+        """Retorna HTML del campo hidden para formularios."""
+        token = CSRFProtection.generate_token()
+        return f'<input type="hidden" name="csrf_token" value="{token}">'
+
+
+def csrf_protect(f):
+    """Decorador para proteger endpoints contra CSRF."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
+            token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+            if not CSRFProtection.validate_token(token):
+                audit_logger.log_event('CSRF_FAIL', {
+                    'method': request.method,
+                    'path': request.path
+                })
+                abort(403, description='CSRF token inválido o expirado')
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ============================================
+# SESSION FINGERPRINTING
+# ============================================
+
+class SessionFingerprint:
+    """Validación de sesión por fingerprint (IP + User-Agent)."""
+    
+    @staticmethod
+    def generate() -> str:
+        """Genera fingerprint de la sesión actual."""
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+        ua = request.headers.get('User-Agent', 'unknown')
+        
+        # Hash del fingerprint
+        data = f"{ip}:{ua}"
+        return hashlib.sha256(data.encode()).hexdigest()
+    
+    @staticmethod
+    def store():
+        """Guarda el fingerprint en la sesión."""
+        session['_fingerprint'] = SessionFingerprint.generate()
+        session['_last_activity'] = datetime.now().isoformat()
+    
+    @staticmethod
+    def validate() -> Tuple[bool, str]:
+        """
+        Valida que el fingerprint coincida.
+        Returns: (is_valid, error_message)
+        """
+        if not SecurityConfig.SESSION_FINGERPRINT:
+            return True, ''
+        
+        stored = session.get('_fingerprint')
+        if not stored:
+            return True, ''  # Primera vez, no hay fingerprint
+        
+        current = SessionFingerprint.generate()
+        
+        if not hmac.compare_digest(stored, current):
+            audit_logger.log_event('SESSION_HIJACK_ATTEMPT', {
+                'stored_fingerprint': stored[:16],
+                'current_fingerprint': current[:16]
+            })
+            return False, 'Sesión inválida. Por favor inicia sesión de nuevo.'
+        
+        return True, ''
+    
+    @staticmethod
+    def check_inactivity() -> Tuple[bool, str]:
+        """
+        Verifica timeout de inactividad.
+        Returns: (is_active, error_message)
+        """
+        last_activity = session.get('_last_activity')
+        if not last_activity:
+            return True, ''
+        
+        try:
+            last_dt = datetime.fromisoformat(last_activity)
+            elapsed = (datetime.now() - last_dt).total_seconds() / 60
+            
+            if elapsed > SecurityConfig.SESSION_INACTIVITY_TIMEOUT:
+                audit_logger.log_event('SESSION_TIMEOUT', {
+                    'minutes_inactive': int(elapsed)
+                })
+                return False, f'Sesión expirada por inactividad ({int(elapsed)} minutos).'
+            
+            # Actualizar última actividad
+            session['_last_activity'] = datetime.now().isoformat()
+            
+        except (ValueError, TypeError):
+            pass
+        
+        return True, ''
+
+
+def session_security_check(f):
+    """Decorador para verificar seguridad de sesión."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Verificar fingerprint
+        valid, error = SessionFingerprint.validate()
+        if not valid:
+            session.clear()
+            flash(error, 'danger')
+            return redirect(url_for('login'))
+        
+        # Verificar inactividad
+        active, error = SessionFingerprint.check_inactivity()
+        if not active:
+            session.clear()
+            flash(error, 'warning')
+            return redirect(url_for('login'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ============================================
+# IP WHITELISTING
+# ============================================
+
+class IPWhitelist:
+    """Control de acceso por IP."""
+    
+    @staticmethod
+    def get_client_ip() -> str:
+        """Obtiene la IP real del cliente."""
+        if request.headers.get('X-Forwarded-For'):
+            return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+        if request.headers.get('X-Real-IP'):
+            return request.headers.get('X-Real-IP')
+        return request.remote_addr or 'unknown'
+    
+    @staticmethod
+    def is_allowed(ip: str = None, admin_only: bool = False) -> bool:
+        """Verifica si una IP está permitida."""
+        if not SecurityConfig.IP_WHITELIST_ENABLED:
+            return True
+        
+        ip = ip or IPWhitelist.get_client_ip()
+        
+        # Limpiar lista de IPs
+        if admin_only:
+            whitelist = [x.strip() for x in SecurityConfig.ADMIN_IP_WHITELIST if x.strip()]
+        else:
+            whitelist = [x.strip() for x in SecurityConfig.IP_WHITELIST if x.strip()]
+        
+        # Si no hay whitelist configurada, permitir todo
+        if not whitelist:
+            return True
+        
+        # Verificar si la IP está en la lista
+        return ip in whitelist
+    
+    @staticmethod
+    def check_admin_ip() -> bool:
+        """Verifica si la IP actual puede acceder como admin."""
+        if not SecurityConfig.IP_WHITELIST_ENABLED:
+            return True
+        
+        admin_whitelist = [x.strip() for x in SecurityConfig.ADMIN_IP_WHITELIST if x.strip()]
+        if not admin_whitelist:
+            return True
+        
+        client_ip = IPWhitelist.get_client_ip()
+        allowed = client_ip in admin_whitelist
+        
+        if not allowed:
+            audit_logger.log_event('ADMIN_IP_BLOCKED', {
+                'ip': client_ip,
+                'whitelist': admin_whitelist
+            })
+        
+        return allowed
+
+
+def ip_whitelist_required(admin_only: bool = False):
+    """Decorador para requerir IP en whitelist."""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not IPWhitelist.is_allowed(admin_only=admin_only):
+                ip = IPWhitelist.get_client_ip()
+                audit_logger.log_event('IP_BLOCKED', {'ip': ip, 'path': request.path})
+                abort(403, description='Acceso denegado desde esta ubicación')
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# ============================================
+# 2FA - TWO FACTOR AUTHENTICATION
+# ============================================
+
+class TwoFactorAuth:
+    """Autenticación de dos factores con TOTP."""
+    
+    @staticmethod
+    def generate_secret() -> str:
+        """Genera una clave secreta para TOTP."""
+        if not TOTP_AVAILABLE:
+            raise RuntimeError("pyotp no está instalado")
+        return pyotp.random_base32()
+    
+    @staticmethod
+    def get_totp(secret: str) -> 'pyotp.TOTP':
+        """Obtiene el objeto TOTP para una clave."""
+        if not TOTP_AVAILABLE:
+            raise RuntimeError("pyotp no está instalado")
+        return pyotp.TOTP(secret)
+    
+    @staticmethod
+    def verify_code(secret: str, code: str) -> bool:
+        """Verifica un código TOTP."""
+        if not TOTP_AVAILABLE:
+            return False
+        
+        totp = TwoFactorAuth.get_totp(secret)
+        # Permitir 1 código anterior/posterior (30 segundos de gracia)
+        return totp.verify(code, valid_window=1)
+    
+    @staticmethod
+    def generate_qr_code(secret: str, username: str, issuer: str = "BioStar Logs") -> bytes:
+        """Genera código QR para configurar 2FA."""
+        if not TOTP_AVAILABLE:
+            raise RuntimeError("pyotp/qrcode no está instalado")
+        
+        totp = TwoFactorAuth.get_totp(secret)
+        uri = totp.provisioning_uri(name=username, issuer_name=issuer)
+        
+        # Generar QR
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(uri)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        return buffer.getvalue()
+    
+    @staticmethod
+    def is_required_for_user(user) -> bool:
+        """Verifica si 2FA es requerido para un usuario."""
+        if SecurityConfig.REQUIRE_2FA:
+            return True
+        if SecurityConfig.REQUIRE_2FA_FOR_ADMIN and user.is_admin:
+            return True
+        return False
+
+
+# ============================================
+# PASSWORD HISTORY
+# ============================================
+
+class PasswordHistory:
+    """Manejo de historial de contraseñas."""
+    
+    @staticmethod
+    def check_password_reuse(user, new_password: str) -> Tuple[bool, str]:
+        """
+        Verifica que la nueva contraseña no haya sido usada antes.
+        Returns: (is_allowed, error_message)
+        """
+        if not hasattr(user, 'password_history') or not user.password_history:
+            return True, ''
+        
+        try:
+            history = json.loads(user.password_history)
+        except (json.JSONDecodeError, TypeError):
+            return True, ''
+        
+        # Verificar contra las últimas N contraseñas
+        for old_hash in history[:SecurityConfig.PASSWORD_HISTORY_COUNT]:
+            if check_password_hash(old_hash, new_password):
+                return False, f'No puedes reusar las últimas {SecurityConfig.PASSWORD_HISTORY_COUNT} contraseñas.'
+        
+        return True, ''
+    
+    @staticmethod
+    def add_to_history(user, password_hash: str):
+        """Agrega una contraseña al historial."""
+        try:
+            history = json.loads(user.password_history) if user.password_history else []
+        except (json.JSONDecodeError, TypeError):
+            history = []
+        
+        # Agregar al inicio y limitar
+        history.insert(0, password_hash)
+        history = history[:SecurityConfig.PASSWORD_HISTORY_COUNT]
+        
+        user.password_history = json.dumps(history)
+
+
+# ============================================
+# PASSWORD EXPIRATION
+# ============================================
+
+class PasswordExpiration:
+    """Control de expiración de contraseñas."""
+    
+    @staticmethod
+    def is_expired(user) -> bool:
+        """Verifica si la contraseña ha expirado."""
+        if SecurityConfig.PASSWORD_MAX_AGE_DAYS <= 0:
+            return False
+        
+        if not hasattr(user, 'password_changed_at') or not user.password_changed_at:
+            return True  # Nunca se ha cambiado, forzar cambio
+        
+        age_days = (datetime.utcnow() - user.password_changed_at).days
+        return age_days >= SecurityConfig.PASSWORD_MAX_AGE_DAYS
+    
+    @staticmethod
+    def days_until_expiry(user) -> int:
+        """Retorna días hasta que expire la contraseña."""
+        if SecurityConfig.PASSWORD_MAX_AGE_DAYS <= 0:
+            return 999
+        
+        if not hasattr(user, 'password_changed_at') or not user.password_changed_at:
+            return 0
+        
+        age_days = (datetime.utcnow() - user.password_changed_at).days
+        return max(0, SecurityConfig.PASSWORD_MAX_AGE_DAYS - age_days)
+
+
+# ============================================
+# ACCOUNT LOCKOUT (PERMANENTE)
+# ============================================
+
+class AccountLockout:
+    """Control de bloqueo permanente de cuentas."""
+    
+    # Almacenamiento de lockouts por usuario
+    _lockout_counts = defaultdict(int)
+    _permanent_locks = set()
+    _lock = threading.Lock()
+    
+    @staticmethod
+    def record_lockout(identifier: str):
+        """Registra un lockout temporal."""
+        with AccountLockout._lock:
+            AccountLockout._lockout_counts[identifier] += 1
+            
+            if AccountLockout._lockout_counts[identifier] >= SecurityConfig.PERMANENT_LOCKOUT_AFTER:
+                AccountLockout._permanent_locks.add(identifier)
+                audit_logger.log_event('PERMANENT_LOCKOUT', {
+                    'identifier': identifier,
+                    'lockout_count': AccountLockout._lockout_counts[identifier]
+                })
+    
+    @staticmethod
+    def is_permanently_locked(identifier: str) -> bool:
+        """Verifica si una cuenta está bloqueada permanentemente."""
+        return identifier in AccountLockout._permanent_locks
+    
+    @staticmethod
+    def unlock(identifier: str):
+        """Desbloquea una cuenta (solo admin)."""
+        with AccountLockout._lock:
+            AccountLockout._permanent_locks.discard(identifier)
+            AccountLockout._lockout_counts[identifier] = 0
+            audit_logger.log_event('ACCOUNT_UNLOCKED', {'identifier': identifier})
+
+
+# ============================================
+# DATA ENCRYPTION
+# ============================================
+
+class DataEncryption:
+    """Encriptación de datos sensibles."""
+    
+    _fernet = None
+    
+    @staticmethod
+    def _get_fernet():
+        """Obtiene instancia de Fernet para encriptación."""
+        if not CRYPTO_AVAILABLE:
+            return None
+        
+        if DataEncryption._fernet is None:
+            key = SecurityConfig.ENCRYPTION_KEY
+            if not key:
+                # Generar clave derivada del SECRET_KEY
+                secret = os.environ.get('SECRET_KEY', 'default').encode()
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=b'biostar_logs_salt',
+                    iterations=100000,
+                )
+                key = base64.urlsafe_b64encode(kdf.derive(secret))
+            else:
+                key = key.encode() if isinstance(key, str) else key
+            
+            DataEncryption._fernet = Fernet(key)
+        
+        return DataEncryption._fernet
+    
+    @staticmethod
+    def encrypt(data: str) -> str:
+        """Encripta un string."""
+        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA:
+            return data
+        
+        fernet = DataEncryption._get_fernet()
+        if not fernet:
+            return data
+        
+        try:
+            encrypted = fernet.encrypt(data.encode())
+            return encrypted.decode()
+        except Exception:
+            return data
+    
+    @staticmethod
+    def decrypt(data: str) -> str:
+        """Desencripta un string."""
+        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA:
+            return data
+        
+        fernet = DataEncryption._get_fernet()
+        if not fernet:
+            return data
+        
+        try:
+            decrypted = fernet.decrypt(data.encode())
+            return decrypted.decode()
+        except Exception:
+            return data
+
+
+# ============================================
+# SECURE REQUEST LOGGING
+# ============================================
+
+def log_all_requests(app):
+    """Registra todas las peticiones (para auditoría nivel gobierno)."""
+    
+    @app.before_request
+    def log_request():
+        if SecurityConfig.AUDIT_ALL_REQUESTS:
+            audit_logger.log_event('REQUEST', {
+                'method': request.method,
+                'path': request.path,
+                'ip': IPWhitelist.get_client_ip(),
+                'user_agent': request.headers.get('User-Agent', 'unknown')[:100]
+            })
+    
+    @app.after_request
+    def log_response(response):
+        if SecurityConfig.AUDIT_ALL_REQUESTS:
+            audit_logger.log_event('RESPONSE', {
+                'status': response.status_code,
+                'path': request.path
+            })
+        return response
+
+
+# ============================================
+# SECURITY MIDDLEWARE COMPLETO
+# ============================================
+
+def apply_government_security(app):
+    """
+    Aplica TODAS las medidas de seguridad nivel gobierno.
+    Llamar después de configure_flask_security().
+    """
+    # Log de todas las peticiones si está habilitado
+    log_all_requests(app)
+    
+    # Middleware de verificación de IP
+    @app.before_request
+    def check_ip_whitelist():
+        if SecurityConfig.IP_WHITELIST_ENABLED:
+            if not IPWhitelist.is_allowed():
+                abort(403, description='Acceso denegado desde esta ubicación')
+    
+    # Agregar token CSRF a contexto de templates
+    @app.context_processor
+    def csrf_context():
+        return {
+            'csrf_token': CSRFProtection.generate_token,
+            'csrf_field': CSRFProtection.get_token_field
+        }
+    
+    print("✓ Seguridad nivel gobierno aplicada")
+    return app
