@@ -1130,5 +1130,5 @@ def apply_government_security(app):
             'csrf_field': CSRFProtection.get_token_field
         }
     
-    print("✓ Seguridad nivel gobierno aplicada")
+    print("[OK] Seguridad nivel gobierno aplicada")
     return app

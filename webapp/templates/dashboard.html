@@ -187,18 +187,14 @@
 </div>
 {% endfor %}
 
-{% if not devices_by_type %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No se encontraron checadores.
-</div>
-{% endif %}
+<!-- Mensaje de error removido - 2025-12-02 -->
 
 {% endif %}
 
 {% block extra_js %}
 <script>
 // ==================== DASHBOARD CON CARGA LAZY Y TIEMPO REAL ====================
-let eventSource = null;
+let dashboardEventSource = null;
 let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
@@ -327,7 +323,7 @@ function escapeHtml(text) {
 function connectRealtime() {
     const statusBadge = document.getElementById('realtimeStatus');
     
-    if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+    if (dashboardEventSource && dashboardEventSource.readyState !== EventSource.CLOSED) return;
     
     if (statusBadge) {
         statusBadge.classList.remove('bg-success', 'bg-danger');
@@ -335,11 +331,11 @@ function connectRealtime() {
         statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
     }
     
-    if (eventSource) eventSource.close();
+    if (dashboardEventSource) dashboardEventSource.close();
     
-    eventSource = new EventSource('/stream/all-devices?interval=3');
+    dashboardEventSource = new EventSource('/stream/all-devices?interval=3');
     
-    eventSource.addEventListener('connection', (e) => {
+    dashboardEventSource.addEventListener('connection', (e) => {
         console.log('✅ Tiempo real activo');
         reconnectAttempts = 0;
         if (statusBadge) {
@@ -349,7 +345,7 @@ function connectRealtime() {
         }
     });
     
-    eventSource.addEventListener('new_event', (e) => {
+    dashboardEventSource.addEventListener('new_event', (e) => {
         const event = JSON.parse(e.data);
         const deviceId = String(event.device_id || event.source_device_id);
         
@@ -379,15 +375,15 @@ function connectRealtime() {
         updateHeaderTotals();
     });
     
-    eventSource.addEventListener('heartbeat', (e) => {});
+    dashboardEventSource.addEventListener('heartbeat', (e) => {});
     
-    eventSource.onerror = (error) => {
+    dashboardEventSource.onerror = (error) => {
         if (statusBadge) {
             statusBadge.classList.remove('bg-success', 'bg-warning');
             statusBadge.classList.add('bg-danger');
             statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
         }
-        if (eventSource.readyState === EventSource.CLOSED) attemptReconnect();
+        if (dashboardEventSource.readyState === EventSource.CLOSED) attemptReconnect();
     };
 }
 
@@ -407,9 +403,9 @@ function updateHeaderTotals() {
 
 function attemptReconnect() {
     reconnectAttempts++;
-    if (eventSource) {
-        eventSource.close();
-        eventSource = null;
+    if (dashboardEventSource) {
+        dashboardEventSource.close();
+        dashboardEventSource = null;
     }
     setTimeout(() => connectRealtime(), Math.min(3000 * reconnectAttempts, 30000));
 }
