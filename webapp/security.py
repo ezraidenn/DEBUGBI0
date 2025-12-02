@@ -445,14 +445,14 @@ def add_security_headers(response):
     # Permissions Policy (antes Feature-Policy)
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     
-    # Content Security Policy (básico, ajustar según necesidades)
+    # Content Security Policy (permite CDNs necesarios)
     csp = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; "
         "font-src 'self' fonts.gstatic.com cdn.jsdelivr.net; "
-        "img-src 'self' data:; "
-        "connect-src 'self'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self' cdn.jsdelivr.net fonts.googleapis.com fonts.gstatic.com; "
         "frame-ancestors 'self';"
     )
     response.headers['Content-Security-Policy'] = csp

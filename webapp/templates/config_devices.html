@@ -123,73 +123,83 @@
     </div>
 </div>
 
-<!-- Modal: Editar Dispositivo - Diseño Premium -->
-<div class="modal fade" id="deviceModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
-            <div class="modal-header border-0 py-3" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
+<!-- Modal: Editar Dispositivo - Pantalla Completa con Footer Fijo -->
+<div class="modal fade" id="deviceModal" tabindex="-1" aria-labelledby="deviceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0 shadow-lg d-flex flex-column" style="height: 100%;">
+            <!-- Header -->
+            <div class="modal-header border-0 py-3 flex-shrink-0" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
                 <div class="d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-2" 
                          style="width: 36px; height: 36px; background: rgba(255,255,255,0.15);">
-                        <i class="bi bi-gear-fill text-white"></i>
+                        <i class="bi bi-gear-fill text-white" style="font-size: 1rem;"></i>
                     </div>
-                    <h6 class="modal-title text-white mb-0 fw-bold">Configurar Dispositivo</h6>
+                    <div>
+                        <h6 class="modal-title text-white mb-0 fw-bold" id="deviceModalLabel">Configurar Dispositivo</h6>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Personalizar nombre y tipo</small>
+                    </div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="deviceForm" onsubmit="saveDevice(event)">
-                <div class="modal-body" style="background: #F8F6F4;">
-                    <input type="hidden" id="deviceId" name="device_id">
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">ID BioStar</label>
-                        <input type="text" class="form-control" id="deviceBiostarId" readonly 
-                               style="background: #E8E0DB; border: none; border-radius: 10px;">
+            
+            <form id="deviceForm" onsubmit="saveDevice(event)" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+                <input type="hidden" id="deviceId" name="device_id">
+                
+                <!-- Body con scroll - ocupa todo el espacio disponible -->
+                <div class="flex-grow-1 overflow-auto" style="background: #F8F6F4;">
+                    <!-- Info del dispositivo -->
+                    <div class="p-3" style="background: white; border-bottom: 1px solid rgba(62,39,35,0.08);">
+                        <div class="row g-2">
+                            <div class="col-5">
+                                <label class="form-label mb-1 small fw-semibold" style="color: #6c757d;">ID BioStar</label>
+                                <div class="p-2 rounded" style="background: #E8E0DB; font-size: 0.9rem;" id="deviceBiostarId"></div>
+                            </div>
+                            <div class="col-7">
+                                <label class="form-label mb-1 small fw-semibold" style="color: #6c757d;">Nombre Original</label>
+                                <div class="p-2 rounded" style="background: #E8E0DB; font-size: 0.9rem;" id="deviceOriginalName"></div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Nombre Original</label>
-                        <input type="text" class="form-control" id="deviceOriginalName" readonly 
-                               style="background: #E8E0DB; border: none; border-radius: 10px;">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Alias (nombre personalizado)</label>
-                        <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal"
-                               style="border: 2px solid #E8E0DB; border-radius: 10px;">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Ubicación</label>
-                        <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A"
-                               style="border: 2px solid #E8E0DB; border-radius: 10px;">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Tipo de Dispositivo</label>
-                        <select class="form-select" id="deviceType" name="device_type"
-                                style="border: 2px solid #E8E0DB; border-radius: 10px;">
-                            <option value="checador">Checador (huella/facial)</option>
-                            <option value="puerta">Puerta (solo salida)</option>
-                            <option value="facial">Facial dedicado</option>
-                            <option value="otro">Otro</option>
-                        </select>
-                        <div class="mt-2 p-3" style="background: #FFF8E1; border-radius: 10px; font-size: 0.8rem;">
-                            <i class="bi bi-info-circle me-1" style="color: #F57C00;"></i>
-                            <strong>Checador:</strong> Aplica lógica de pares<br>
-                            <strong>Puerta:</strong> Sin lógica de pares
+                    <!-- Campos editables -->
+                    <div class="p-3">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" style="color: #3E2723;">Alias (nombre personalizado)</label>
+                            <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal"
+                                   style="border: 1px solid #E8E0DB; border-radius: 8px;">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" style="color: #3E2723;">Ubicación</label>
+                            <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A"
+                                   style="border: 1px solid #E8E0DB; border-radius: 8px;">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" style="color: #3E2723;">Tipo de Dispositivo</label>
+                            <select class="form-select" id="deviceType" name="device_type"
+                                    style="border: 1px solid #E8E0DB; border-radius: 8px;">
+                                <option value="checador">Checador (huella/facial)</option>
+                                <option value="puerta">Puerta (solo salida)</option>
+                                <option value="facial">Facial dedicado</option>
+                                <option value="otro">Otro</option>
+                            </select>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0 py-3" style="background: white;">
-                    <button type="button" class="btn px-4" data-bs-dismiss="modal"
-                            style="background: transparent; border: 2px solid #3E2723; color: #3E2723; border-radius: 10px; font-weight: 600;">
-                        Cancelar
-                    </button>
-                    <button type="submit" class="btn px-4"
-                            style="background: #3E2723; color: white; border-radius: 10px; font-weight: 600;">
-                        <i class="bi bi-check-lg me-1"></i> Guardar
-                    </button>
+                
+                <!-- Footer FIJO abajo -->
+                <div class="flex-shrink-0 p-3" style="background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+                    <div class="d-flex gap-2 w-100">
+                        <button type="button" class="btn flex-fill py-2" data-bs-dismiss="modal"
+                                style="background: transparent; border: 2px solid #3E2723; color: #3E2723; border-radius: 10px; font-weight: 600;">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn flex-fill py-2"
+                                style="background: #3E2723; color: white; border-radius: 10px; font-weight: 600;">
+                            <i class="bi bi-check-lg me-1"></i> Guardar
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -277,8 +287,8 @@ function editDeviceFromButton(button) {
     const configType = button.dataset.configType;
     
     document.getElementById('deviceId').value = deviceId;
-    document.getElementById('deviceBiostarId').value = deviceId;
-    document.getElementById('deviceOriginalName').value = deviceName;
+    document.getElementById('deviceBiostarId').textContent = deviceId;
+    document.getElementById('deviceOriginalName').textContent = deviceName;
     document.getElementById('deviceAlias').value = configAlias;
     document.getElementById('deviceLocation').value = configLocation || deviceLocation;
     document.getElementById('deviceType').value = configType || 'checador';

@@ -1,14 +1,14 @@
-# 🔍 BioStar Debug Monitor - Sistema de Monitoreo en Tiempo Real
+# 🔍 BioStar Logs Monitor - Sistema de Monitoreo en Tiempo Real
 
-Sistema web profesional para monitoreo y análisis de eventos de checadores BioStar 2 con actualización en tiempo real.
+Sistema web profesional para monitoreo y análisis de eventos de checadores BioStar 2 con actualización en tiempo real y **seguridad nivel gobierno**.
 
 ## 🎯 Funcionalidades Principales
 
 ### Dashboard en Tiempo Real
 - ✅ **Monitoreo automático** de todos los dispositivos
-- ✅ **Actualización en tiempo real** sin recargar la página
-- ✅ **Estadísticas globales** (eventos totales, concedidos, denegados)
-- ✅ **Estadísticas por dispositivo** con animaciones visuales
+- ✅ **Actualización en tiempo real** via Server-Sent Events (SSE)
+- ✅ **Carga lazy** - Dashboard instantáneo con datos asíncronos
+- ✅ **Estadísticas globales** (eventos totales, concedidos, usuarios únicos)
 - ✅ **Reconexión automática** en caso de pérdida de conexión
 
 ### Gestión de Dispositivos
@@ -23,6 +23,19 @@ Sistema web profesional para monitoreo y análisis de eventos de checadores BioS
 - ✅ **Caché inteligente** para optimizar rendimiento
 - ✅ **Logs detallados** para debugging
 - ✅ **Zona horaria México** (America/Mexico_City)
+
+### 🔐 Seguridad Nivel Gobierno
+- ✅ **2FA con TOTP** (Google Authenticator)
+- ✅ **CSRF Protection** con tokens
+- ✅ **Session Fingerprinting** (IP + User-Agent)
+- ✅ **Rate Limiting** contra fuerza bruta
+- ✅ **Bloqueo de cuentas** (temporal y permanente)
+- ✅ **Expiración de contraseñas** (90 días)
+- ✅ **Historial de contraseñas** (no reusar últimas 5)
+- ✅ **IP Whitelisting** para admins
+- ✅ **Auditoría completa** de eventos de seguridad
+- ✅ **Encriptación de datos** sensibles
+- ✅ **Headers HTTP seguros** (CSP, HSTS, X-Frame-Options)
 
 ## 📁 Estructura del Proyecto
 
@@ -198,25 +211,73 @@ El sistema clasifica automáticamente los eventos en las siguientes categorías:
 - **Caché**: Flask-Caching
 - **Zona Horaria**: pytz (America/Mexico_City)
 
-## 🔒 Seguridad
+## 🔒 Seguridad Nivel Gobierno
 
-### Buenas Prácticas
-- ✅ **NO** subir `.env` a repositorios públicos
-- ✅ Usar credenciales con permisos mínimos
-- ✅ Cambiar contraseña por defecto (`admin123`)
-- ✅ SSL deshabilitado solo para certificados autofirmados internos
-- ✅ Sesiones con timeout automático
+### Características de Seguridad Implementadas
 
-### Cambiar Contraseña de Admin
-```python
-# En Python shell
-from webapp.models import db, User
-from werkzeug.security import generate_password_hash
+| Protección | Descripción | Configuración |
+|------------|-------------|---------------|
+| **2FA (TOTP)** | Autenticación de dos factores con Google Authenticator | `REQUIRE_2FA_FOR_ADMIN=true` |
+| **CSRF Protection** | Tokens únicos por sesión | `CSRF_ENABLED=true` |
+| **Session Fingerprint** | Validación de IP + User-Agent | `SESSION_FINGERPRINT=true` |
+| **Rate Limiting** | 5 intentos/minuto, bloqueo 15 min | `LOGIN_MAX_ATTEMPTS=5` |
+| **Bloqueo Permanente** | Después de 3 lockouts temporales | `PERMANENT_LOCKOUT_AFTER=3` |
+| **Password Expiration** | Forzar cambio cada 90 días | `PASSWORD_MAX_AGE_DAYS=90` |
+| **Password History** | No reusar últimas 5 contraseñas | `PASSWORD_HISTORY_COUNT=5` |
+| **IP Whitelisting** | Restringir acceso por IP | `IP_WHITELIST_ENABLED=true` |
+| **Auditoría** | Log de todos los eventos de seguridad | `SECURITY_AUDIT_LOG=true` |
+| **Encriptación** | Datos sensibles encriptados | `ENCRYPT_SENSITIVE_DATA=true` |
+| **HTTPS** | Forzar conexiones seguras | `FORCE_HTTPS=true` |
 
-user = User.query.filter_by(username='admin').first()
-user.password_hash = generate_password_hash('nueva_contraseña')
-db.session.commit()
+### Política de Contraseñas (Nivel Gobierno)
+- Mínimo 12 caracteres
+- Al menos 1 mayúscula
+- Al menos 1 minúscula
+- Al menos 1 número
+- Al menos 1 carácter especial
+- No reutilizar últimas 5 contraseñas
+- Expiración cada 90 días
+
+### Configuración de Seguridad (.env)
+```env
+# Seguridad
+SECRET_KEY=tu-clave-secreta-64-caracteres
+FLASK_ENV=production
+
+# Sesiones
+SESSION_LIFETIME_MINUTES=30
+SESSION_INACTIVITY_TIMEOUT=15
+SESSION_FINGERPRINT=true
+
+# Rate Limiting
+LOGIN_MAX_ATTEMPTS=5
+LOGIN_LOCKOUT_MINUTES=15
+PERMANENT_LOCKOUT_AFTER=3
+
+# Contraseñas
+PASSWORD_MIN_LENGTH=12
+PASSWORD_MAX_AGE_DAYS=90
+PASSWORD_HISTORY_COUNT=5
+
+# 2FA
+REQUIRE_2FA_FOR_ADMIN=true
+
+# HTTPS
+FORCE_HTTPS=true
 ```
+
+### Resetear Contraseña de Admin
+```bash
+python reset_admin.py
+```
+
+### Logs de Auditoría
+Los eventos de seguridad se registran en `logs/security_audit.log`:
+- Intentos de login (exitosos y fallidos)
+- Bloqueos de cuenta
+- Cambios de contraseña
+- Creación/edición/eliminación de usuarios
+- Intentos de acceso no autorizado
 
 ## 🐛 Troubleshooting
 

@@ -9,7 +9,7 @@ from datetime import datetime
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash
@@ -543,23 +543,35 @@ def get_unique_users():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Main dashboard - Solo muestra accesos concedidos. OPTIMIZADO con carga paralela."""
-    # Get monitor instance
+    """Main dashboard - CARGA RÁPIDA con datos via AJAX."""
+    # Renderizar inmediatamente con datos mínimos
+    # Los datos reales se cargan via /api/dashboard-data
+    return render_template('dashboard.html', 
+                           devices_by_type={}, 
+                           total_granted=0,
+                           total_users=0,
+                           total_devices=0,
+                           lazy_load=True)  # Flag para carga lazy
+
+
+@app.route('/api/dashboard-data')
+@login_required
+def api_dashboard_data():
+    """API para cargar datos del dashboard de forma asíncrona."""
     monitor = get_monitor()
     if not monitor:
-        flash('Error al conectar con BioStar. Verifica la configuración.', 'danger')
-        return render_template('dashboard.html', devices_by_type={}, error=True)
+        return jsonify({'error': 'No se pudo conectar con BioStar'}), 500
     
-    # Get all devices (usar caché, no refresh)
+    # Get all devices (usar caché)
     all_devices = monitor.get_all_devices(refresh=False)
     
-    # Get device configurations (una sola query)
+    # Get device configurations
     device_configs = {}
     for config in DeviceConfig.query.all():
         device_configs[config.device_id] = config
         device_configs[str(config.device_id)] = config
     
-    # Filtrar dispositivos según permisos del usuario
+    # Filtrar según permisos
     if current_user.is_admin or current_user.can_see_all_events:
         devices = all_devices
     else:
@@ -570,17 +582,15 @@ def dashboard():
         else:
             devices = all_devices
     
-    # ========== CARGA PARALELA DE RESÚMENES ==========
+    # Carga paralela de resúmenes
     def fetch_device_summary(device):
-        """Obtiene resumen de un dispositivo (ejecutado en paralelo)."""
         try:
             summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
             summary['total_events'] = summary['access_granted']
             return device['id'], summary, user_ids
-        except Exception as e:
+        except Exception:
             return device['id'], {'access_granted': 0, 'unique_users': 0, 'total_events': 0}, set()
     
-    # Ejecutar en paralelo con máximo 8 workers
     devices_by_type = {}
     total_granted = 0
     all_user_ids = set()
@@ -593,33 +603,30 @@ def dashboard():
             device_summaries[device_id] = (summary, user_ids)
     
     # Procesar resultados
+    devices_data = []
     for device in devices:
         summary, user_ids = device_summaries.get(device['id'], ({}, set()))
-        device['summary'] = summary
         total_granted += summary.get('access_granted', 0)
         all_user_ids.update(user_ids)
         
-        # Obtener tipo del dispositivo
         config = device_configs.get(device['id']) or device_configs.get(str(device['id']))
         device_type = config.device_type if config else 'checador'
-        device['device_type'] = device_type
         
-        if device_type not in devices_by_type:
-            devices_by_type[device_type] = []
-        devices_by_type[device_type].append(device)
+        devices_data.append({
+            'id': device['id'],
+            'name': device.get('name', ''),
+            'alias': config.alias if config else None,
+            'device_type': device_type,
+            'summary': summary
+        })
     
-    total_users = len(all_user_ids)
-    
-    # Ordenar tipos
-    type_order = {'checador': 0, 'puerta': 1, 'facial': 2, 'otro': 3}
-    sorted_types = sorted(devices_by_type.keys(), key=lambda x: type_order.get(x, 99))
-    devices_by_type = {t: devices_by_type[t] for t in sorted_types}
-    
-    return render_template('dashboard.html', 
-                           devices_by_type=devices_by_type, 
-                           total_granted=total_granted,
-                           total_users=total_users,
-                           total_devices=len(devices))
+    return jsonify({
+        'success': True,
+        'devices': devices_data,
+        'total_granted': total_granted,
+        'total_users': len(all_user_ids),
+        'total_devices': len(devices)
+    })
 
 
 @app.route('/debug/general')
