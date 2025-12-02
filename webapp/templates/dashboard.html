@@ -36,10 +36,96 @@
         </div>
     </div>
     <div class="col-12 col-md-4 animate-scale-in" style="animation-delay: 0.3s;">
-        <div class="stat-card">
+        <div class="stat-card clickable-card" onclick="openUsersModal()" style="cursor: pointer;" title="Click para ver usuarios">
             <h6>Usuarios Únicos</h6>
             <h2>{{ total_users }}</h2>
-            <small><i class="bi bi-people-fill"></i> Hoy</small>
+            <small><i class="bi bi-people-fill"></i> Hoy <i class="bi bi-box-arrow-up-right ms-1"></i></small>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Usuarios Únicos - Diseño Premium -->
+<div class="modal fade" id="usersModal" tabindex="-1" aria-labelledby="usersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <!-- Header con gradiente -->
+            <div class="modal-header border-0 py-4" style="background: linear-gradient(135deg, #3E2723 0%, #5D4037 50%, #6D4C41 100%);">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-3" 
+                         style="width: 48px; height: 48px; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);">
+                        <i class="bi bi-people-fill text-white" style="font-size: 1.4rem;"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title text-white mb-0 fw-bold" id="usersModalLabel">
+                            Usuarios del Día
+                        </h5>
+                        <small class="text-white-50">Registro de accesos únicos</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body p-0" style="background: #FAFAFA;">
+                <!-- Buscador Premium -->
+                <div class="sticky-top p-3" style="background: linear-gradient(180deg, #FFFFFF 0%, #F8F6F4 100%); border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <div class="position-relative">
+                        <div class="input-group shadow-sm" style="border-radius: 12px; overflow: hidden;">
+                            <span class="input-group-text bg-white border-0 ps-3">
+                                <i class="bi bi-search" style="color: #5D4037;"></i>
+                            </span>
+                            <input type="text" class="form-control border-0 py-2" 
+                                   id="userSearchInput" 
+                                   placeholder="Buscar usuario por nombre o ID..."
+                                   autocomplete="off"
+                                   style="font-size: 0.95rem;">
+                            <button class="btn bg-white border-0 px-3" type="button" id="clearSearchBtn" style="display: none;">
+                                <i class="bi bi-x-circle-fill text-muted"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3 px-1">
+                        <div class="d-flex align-items-center">
+                            <span class="badge rounded-pill me-2" style="background: linear-gradient(135deg, #5D4037, #795548); padding: 6px 12px;">
+                                <i class="bi bi-person-check me-1"></i>
+                                <span id="usersCount">0</span>
+                            </span>
+                            <small class="text-muted">usuarios únicos</small>
+                        </div>
+                        <small class="text-muted fw-medium" id="searchResultCount"></small>
+                    </div>
+                </div>
+                
+                <!-- Lista de usuarios -->
+                <div id="usersListContainer" style="min-height: 300px;">
+                    <div class="text-center py-5" id="usersLoading">
+                        <div class="spinner-grow" role="status" style="color: #5D4037; width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 text-muted fw-medium">Cargando usuarios...</p>
+                    </div>
+                    <div class="px-3 py-2" id="usersList"></div>
+                    <div class="text-center py-5" id="noUsersFound" style="display: none;">
+                        <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3" 
+                             style="width: 80px; height: 80px; background: #F0EBE8;">
+                            <i class="bi bi-search" style="font-size: 2rem; color: #8D6E63;"></i>
+                        </div>
+                        <p class="text-muted mb-0">No se encontraron usuarios</p>
+                        <small class="text-muted">Intenta con otro término de búsqueda</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer elegante -->
+            <div class="modal-footer border-0 py-3" style="background: linear-gradient(180deg, #F8F6F4 0%, #FFFFFF 100%);">
+                <div class="d-flex align-items-center me-auto">
+                    <i class="bi bi-clock-history me-2" style="color: #8D6E63;"></i>
+                    <small class="text-muted">Último chequeo de cada usuario hoy</small>
+                </div>
+                <button type="button" class="btn px-4" data-bs-dismiss="modal" 
+                        style="background: linear-gradient(135deg, #5D4037, #6D4C41); color: white; border-radius: 8px;">
+                    <i class="bi bi-x-lg me-1"></i> Cerrar
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -117,67 +203,43 @@
 
 {% block extra_js %}
 <script>
+// ==================== DASHBOARD CON TIEMPO REAL SIMPLE ====================
 let eventSource = null;
-let deviceStats = {}; // {device_id: {total_events, access_granted, access_denied, users: Set}}
-let allowedDeviceIds = new Set(); // IDs de dispositivos que el usuario puede ver
+let reconnectAttempts = 0;
+let allUserIds = new Set();  // Set global para usuarios únicos
 
-// Inicializar stats desde el servidor (solo dispositivos permitidos)
+// IDs de dispositivos permitidos para este usuario
+const allowedDeviceIds = new Set([
 {% for device_type, devices in devices_by_type.items() %}
 {% for device in devices %}
-allowedDeviceIds.add('{{ device.id }}');
-deviceStats['{{ device.id }}'] = {
-    total_events: {{ device.summary.total_events }},
-    access_granted: {{ device.summary.access_granted }},
-    access_denied: {{ device.summary.access_denied|default(0) }},
-    users: new Set()  // Para rastrear usuarios únicos
-};
+'{{ device.id }}',
 {% endfor %}
 {% endfor %}
-
-console.log('📋 Dispositivos permitidos:', Array.from(allowedDeviceIds));
-
-// ==================== CONECTAR AUTOMÁTICAMENTE AL CARGAR ====================
-let reconnectAttempts = 0;
-let maxReconnectAttempts = 999;
-let reconnectDelay = 3000;
-let lastHeartbeat = Date.now();
-let heartbeatCheckInterval = null;
+]);
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Iniciando tiempo real automáticamente...');
-    connectRealtimeStream();
-    startHeartbeatCheck();
+    console.log('🚀 Dashboard iniciado. Dispositivos:', allowedDeviceIds.size);
+    connectRealtime();
 });
 
-function connectRealtimeStream() {
-    if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
-        console.log('⚠️ SSE ya está activo');
-        return;
-    }
-    
-    console.log(`🔌 Conectando a stream de tiempo real... (intento ${reconnectAttempts + 1})`);
-    
+function connectRealtime() {
     const statusBadge = document.getElementById('realtimeStatus');
+    
+    if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+    
     if (statusBadge) {
         statusBadge.classList.remove('bg-success', 'bg-danger');
         statusBadge.classList.add('bg-warning');
         statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
     }
     
-    // Cerrar conexión anterior si existe
-    if (eventSource) {
-        eventSource.close();
-    }
+    if (eventSource) eventSource.close();
     
-    eventSource = new EventSource('/stream/all-devices?interval=2');
-    lastHeartbeat = Date.now();
+    eventSource = new EventSource('/stream/all-devices?interval=3');
     
     eventSource.addEventListener('connection', (e) => {
-        const data = JSON.parse(e.data);
-        console.log('✅ Conectado al stream:', data);
-        reconnectAttempts = 0; // Reset intentos
-        lastHeartbeat = Date.now();
-        
+        console.log('✅ Tiempo real activo');
+        reconnectAttempts = 0;
         if (statusBadge) {
             statusBadge.classList.remove('bg-warning', 'bg-danger');
             statusBadge.classList.add('bg-success');
@@ -187,172 +249,271 @@ function connectRealtimeStream() {
     
     eventSource.addEventListener('new_event', (e) => {
         const event = JSON.parse(e.data);
-        console.log('📥 Nuevo evento:', event);
-        lastHeartbeat = Date.now();
+        const deviceId = String(event.device_id || event.source_device_id);
         
-        // Actualizar estadísticas del dispositivo
-        updateDeviceStats(event);
+        // Solo procesar dispositivos permitidos
+        if (!allowedDeviceIds.has(deviceId)) return;
+        
+        // Solo procesar accesos concedidos
+        if (event.badge_class !== 'success') return;
+        
+        console.log('📥', event.user, '@', event.datetime);
+        
+        // 1. Incrementar contador de la tarjeta del dispositivo
+        const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
+        if (card) {
+            const accesosEl = card.querySelector('.device-stat:first-child strong');
+            if (accesosEl) {
+                accesosEl.textContent = parseInt(accesosEl.textContent || 0) + 1;
+            }
+        }
+        
+        // 2. Agregar usuario al set global
+        if (event.user_id) {
+            allUserIds.add(String(event.user_id));
+        }
+        
+        // 3. Actualizar totales del header
+        updateHeaderTotals();
     });
     
-    eventSource.addEventListener('heartbeat', (e) => {
-        console.log('💓 Heartbeat recibido');
-        lastHeartbeat = Date.now();
-    });
+    eventSource.addEventListener('heartbeat', (e) => {});
     
     eventSource.onerror = (error) => {
-        console.error('❌ Error en SSE:', error);
-        
         if (statusBadge) {
             statusBadge.classList.remove('bg-success', 'bg-warning');
             statusBadge.classList.add('bg-danger');
             statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
         }
-        
-        if (eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔄 Conexión cerrada, reconectando...');
-            attemptReconnect();
-        }
+        if (eventSource.readyState === EventSource.CLOSED) attemptReconnect();
     };
-    
-    // Detectar cuando la pestaña vuelve a estar activa
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && eventSource && eventSource.readyState === EventSource.CLOSED) {
-            console.log('👁️ Pestaña activa de nuevo, reconectando...');
-            attemptReconnect();
-        }
-    });
 }
 
-function startHeartbeatCheck() {
-    if (heartbeatCheckInterval) {
-        clearInterval(heartbeatCheckInterval);
-    }
+function updateHeaderTotals() {
+    // Sumar accesos de todas las tarjetas
+    let totalAccesos = 0;
+    document.querySelectorAll('.device-card .device-stat:first-child strong').forEach(el => {
+        totalAccesos += parseInt(el.textContent || 0);
+    });
     
-    heartbeatCheckInterval = setInterval(function() {
-        const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
-        
-        if (timeSinceLastHeartbeat > 45000) {
-            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
-            attemptReconnect();
-        }
-    }, 30000);
+    // Actualizar solo accesos en el header
+    // Usuarios únicos se mantiene del servidor (requiere recarga para actualizar)
+    const statCards = document.querySelectorAll('.stat-card h2');
+    if (statCards[1]) statCards[1].textContent = totalAccesos;
+    // statCards[2] = usuarios únicos, NO se actualiza en tiempo real
 }
 
 function attemptReconnect() {
-    if (reconnectAttempts >= maxReconnectAttempts) {
-        console.error('❌ Máximo de intentos alcanzado');
-        return;
-    }
-    
     reconnectAttempts++;
-    
     if (eventSource) {
         eventSource.close();
         eventSource = null;
     }
-    
-    const delay = Math.min(reconnectDelay * reconnectAttempts, 30000);
-    console.log(`⏳ Reconectando en ${delay / 1000}s...`);
-    
-    setTimeout(function() {
-        connectRealtimeStream();
-    }, delay);
+    setTimeout(() => connectRealtime(), Math.min(3000 * reconnectAttempts, 30000));
 }
 
-function updateDeviceStats(event) {
-    const deviceId = String(event.device_id || event.source_device_id);
-    if (!deviceId) return;
-    
-    // IMPORTANTE: Solo procesar dispositivos que el usuario puede ver
-    if (!allowedDeviceIds.has(deviceId)) {
-        console.log(`⏭️ Ignorando evento de dispositivo no permitido: ${deviceId}`);
-        return;
+// ==================== MODAL DE USUARIOS ÚNICOS ====================
+
+let allUsers = [];  // Cache de usuarios
+let usersModal = null;
+
+function openUsersModal() {
+    if (!usersModal) {
+        usersModal = new bootstrap.Modal(document.getElementById('usersModal'));
     }
-    
-    // Inicializar si no existe
-    if (!deviceStats[deviceId]) {
-        deviceStats[deviceId] = {
-            total_events: 0,
-            access_granted: 0,
-            access_denied: 0,
-            users: new Set()
-        };
-    }
-    
-    // Incrementar total
-    deviceStats[deviceId].total_events++;
-    
-    // Incrementar según tipo y rastrear usuario
-    if (event.badge_class === 'success') {
-        deviceStats[deviceId].access_granted++;
-        // Agregar usuario al set (para contar únicos)
-        if (event.user_id) {
-            deviceStats[deviceId].users.add(String(event.user_id));
-        }
-    } else if (event.badge_class === 'danger') {
-        deviceStats[deviceId].access_denied++;
-    }
-    
-    // Actualizar UI del dispositivo
-    updateDeviceCard(deviceId);
-    
-    // Actualizar totales generales
-    updateGlobalStats();
+    usersModal.show();
+    loadUniqueUsers();
 }
 
-function updateDeviceCard(deviceId) {
-    const stats = deviceStats[deviceId];
-    if (!stats) {
-        console.warn('No stats found for device:', deviceId);
-        return;
-    }
+function loadUniqueUsers() {
+    const loading = document.getElementById('usersLoading');
+    const list = document.getElementById('usersList');
+    const noFound = document.getElementById('noUsersFound');
+    const countEl = document.getElementById('usersCount');
     
-    // Buscar la card del dispositivo por data-device-id
-    const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
-    if (!card) {
-        console.warn('Card not found for device:', deviceId);
-        return;
-    }
+    loading.style.display = 'block';
+    list.innerHTML = '';
+    noFound.style.display = 'none';
     
-    // Actualizar los números
-    const statDivs = card.querySelectorAll('.device-stat strong');
-    if (statDivs[0]) statDivs[0].textContent = stats.total_events;
-    if (statDivs[1]) statDivs[1].textContent = stats.access_granted;
-    if (statDivs[2]) statDivs[2].textContent = stats.access_denied;
-    
-    console.log(`✅ Updated card for device ${deviceId}:`, stats);
-    
-    // Animación de actualización
-    card.style.transition = 'transform 0.2s';
-    card.style.transform = 'scale(1.02)';
-    setTimeout(() => {
-        card.style.transform = 'scale(1)';
-    }, 200);
-}
-
-function updateGlobalStats() {
-    // Calcular totales SOLO de dispositivos permitidos
-    let totalGranted = 0;
-    let allUsers = new Set();
-    
-    for (const deviceId of allowedDeviceIds) {
-        const stats = deviceStats[deviceId];
-        if (stats) {
-            totalGranted += stats.access_granted;
-            // Unir usuarios de todos los dispositivos
-            if (stats.users) {
-                stats.users.forEach(u => allUsers.add(u));
+    fetch('/api/unique-users')
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = 'none';
+            
+            if (data.success && data.users) {
+                allUsers = data.users;
+                countEl.textContent = `${data.total} usuarios únicos`;
+                renderUsers(allUsers);
+            } else {
+                countEl.textContent = 'Error al cargar';
             }
-        }
-    }
-    
-    // Actualizar cards de estadísticas globales
-    // [0] = Dispositivos, [1] = Accesos Hoy, [2] = Usuarios Únicos
-    const statCards = document.querySelectorAll('.stat-card h2');
-    if (statCards[1]) statCards[1].textContent = totalGranted;
-    if (statCards[2]) statCards[2].textContent = allUsers.size;
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            countEl.textContent = 'Error de conexión';
+            console.error(err);
+        });
 }
 
+function renderUsers(users) {
+    const list = document.getElementById('usersList');
+    const noFound = document.getElementById('noUsersFound');
+    
+    if (users.length === 0) {
+        list.innerHTML = '';
+        noFound.style.display = 'block';
+        return;
+    }
+    
+    noFound.style.display = 'none';
+    
+    // Renderizar en chunks para fluidez
+    const fragment = document.createDocumentFragment();
+    
+    users.forEach((user, idx) => {
+        const item = document.createElement('div');
+        item.className = 'user-card-item';
+        item.style.cssText = `
+            background: white;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(62, 39, 35, 0.06);
+            border: 1px solid rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
+            animation: fadeIn 0.3s ease-out;
+            animation-delay: ${idx * 0.02}s;
+            animation-fill-mode: both;
+        `;
+        
+        const time = formatTime(user.last_check);
+        const name = user.name || 'Sin nombre';
+        const avatarColors = ['#5D4037', '#795548', '#6D4C41', '#8D6E63', '#A1887F'];
+        const colorIdx = Math.abs(hashCode(user.user_id)) % avatarColors.length;
+        
+        item.innerHTML = `
+            <div class="d-flex w-100 justify-content-between align-items-center">
+                <div class="d-flex align-items-center flex-grow-1 me-2" style="min-width: 0;">
+                    <div class="rounded-circle text-white d-flex align-items-center justify-content-center me-3 flex-shrink-0" 
+                         style="width: 44px; height: 44px; font-size: 0.9rem; font-weight: 600; background: linear-gradient(135deg, ${avatarColors[colorIdx]}, ${avatarColors[(colorIdx+1)%5]});">
+                        ${getInitials(name)}
+                    </div>
+                    <div style="min-width: 0; flex: 1;">
+                        <div class="fw-semibold" style="word-break: break-word; color: #3E2723; font-size: 0.95rem;">${escapeHtml(name)}</div>
+                        <div class="d-flex align-items-center mt-1">
+                            <span class="badge" style="background: #F5F0ED; color: #6D4C41; font-weight: 500; font-size: 0.75rem;">
+                                <i class="bi bi-person-badge me-1"></i>ID: ${user.user_id}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end flex-shrink-0">
+                    <div class="fw-bold" style="color: #43A047; font-size: 1rem;">${time}</div>
+                    <small class="d-flex align-items-center justify-content-end mt-1" style="color: #8D6E63; font-size: 0.75rem;">
+                        <i class="bi bi-geo-alt me-1"></i>${escapeHtml(user.device)}
+                    </small>
+                </div>
+            </div>
+        `;
+        
+        // Hover effect
+        item.onmouseenter = () => { item.style.transform = 'translateY(-2px)'; item.style.boxShadow = '0 4px 12px rgba(62, 39, 35, 0.12)'; };
+        item.onmouseleave = () => { item.style.transform = 'translateY(0)'; item.style.boxShadow = '0 2px 8px rgba(62, 39, 35, 0.06)'; };
+        
+        fragment.appendChild(item);
+    });
+    
+    list.innerHTML = '';
+    list.appendChild(fragment);
+}
+
+function filterUsers(query) {
+    const resultCount = document.getElementById('searchResultCount');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (!query.trim()) {
+        renderUsers(allUsers);
+        resultCount.textContent = '';
+        clearBtn.style.display = 'none';
+        return;
+    }
+    
+    clearBtn.style.display = 'block';
+    
+    // Búsqueda flexible: divide query en palabras y busca que todas coincidan
+    const terms = query.toLowerCase().trim().split(/\s+/);
+    
+    const filtered = allUsers.filter(user => {
+        const searchStr = `${user.name || ''} ${user.user_id}`.toLowerCase();
+        return terms.every(term => searchStr.includes(term));
+    });
+    
+    resultCount.textContent = `${filtered.length} de ${allUsers.length}`;
+    renderUsers(filtered);
+}
+
+function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.split(' ').filter(p => p);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return (parts[0] || '?').substring(0, 2).toUpperCase();
+}
+
+function formatTime(datetime) {
+    if (!datetime) return '--:--';
+    try {
+        const date = new Date(datetime);
+        return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '--:--';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return hash;
+}
+
+// Event listeners para búsqueda
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('userSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (searchInput) {
+        let debounceTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => filterUsers(this.value), 150);
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            document.getElementById('userSearchInput').value = '';
+            filterUsers('');
+            document.getElementById('userSearchInput').focus();
+        });
+    }
+    
+    // Limpiar búsqueda al cerrar modal
+    document.getElementById('usersModal')?.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('userSearchInput').value = '';
+        document.getElementById('searchResultCount').textContent = '';
+        document.getElementById('clearSearchBtn').style.display = 'none';
+    });
+});
 
 // ==================== CLEAR DASHBOARD CACHE ====================
 

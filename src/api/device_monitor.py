@@ -376,11 +376,20 @@ class DeviceMonitor:
         """
         processed = []
         
+        # Debug: mostrar estructura del primer evento
+        if events:
+            sample = events[0]
+            user_sample = sample.get('user_id')
+            logger.warning(f"[DEBUG-ESTRUCTURA] user_id completo: {user_sample}")
+            if isinstance(user_sample, dict):
+                logger.warning(f"[DEBUG-ESTRUCTURA] Keys disponibles: {list(user_sample.keys())}")
+        
         for event in events:
             # Extraer user_id de forma robusta
             user_data = event.get('user_id')
             if isinstance(user_data, dict):
-                user_id = user_data.get('user_id') or user_data.get('id')
+                # Intentar múltiples keys posibles
+                user_id = user_data.get('user_id') or user_data.get('id') or user_data.get('user_id_str')
                 user_name = user_data.get('name', '')
             else:
                 user_id = user_data
@@ -552,7 +561,7 @@ class DeviceMonitor:
             logger.warning(f"[DEBUG-DF] Total eventos: {len(raw_user_ids)}, Usuarios únicos: {len(valid_user_ids)}")
             unique_users = len(valid_user_ids)
         
-        return {
+        result = {
             'total_events': len(df),
             'access_granted': access_granted,
             'access_denied': access_denied,
@@ -560,3 +569,60 @@ class DeviceMonitor:
             'first_event': granted_df['datetime'].min() if 'datetime' in granted_df.columns and not granted_df.empty else None,
             'last_event': granted_df['datetime'].max() if 'datetime' in granted_df.columns and not granted_df.empty else None
         }
+        
+        # LOG IMPORTANTE: verificar cálculo
+        logger.warning(f"[SUMMARY] Device {device_id}: {access_granted} accesos, {unique_users} usuarios únicos")
+        
+        return result
+    
+    def get_debug_summary_with_users(self, device_id: int) -> tuple:
+        """
+        Obtiene resumen del debug + lista de user_ids para cálculo global.
+        
+        Args:
+            device_id: ID del dispositivo
+            
+        Returns:
+            Tupla (summary_dict, set_of_user_ids)
+        """
+        events = self.get_device_events_today(device_id)
+        events = self._filter_events_by_time(events)
+        
+        df = self.events_to_dataframe(events)
+        valid_user_ids = set()
+        
+        if df.empty:
+            return {
+                'total_events': 0,
+                'access_granted': 0,
+                'access_denied': 0,
+                'unique_users': 0,
+                'first_event': None,
+                'last_event': None
+            }, valid_user_ids
+        
+        # Filtrar solo accesos concedidos
+        granted_df = df[df['event_code'].isin(EVENT_CODES['ACCESS_GRANTED'])] if 'event_code' in df.columns else df
+        
+        access_granted = len(granted_df)
+        access_denied = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_DENIED'])]) if 'event_code' in df.columns else 0
+        
+        # Extraer user_ids válidos
+        if 'user_id' in granted_df.columns and not granted_df.empty:
+            for uid in granted_df['user_id'].tolist():
+                if isinstance(uid, dict):
+                    uid = uid.get('user_id') or uid.get('id')
+                uid_str = str(uid) if uid is not None else ''
+                if uid_str and uid_str not in ['', 'None', 'nan', 'NaN', '<NA>']:
+                    valid_user_ids.add(uid_str)
+        
+        result = {
+            'total_events': len(df),
+            'access_granted': access_granted,
+            'access_denied': access_denied,
+            'unique_users': len(valid_user_ids),
+            'first_event': granted_df['datetime'].min() if 'datetime' in granted_df.columns and not granted_df.empty else None,
+            'last_event': granted_df['datetime'].max() if 'datetime' in granted_df.columns and not granted_df.empty else None
+        }
+        
+        return result, valid_user_ids

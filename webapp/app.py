@@ -301,34 +301,81 @@ def logout():
     return redirect(url_for('login'))
 
 
-# ==================== DEBUG ENDPOINT (TEMPORAL) ====================
+# ==================== API ENDPOINTS ====================
 
-@app.route('/api/debug-events/<int:device_id>')
+@app.route('/api/unique-users')
 @login_required
-def debug_events_structure(device_id):
-    """Debug: Ver estructura real de eventos de la API."""
+def get_unique_users():
+    """Obtiene todos los usuarios únicos del día con su último chequeo."""
     monitor = get_monitor()
     if not monitor:
         return jsonify({'error': 'No monitor'}), 500
     
-    events = monitor.get_device_events_today(device_id)
+    # Obtener dispositivos según permisos del usuario
+    all_devices = monitor.get_all_devices(refresh=False)
     
-    # Tomar solo los primeros 3 eventos
-    sample_events = events[:3] if events else []
+    if current_user.is_admin or current_user.can_see_all_events:
+        devices = all_devices
+    else:
+        allowed_ids = current_user.get_allowed_device_ids()
+        if allowed_ids is not None:
+            allowed_ids_str = [str(d) for d in allowed_ids]
+            devices = [d for d in all_devices if str(d['id']) in allowed_ids_str]
+        else:
+            devices = all_devices
     
-    # Extraer solo la parte de user_id para debug
-    user_samples = []
-    for e in sample_events:
-        user_samples.append({
-            'event_id': e.get('id'),
-            'user_id_raw': e.get('user_id'),
-            'user_id_type': type(e.get('user_id')).__name__
-        })
+    # Recolectar usuarios únicos con su último chequeo
+    users_dict = {}  # user_id -> {name, last_check, device_name}
+    
+    for device in devices:
+        events = monitor.get_device_events_today(device['id'])
+        events = monitor._filter_events_by_time(events)
+        
+        for event in events:
+            # Solo accesos concedidos (usar EVENT_CODES del device_monitor)
+            event_code = event.get('event_type_id', {}).get('code', '')
+            if event_code not in EVENT_CODES['ACCESS_GRANTED']:
+                continue
+            
+            # Extraer user_id
+            user_data = event.get('user_id', {})
+            if isinstance(user_data, dict):
+                user_id = user_data.get('user_id') or user_data.get('id')
+                user_name = user_data.get('name', '')
+            else:
+                user_id = user_data
+                user_name = ''
+            
+            if not user_id or str(user_id) in ['', 'None', 'nan']:
+                continue
+            
+            user_id_str = str(user_id)
+            event_time = event.get('datetime', '')
+            device_name = event.get('device_id', {}).get('name', device.get('name', ''))
+            
+            # Guardar o actualizar si es más reciente
+            if user_id_str not in users_dict:
+                users_dict[user_id_str] = {
+                    'user_id': user_id_str,
+                    'name': user_name,
+                    'last_check': event_time,
+                    'device': device_name
+                }
+            else:
+                # Comparar timestamps para quedarse con el más reciente
+                if event_time > users_dict[user_id_str]['last_check']:
+                    users_dict[user_id_str]['last_check'] = event_time
+                    users_dict[user_id_str]['device'] = device_name
+                    if user_name:  # Actualizar nombre si está disponible
+                        users_dict[user_id_str]['name'] = user_name
+    
+    # Convertir a lista ordenada por último chequeo (más reciente primero)
+    users_list = sorted(users_dict.values(), key=lambda x: x['last_check'], reverse=True)
     
     return jsonify({
-        'device_id': device_id,
-        'total_events': len(events),
-        'user_samples': user_samples
+        'success': True,
+        'total': len(users_list),
+        'users': users_list
     })
 
 
@@ -369,14 +416,17 @@ def dashboard():
     # Agrupar por tipo y calcular resumen
     devices_by_type = {}
     total_granted = 0
-    total_users = 0
+    all_user_ids = set()  # Set global para usuarios únicos REALES
     
     for device in devices:
-        summary = monitor.get_debug_summary(device['id'])
+        # Obtener resumen Y lista de user_ids
+        summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
         summary['total_events'] = summary['access_granted']
         device['summary'] = summary
         total_granted += summary['access_granted']
-        total_users += summary['unique_users']
+        
+        # Agregar user_ids al set global (unión real de usuarios)
+        all_user_ids.update(user_ids)
         
         # Obtener tipo del dispositivo
         config = device_configs.get(device['id']) or device_configs.get(str(device['id']))
@@ -386,6 +436,9 @@ def dashboard():
         if device_type not in devices_by_type:
             devices_by_type[device_type] = []
         devices_by_type[device_type].append(device)
+    
+    # Total de usuarios únicos = tamaño del set global
+    total_users = len(all_user_ids)
     
     # Ordenar tipos: checador primero, luego alfabético
     type_order = {'checador': 0, 'puerta': 1, 'facial': 2, 'otro': 3}
