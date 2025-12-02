@@ -977,8 +977,10 @@ def user_create():
     devices = []
     if monitor:
         devices = monitor.get_all_devices() or []
-        # Enrich with local config
+        # Enrich with local config and convert IDs to int
         for device in devices:
+            if 'id' in device:
+                device['id'] = int(device['id'])
             config = DeviceConfig.query.filter_by(device_id=device.get('id')).first()
             if config and config.alias:
                 device['alias'] = config.alias
@@ -1041,8 +1043,13 @@ def user_edit(user_id):
             if config and config.alias:
                 device['alias'] = config.alias
     
-    # Get assigned device IDs
+    # Get assigned device IDs (as integers)
     assigned_devices = [p.device_id for p in user.device_permissions.all()]
+    
+    # Convert device IDs to int for comparison in template
+    for device in devices:
+        if 'id' in device:
+            device['id'] = int(device['id'])
     
     return render_template('user_form.html', user=user, action='edit',
                            devices=devices, assigned_devices=assigned_devices)

@@ -76,35 +76,6 @@
                         {% endif %}
                     </div>
                     
-                    <!-- Permisos Especiales -->
-                    <div class="card bg-light mb-3">
-                        <div class="card-body">
-                            <h6 class="card-title mb-3"><i class="bi bi-key"></i> Permisos Especiales</h6>
-                            <div class="row">
-                                <div class="col-12 col-md-6 mb-2">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="can_see_all_events" name="can_see_all_events"
-                                               {% if user and user.can_see_all_events %}checked{% endif %}>
-                                        <label class="form-check-label" for="can_see_all_events">
-                                            Ver todos los eventos
-                                        </label>
-                                        <br><small class="text-muted">Incluye denegados y otros</small>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-md-6 mb-2">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="can_manage_devices" name="can_manage_devices"
-                                               {% if user and user.can_manage_devices %}checked{% endif %}>
-                                        <label class="form-check-label" for="can_manage_devices">
-                                            Gestionar dispositivos
-                                        </label>
-                                        <br><small class="text-muted">Configurar checadores</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- Asignación de Dispositivos -->
                     {% if devices %}
                     <div class="card bg-light mb-3">
