@@ -265,9 +265,14 @@ class DeviceMonitor:
         
         return filtered_events
     
+    # Caché simple para eventos del día (TTL 30 segundos)
+    _events_cache = {}
+    _cache_ttl = 30  # segundos
+    
     def get_device_events_today(self, device_id: int) -> List[Dict]:
         """
         Obtiene todos los eventos del día actual de un dispositivo.
+        CON CACHÉ de 30 segundos para mejorar rendimiento.
         
         Args:
             device_id: ID del dispositivo
@@ -275,11 +280,26 @@ class DeviceMonitor:
         Returns:
             Lista de eventos del día
         """
+        import time
+        cache_key = f"events_{device_id}"
+        now = time.time()
+        
+        # Verificar caché
+        if cache_key in self._events_cache:
+            cached_time, cached_events = self._events_cache[cache_key]
+            if now - cached_time < self._cache_ttl:
+                return cached_events
+        
         # Obtener rango del día actual
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow = today + timedelta(days=1)
         
-        return self.get_device_events(device_id, today, tomorrow)
+        events = self.get_device_events(device_id, today, tomorrow)
+        
+        # Guardar en caché
+        self._events_cache[cache_key] = (now, events)
+        
+        return events
     
     def get_device_events(self, device_id: int, start_date: datetime, 
                          end_date: datetime, limit: int = 2000) -> List[Dict]:

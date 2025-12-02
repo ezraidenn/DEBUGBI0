@@ -30,13 +30,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h2><i class="bi bi-people"></i> Usuarios</h2>
-    <div class="page-header-actions">
-        <a href="{{ url_for('user_create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle"></i> <span class="hide-mobile">Nuevo</span>
-        </a>
-    </div>
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap">
+    <h2 class="mb-0"><i class="bi bi-people"></i> Usuarios</h2>
+    <a href="{{ url_for('user_create') }}" class="btn btn-light btn-sm d-flex align-items-center gap-2" 
+       style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 10px; padding: 8px 16px;">
+        <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Nuevo Usuario</span><span class="d-sm-none">Nuevo</span>
+    </a>
 </div>
 
 <!-- Desktop: Tabla -->
@@ -107,53 +106,50 @@
     </div>
 </div>
 
-<!-- Mobile: Lista de Cards -->
-<div class="user-list hide-desktop">
+<!-- Mobile: Lista de Cards Premium -->
+<div class="user-list hide-desktop" style="padding: 0 4px;">
     {% for user in users %}
-    <div class="user-card">
-        <div class="user-card-header">
-            <div class="user-info">
-                <strong>{{ user.username }}</strong>
-                {% if user.id == current_user.id %}
-                    <span class="badge bg-info" style="font-size: 9px;">Tú</span>
-                {% endif %}
-                <small class="text-muted d-block">{{ user.email }}</small>
+    <div class="user-card" style="background: white; border-radius: 14px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(62,39,35,0.08); border-left: 4px solid #3E2723;">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <strong style="font-size: 1.05rem; color: #3E2723;">{{ user.username }}</strong>
+                    {% if user.id == current_user.id %}
+                    <span class="badge" style="background: #3E2723; font-size: 0.65rem; padding: 3px 8px;">Tú</span>
+                    {% endif %}
+                </div>
+                <small style="color: #6D4C41;">{{ user.email }}</small>
             </div>
-            <div class="user-badges">
+            <div class="d-flex gap-1">
                 {% if user.is_admin %}
-                    <span class="badge bg-danger">Admin</span>
+                <span class="badge bg-danger" style="font-size: 0.7rem;">Admin</span>
                 {% else %}
-                    <span class="badge bg-secondary">User</span>
+                <span class="badge" style="background: #8D6E63; font-size: 0.7rem;">User</span>
                 {% endif %}
                 {% if user.is_active %}
-                    <span class="badge bg-success">Activo</span>
-                {% else %}
-                    <span class="badge bg-secondary">Inactivo</span>
+                <span class="badge bg-success" style="font-size: 0.7rem;">Activo</span>
                 {% endif %}
             </div>
         </div>
-        <div class="user-card-body">
+        
+        <div style="font-size: 0.85rem; color: #6D4C41; margin-bottom: 12px;">
             {% if user.full_name %}
-            <div class="user-detail">
-                <i class="bi bi-person"></i> {{ user.full_name }}
-            </div>
+            <div class="mb-1"><i class="bi bi-person me-2"></i>{{ user.full_name }}</div>
             {% endif %}
-            <div class="user-detail">
-                <i class="bi bi-clock"></i> 
-                {% if user.last_login %}
-                    {{ user.last_login.strftime('%d/%m %H:%M') }}
-                {% else %}
-                    Nunca
-                {% endif %}
+            <div><i class="bi bi-clock me-2"></i>
+                {% if user.last_login %}{{ user.last_login.strftime('%d/%m %H:%M') }}{% else %}Nunca{% endif %}
             </div>
         </div>
-        <div class="user-card-actions">
-            <a href="{{ url_for('user_edit', user_id=user.id) }}" class="btn btn-sm btn-edit">
-                <i class="bi bi-pencil"></i> Editar
+        
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('user_edit', user_id=user.id) }}" class="btn btn-sm flex-grow-1" 
+               style="background: #3E2723; color: white; border-radius: 10px; padding: 10px; font-weight: 600;">
+                <i class="bi bi-pencil me-1"></i> Editar
             </a>
             {% if user.id != current_user.id %}
-            <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" class="btn btn-sm btn-delete">
-                <i class="bi bi-trash"></i> Eliminar
+            <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" class="btn btn-sm" 
+                    style="background: #FFEBEE; color: #C62828; border-radius: 10px; padding: 10px;">
+                <i class="bi bi-trash"></i>
             </button>
             {% endif %}
         </div>

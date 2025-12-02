@@ -123,58 +123,73 @@
     </div>
 </div>
 
-<!-- Modal: Editar Dispositivo -->
+<!-- Modal: Editar Dispositivo - Diseño Premium -->
 <div class="modal fade" id="deviceModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Configurar Dispositivo</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 py-3" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2" 
+                         style="width: 36px; height: 36px; background: rgba(255,255,255,0.15);">
+                        <i class="bi bi-gear-fill text-white"></i>
+                    </div>
+                    <h6 class="modal-title text-white mb-0 fw-bold">Configurar Dispositivo</h6>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="deviceForm" onsubmit="saveDevice(event)">
-                <div class="modal-body">
+                <div class="modal-body" style="background: #F8F6F4;">
                     <input type="hidden" id="deviceId" name="device_id">
                     
                     <div class="mb-3">
-                        <label class="form-label">ID BioStar</label>
-                        <input type="text" class="form-control" id="deviceBiostarId" readonly>
+                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">ID BioStar</label>
+                        <input type="text" class="form-control" id="deviceBiostarId" readonly 
+                               style="background: #E8E0DB; border: none; border-radius: 10px;">
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Nombre Original</label>
-                        <input type="text" class="form-control" id="deviceOriginalName" readonly>
+                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Nombre Original</label>
+                        <input type="text" class="form-control" id="deviceOriginalName" readonly 
+                               style="background: #E8E0DB; border: none; border-radius: 10px;">
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Alias (nombre personalizado)</label>
-                        <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal">
+                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Alias (nombre personalizado)</label>
+                        <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal"
+                               style="border: 2px solid #E8E0DB; border-radius: 10px;">
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Ubicación</label>
-                        <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A">
+                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Ubicación</label>
+                        <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A"
+                               style="border: 2px solid #E8E0DB; border-radius: 10px;">
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Tipo de Dispositivo</label>
-                        <select class="form-select" id="deviceType" name="device_type">
+                        <label class="form-label fw-semibold" style="color: #3E2723; font-size: 0.85rem;">Tipo de Dispositivo</label>
+                        <select class="form-select" id="deviceType" name="device_type"
+                                style="border: 2px solid #E8E0DB; border-radius: 10px;">
                             <option value="checador">Checador (huella/facial)</option>
                             <option value="puerta">Puerta (solo salida)</option>
                             <option value="facial">Facial dedicado</option>
                             <option value="otro">Otro</option>
                         </select>
-                        <div class="alert alert-info mt-2 mb-0">
-                            <small>
-                                <i class="bi bi-info-circle"></i>
-                                <strong>Checador:</strong> Aplica lógica de pares (entrada/salida)<br>
-                                <strong>Puerta:</strong> Sin lógica de pares
-                            </small>
+                        <div class="mt-2 p-3" style="background: #FFF8E1; border-radius: 10px; font-size: 0.8rem;">
+                            <i class="bi bi-info-circle me-1" style="color: #F57C00;"></i>
+                            <strong>Checador:</strong> Aplica lógica de pares<br>
+                            <strong>Puerta:</strong> Sin lógica de pares
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                <div class="modal-footer border-0 py-3" style="background: white;">
+                    <button type="button" class="btn px-4" data-bs-dismiss="modal"
+                            style="background: transparent; border: 2px solid #3E2723; color: #3E2723; border-radius: 10px; font-weight: 600;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn px-4"
+                            style="background: #3E2723; color: white; border-radius: 10px; font-weight: 600;">
+                        <i class="bi bi-check-lg me-1"></i> Guardar
+                    </button>
                 </div>
             </form>
         </div>
@@ -182,19 +197,20 @@
 </div>
 
 <style>
-/* Mobile Cards para config */
+/* Mobile Cards para config - Premium */
 .device-config-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 16px;
+    padding: 12px;
 }
 
 .device-config-card {
     background: white;
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(62, 39, 35, 0.08);
+    border-left: 4px solid #3E2723;
 }
 
 .device-config-header {
@@ -202,8 +218,8 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(62, 39, 35, 0.08);
 }
 
 .device-config-name {
@@ -213,27 +229,41 @@
 }
 
 .device-config-name strong {
-    font-size: 15px;
+    font-size: 1rem;
+    color: #3E2723;
+    font-weight: 700;
+}
+
+.device-config-name small {
+    color: #8D6E63;
 }
 
 .device-config-body {
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .device-config-detail {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
-    color: #666;
+    font-size: 0.85rem;
+    color: #6D4C41;
     margin-bottom: 6px;
 }
 
 .device-config-detail i {
-    width: 16px;
-    color: #999;
+    width: 18px;
+    color: #8D6E63;
 }
 
+.device-config-actions .btn {
+    background: #3E2723 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    font-weight: 600 !important;
+}
 </style>
 
 <script>

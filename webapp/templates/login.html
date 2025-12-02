@@ -5,29 +5,67 @@
 {% block extra_css %}
 <style>
     body {
-        background: linear-gradient(135deg, #3E2723 0%, #1976D2 100%);
+        background: linear-gradient(135deg, #3E2723 0%, #5D4037 50%, #6D4C41 100%);
+        min-height: 100vh;
     }
     .login-card {
-        animation: scaleIn 0.5s ease;
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(62, 39, 35, 0.3);
+    }
+    .login-card .card-body {
+        padding: 2rem;
+    }
+    .login-icon {
+        width: 70px;
+        height: 70px;
+        background: linear-gradient(135deg, #3E2723, #5D4037);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .login-icon i {
+        font-size: 2rem;
+        color: white;
     }
     .btn-login {
-        background-color: #1976D2 !important;
-        border-color: #1976D2 !important;
+        background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%) !important;
+        border: none !important;
         color: #ffffff !important;
         font-weight: 600 !important;
         font-size: 1rem !important;
+        border-radius: 12px !important;
+        padding: 14px !important;
+        box-shadow: 0 4px 15px rgba(62, 39, 35, 0.3);
+        transition: all 0.3s ease;
     }
     .btn-login:hover {
-        background-color: #1565C0 !important;
-        border-color: #1565C0 !important;
-        color: #ffffff !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(62, 39, 35, 0.4);
     }
-    .btn-login:active,
-    .btn-login:focus {
-        background-color: #0D47A1 !important;
-        border-color: #0D47A1 !important;
-        color: #ffffff !important;
-        box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.5) !important;
+    .btn-login:active {
+        transform: translateY(0);
+    }
+    .form-control {
+        border-radius: 10px;
+        border: 2px solid #E8E0DB;
+        padding: 12px 16px;
+    }
+    .form-control:focus {
+        border-color: #3E2723;
+        box-shadow: 0 0 0 3px rgba(62, 39, 35, 0.1);
+    }
+    .input-group-text {
+        border-radius: 10px 0 0 10px;
+        border: 2px solid #E8E0DB;
+        border-right: none;
+        background: #F8F6F4;
+        color: #6D4C41;
+    }
+    .input-group .form-control {
+        border-radius: 0 10px 10px 0;
     }
 </style>
 {% endblock %}
@@ -39,9 +77,11 @@
             <div class="card shadow-lg login-card">
                 <div class="card-body">
                     <div class="text-center mb-4">
-                        <i class="bi bi-fingerprint" style="color: #1976D2;"></i>
-                        <h3 class="mt-3" style="color: #3E2723; font-weight: 700;">BioStar Debug Monitor</h3>
-                        <p class="text-muted">Sistema de Monitoreo en Tiempo Real</p>
+                        <div class="login-icon">
+                            <i class="bi bi-fingerprint"></i>
+                        </div>
+                        <h3 style="color: #3E2723; font-weight: 700;">BioStar</h3>
+                        <p class="text-muted" style="font-size: 0.9rem;">Debug Monitor</p>
                     </div>
                     
                     {% with messages = get_flashed_messages(with_categories=true) %}

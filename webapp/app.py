@@ -15,6 +15,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash
 import logging
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytz
 
 from webapp.models import db, User, DeviceCategory, DeviceConfig, UserDevicePermission, init_db, get_or_create_device_config
@@ -384,48 +385,60 @@ def get_unique_users():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Main dashboard - Solo muestra accesos concedidos."""
+    """Main dashboard - Solo muestra accesos concedidos. OPTIMIZADO con carga paralela."""
     # Get monitor instance
     monitor = get_monitor()
     if not monitor:
         flash('Error al conectar con BioStar. Verifica la configuración.', 'danger')
         return render_template('dashboard.html', devices_by_type={}, error=True)
     
-    # Get all devices
-    all_devices = monitor.get_all_devices(refresh=True)
+    # Get all devices (usar caché, no refresh)
+    all_devices = monitor.get_all_devices(refresh=False)
     
-    # Get device configurations
-    device_configs = {config.device_id: config for config in DeviceConfig.query.all()}
-    # También guardar con string key
+    # Get device configurations (una sola query)
+    device_configs = {}
     for config in DeviceConfig.query.all():
+        device_configs[config.device_id] = config
         device_configs[str(config.device_id)] = config
     
     # Filtrar dispositivos según permisos del usuario
     if current_user.is_admin or current_user.can_see_all_events:
         devices = all_devices
     else:
-        # Solo dispositivos asignados al usuario
         allowed_ids = current_user.get_allowed_device_ids()
         if allowed_ids is not None:
-            # Convertir a strings para comparación
-            allowed_ids_str = [str(d) for d in allowed_ids]
+            allowed_ids_str = set(str(d) for d in allowed_ids)
             devices = [d for d in all_devices if str(d['id']) in allowed_ids_str]
         else:
             devices = all_devices
     
-    # Agrupar por tipo y calcular resumen
+    # ========== CARGA PARALELA DE RESÚMENES ==========
+    def fetch_device_summary(device):
+        """Obtiene resumen de un dispositivo (ejecutado en paralelo)."""
+        try:
+            summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
+            summary['total_events'] = summary['access_granted']
+            return device['id'], summary, user_ids
+        except Exception as e:
+            return device['id'], {'access_granted': 0, 'unique_users': 0, 'total_events': 0}, set()
+    
+    # Ejecutar en paralelo con máximo 8 workers
     devices_by_type = {}
     total_granted = 0
-    all_user_ids = set()  # Set global para usuarios únicos REALES
+    all_user_ids = set()
+    device_summaries = {}
     
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(fetch_device_summary, d): d for d in devices}
+        for future in as_completed(futures):
+            device_id, summary, user_ids = future.result()
+            device_summaries[device_id] = (summary, user_ids)
+    
+    # Procesar resultados
     for device in devices:
-        # Obtener resumen Y lista de user_ids
-        summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
-        summary['total_events'] = summary['access_granted']
+        summary, user_ids = device_summaries.get(device['id'], ({}, set()))
         device['summary'] = summary
-        total_granted += summary['access_granted']
-        
-        # Agregar user_ids al set global (unión real de usuarios)
+        total_granted += summary.get('access_granted', 0)
         all_user_ids.update(user_ids)
         
         # Obtener tipo del dispositivo
@@ -437,10 +450,9 @@ def dashboard():
             devices_by_type[device_type] = []
         devices_by_type[device_type].append(device)
     
-    # Total de usuarios únicos = tamaño del set global
     total_users = len(all_user_ids)
     
-    # Ordenar tipos: checador primero, luego alfabético
+    # Ordenar tipos
     type_order = {'checador': 0, 'puerta': 1, 'facial': 2, 'otro': 3}
     sorted_types = sorted(devices_by_type.keys(), key=lambda x: type_order.get(x, 99))
     devices_by_type = {t: devices_by_type[t] for t in sorted_types}

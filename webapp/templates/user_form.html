@@ -3,16 +3,15 @@
 {% block title %}{% if action == 'create' %}Crear{% else %}Editar{% endif %} Usuario - BioStar{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h2>
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap">
+    <h2 class="mb-0">
         <i class="bi bi-person-{% if action == 'create' %}plus{% else %}gear{% endif %}"></i> 
-        {% if action == 'create' %}Nuevo Usuario{% else %}Editar Usuario{% endif %}
+        {% if action == 'create' %}Nuevo Usuario{% else %}Editar{% endif %}
     </h2>
-    <div class="page-header-actions">
-        <a href="{{ url_for('users_list') }}" class="btn btn-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> <span class="hide-mobile">Volver</span>
-        </a>
-    </div>
+    <a href="{{ url_for('users_list') }}" class="btn btn-light btn-sm d-flex align-items-center gap-2" 
+       style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 10px; padding: 8px 16px;">
+        <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Volver</span>
+    </a>
 </div>
 
 <div class="row justify-content-center">
@@ -135,15 +134,17 @@
                     </div>
                     {% endif %}
                     
-                    <hr>
+                    <hr style="border-color: rgba(62,39,35,0.1);">
                     
                     <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
-                        <a href="{{ url_for('users_list') }}" class="btn btn-secondary order-2 order-sm-1">
+                        <a href="{{ url_for('users_list') }}" class="btn order-2 order-sm-1"
+                           style="background: transparent; border: 2px solid #3E2723; color: #3E2723; border-radius: 10px; font-weight: 600;">
                             <i class="bi bi-x-circle"></i> Cancelar
                         </a>
-                        <button type="submit" class="btn btn-primary order-1 order-sm-2">
+                        <button type="submit" class="btn order-1 order-sm-2"
+                                style="background: #3E2723; color: white; border-radius: 10px; font-weight: 600;">
                             <i class="bi bi-check-circle"></i> 
-                            {% if action == 'create' %}Crear{% else %}Guardar{% endif %}
+                            {% if action == 'create' %}Crear Usuario{% else %}Guardar Cambios{% endif %}
                         </button>
                     </div>
                 </form>

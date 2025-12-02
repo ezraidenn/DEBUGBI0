@@ -3,7 +3,7 @@
 {% block title %}Dashboard - BioStar Debug Monitor{% endblock %}
 
 {% block content %}
-<div class="page-header animate-slide-down">
+<div class="page-header">
     <h2>
         <i class="bi bi-speedometer2"></i>
         Dashboard
@@ -21,21 +21,21 @@
 
 <!-- Statistics Cards - Solo Accesos Concedidos -->
 <div class="row mb-3 mb-md-4">
-    <div class="col-6 col-md-4 animate-scale-in" style="animation-delay: 0.1s;">
+    <div class="col-6 col-md-4">
         <div class="stat-card">
             <h6>Dispositivos</h6>
             <h2>{{ total_devices }}</h2>
             <small><i class="bi bi-hdd-network-fill"></i> Activos</small>
         </div>
     </div>
-    <div class="col-6 col-md-4 animate-scale-in" style="animation-delay: 0.2s;">
+    <div class="col-6 col-md-4">
         <div class="stat-card success">
             <h6>Accesos Hoy</h6>
             <h2>{{ total_granted }}</h2>
             <small><i class="bi bi-check-circle-fill"></i> Concedidos</small>
         </div>
     </div>
-    <div class="col-12 col-md-4 animate-scale-in" style="animation-delay: 0.3s;">
+    <div class="col-12 col-md-4">
         <div class="stat-card clickable-card" onclick="openUsersModal()" style="cursor: pointer;" title="Click para ver usuarios">
             <h6>Usuarios Únicos</h6>
             <h2>{{ total_users }}</h2>
@@ -44,86 +44,68 @@
     </div>
 </div>
 
-<!-- Modal de Usuarios Únicos - Diseño Premium -->
+<!-- Modal de Usuarios Únicos - Pantalla Completa en Móvil -->
 <div class="modal fade" id="usersModal" tabindex="-1" aria-labelledby="usersModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
-            <!-- Header con gradiente -->
-            <div class="modal-header border-0 py-4" style="background: linear-gradient(135deg, #3E2723 0%, #5D4037 50%, #6D4C41 100%);">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg">
+            <!-- Header -->
+            <div class="modal-header border-0 py-3" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
                 <div class="d-flex align-items-center">
-                    <div class="rounded-circle d-flex align-items-center justify-content-center me-3" 
-                         style="width: 48px; height: 48px; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);">
-                        <i class="bi bi-people-fill text-white" style="font-size: 1.4rem;"></i>
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2" 
+                         style="width: 36px; height: 36px; background: rgba(255,255,255,0.15);">
+                        <i class="bi bi-people-fill text-white" style="font-size: 1rem;"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title text-white mb-0 fw-bold" id="usersModalLabel">
-                            Usuarios del Día
-                        </h5>
-                        <small class="text-white-50">Registro de accesos únicos</small>
+                        <h6 class="modal-title text-white mb-0 fw-bold" id="usersModalLabel">Usuarios del Día</h6>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Accesos únicos</small>
                     </div>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             
-            <div class="modal-body p-0" style="background: #FAFAFA;">
-                <!-- Buscador Premium -->
-                <div class="sticky-top p-3" style="background: linear-gradient(180deg, #FFFFFF 0%, #F8F6F4 100%); border-bottom: 1px solid rgba(0,0,0,0.05);">
-                    <div class="position-relative">
-                        <div class="input-group shadow-sm" style="border-radius: 12px; overflow: hidden;">
-                            <span class="input-group-text bg-white border-0 ps-3">
-                                <i class="bi bi-search" style="color: #5D4037;"></i>
-                            </span>
-                            <input type="text" class="form-control border-0 py-2" 
-                                   id="userSearchInput" 
-                                   placeholder="Buscar usuario por nombre o ID..."
-                                   autocomplete="off"
-                                   style="font-size: 0.95rem;">
-                            <button class="btn bg-white border-0 px-3" type="button" id="clearSearchBtn" style="display: none;">
-                                <i class="bi bi-x-circle-fill text-muted"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3 px-1">
-                        <div class="d-flex align-items-center">
-                            <span class="badge rounded-pill me-2" style="background: linear-gradient(135deg, #5D4037, #795548); padding: 6px 12px;">
-                                <i class="bi bi-person-check me-1"></i>
-                                <span id="usersCount">0</span>
-                            </span>
-                            <small class="text-muted">usuarios únicos</small>
-                        </div>
-                        <small class="text-muted fw-medium" id="searchResultCount"></small>
-                    </div>
+            <!-- Buscador - fuera del modal-body -->
+            <div class="px-3 py-2" style="background: white; border-bottom: 1px solid rgba(62,39,35,0.08);">
+                <div class="input-group" style="border-radius: 8px; overflow: hidden; border: 1px solid #E8E0DB;">
+                    <span class="input-group-text bg-white border-0 py-2 ps-3">
+                        <i class="bi bi-search" style="color: #3E2723; font-size: 0.85rem;"></i>
+                    </span>
+                    <input type="text" class="form-control border-0 py-2" 
+                           id="userSearchInput" 
+                           placeholder="Buscar por nombre o ID..."
+                           autocomplete="off"
+                           style="font-size: 0.85rem;">
+                    <button class="btn bg-white border-0 px-2" type="button" id="clearSearchBtn" style="display: none;">
+                        <i class="bi bi-x-circle-fill" style="color: #8D6E63;"></i>
+                    </button>
                 </div>
-                
-                <!-- Lista de usuarios -->
-                <div id="usersListContainer" style="min-height: 300px;">
-                    <div class="text-center py-5" id="usersLoading">
-                        <div class="spinner-grow" role="status" style="color: #5D4037; width: 3rem; height: 3rem;">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                        <p class="mt-3 text-muted fw-medium">Cargando usuarios...</p>
-                    </div>
-                    <div class="px-3 py-2" id="usersList"></div>
-                    <div class="text-center py-5" id="noUsersFound" style="display: none;">
-                        <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3" 
-                             style="width: 80px; height: 80px; background: #F0EBE8;">
-                            <i class="bi bi-search" style="font-size: 2rem; color: #8D6E63;"></i>
-                        </div>
-                        <p class="text-muted mb-0">No se encontraron usuarios</p>
-                        <small class="text-muted">Intenta con otro término de búsqueda</small>
-                    </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <span class="badge" style="background: #3E2723; padding: 4px 10px; font-size: 0.7rem;">
+                        <i class="bi bi-person-check me-1"></i><span id="usersCount">0</span> usuarios únicos
+                    </span>
+                    <small class="text-muted fw-medium" id="searchResultCount" style="font-size: 0.7rem;"></small>
                 </div>
             </div>
             
-            <!-- Footer elegante -->
-            <div class="modal-footer border-0 py-3" style="background: linear-gradient(180deg, #F8F6F4 0%, #FFFFFF 100%);">
-                <div class="d-flex align-items-center me-auto">
-                    <i class="bi bi-clock-history me-2" style="color: #8D6E63;"></i>
-                    <small class="text-muted">Último chequeo de cada usuario hoy</small>
+            <!-- Body - Lista con scroll -->
+            <div class="modal-body p-0" id="usersListContainer" style="background: #F8F6F4; overflow-y: auto;">
+                <div class="text-center py-4" id="usersLoading">
+                    <div class="spinner-grow" role="status" style="color: #3E2723; width: 2rem; height: 2rem;">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-muted" style="font-size: 0.8rem;">Cargando...</p>
                 </div>
-                <button type="button" class="btn px-4" data-bs-dismiss="modal" 
-                        style="background: linear-gradient(135deg, #5D4037, #6D4C41); color: white; border-radius: 8px;">
-                    <i class="bi bi-x-lg me-1"></i> Cerrar
+                <div class="px-2 py-1" id="usersList"></div>
+                <div class="text-center py-4" id="noUsersFound" style="display: none;">
+                    <i class="bi bi-search" style="font-size: 2rem; color: #8D6E63;"></i>
+                    <p class="text-muted mb-0 mt-2" style="font-size: 0.85rem;">Sin resultados</p>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="modal-footer border-0 p-2" style="background: white; border-top: 1px solid rgba(62,39,35,0.1) !important;">
+                <button type="button" class="btn w-100" data-bs-dismiss="modal" 
+                        style="background: #3E2723; color: white; border-radius: 10px; font-size: 0.85rem; font-weight: 600; padding: 12px;">
+                    Cerrar
                 </button>
             </div>
         </div>
@@ -132,7 +114,7 @@
 
 <!-- Devices by Type -->
 {% for device_type, devices in devices_by_type.items() %}
-<div class="card animate-fade-in mb-4" style="animation-delay: {{ loop.index * 0.1 }}s;">
+<div class="card mb-4">
     <div class="card-header">
         <h5 class="mb-0">
             {% if device_type == 'checador' %}
@@ -375,50 +357,36 @@ function renderUsers(users) {
         item.className = 'user-card-item';
         item.style.cssText = `
             background: white;
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 8px;
-            box-shadow: 0 2px 8px rgba(62, 39, 35, 0.06);
-            border: 1px solid rgba(0,0,0,0.04);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            box-shadow: 0 1px 4px rgba(62, 39, 35, 0.06);
+            border-left: 3px solid #3E2723;
             transition: all 0.2s ease;
-            animation: fadeIn 0.3s ease-out;
-            animation-delay: ${idx * 0.02}s;
-            animation-fill-mode: both;
         `;
         
         const time = formatTime(user.last_check);
         const name = user.name || 'Sin nombre';
-        const avatarColors = ['#5D4037', '#795548', '#6D4C41', '#8D6E63', '#A1887F'];
+        const avatarColors = ['#3E2723', '#5D4037', '#6D4C41', '#795548', '#8D6E63'];
         const colorIdx = Math.abs(hashCode(user.user_id)) % avatarColors.length;
         
         item.innerHTML = `
-            <div class="d-flex w-100 justify-content-between align-items-center">
-                <div class="d-flex align-items-center flex-grow-1 me-2" style="min-width: 0;">
-                    <div class="rounded-circle text-white d-flex align-items-center justify-content-center me-3 flex-shrink-0" 
-                         style="width: 44px; height: 44px; font-size: 0.9rem; font-weight: 600; background: linear-gradient(135deg, ${avatarColors[colorIdx]}, ${avatarColors[(colorIdx+1)%5]});">
-                        ${getInitials(name)}
-                    </div>
-                    <div style="min-width: 0; flex: 1;">
-                        <div class="fw-semibold" style="word-break: break-word; color: #3E2723; font-size: 0.95rem;">${escapeHtml(name)}</div>
-                        <div class="d-flex align-items-center mt-1">
-                            <span class="badge" style="background: #F5F0ED; color: #6D4C41; font-weight: 500; font-size: 0.75rem;">
-                                <i class="bi bi-person-badge me-1"></i>ID: ${user.user_id}
-                            </span>
-                        </div>
+            <div class="d-flex w-100 align-items-center">
+                <div class="rounded-circle text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0" 
+                     style="width: 36px; height: 36px; font-size: 0.75rem; font-weight: 600; background: ${avatarColors[colorIdx]};">
+                    ${getInitials(name)}
+                </div>
+                <div style="min-width: 0; flex: 1;">
+                    <div class="fw-semibold text-truncate" style="color: #3E2723; font-size: 0.85rem;">${escapeHtml(name)}</div>
+                    <div style="font-size: 0.7rem; color: #8D6E63;">
+                        ID: ${user.user_id} · ${escapeHtml(user.device)}
                     </div>
                 </div>
-                <div class="text-end flex-shrink-0">
-                    <div class="fw-bold" style="color: #43A047; font-size: 1rem;">${time}</div>
-                    <small class="d-flex align-items-center justify-content-end mt-1" style="color: #8D6E63; font-size: 0.75rem;">
-                        <i class="bi bi-geo-alt me-1"></i>${escapeHtml(user.device)}
-                    </small>
+                <div class="text-end flex-shrink-0 ms-2">
+                    <div class="fw-bold" style="color: #43A047; font-size: 0.9rem;">${time}</div>
                 </div>
             </div>
         `;
-        
-        // Hover effect
-        item.onmouseenter = () => { item.style.transform = 'translateY(-2px)'; item.style.boxShadow = '0 4px 12px rgba(62, 39, 35, 0.12)'; };
-        item.onmouseleave = () => { item.style.transform = 'translateY(0)'; item.style.boxShadow = '0 2px 8px rgba(62, 39, 35, 0.06)'; };
         
         fragment.appendChild(item);
     });
