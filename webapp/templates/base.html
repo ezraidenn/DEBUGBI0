@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}BioStar Debug Monitor{% endblock %}</title>
+    <title>{% block title %}BioStar Logs Monitor{% endblock %}</title>
     
     <!-- Preconnect para recursos externos -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,9 +52,9 @@
             <!-- Sidebar -->
             <nav class="sidebar" id="sidebar">
                 <div class="sidebar-header">
-                    <i class="bi bi-fingerprint" style="font-size: 40px; color: rgba(255,255,255,0.9);"></i>
+                    <img src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
                     <h4>BioStar</h4>
-                    <small>Debug Monitor</small>
+                    <small>Logs Monitor</small>
                 </div>
                 
                 <ul class="nav flex-column" style="padding-top: 20px;">

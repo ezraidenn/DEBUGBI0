@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - BioStar Debug Monitor{% endblock %}
+{% block title %}Dashboard - BioStar Logs Monitor{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -165,7 +165,7 @@
                     </div>
                     
                     <button class="btn btn-device-debug w-100" onclick="event.stopPropagation(); location.href='{{ url_for('debug_device', device_id=device.id) }}'">
-                        <i class="bi bi-bug-fill"></i> Ver Debug
+                        <i class="bi bi-journal-text"></i> Ver Logs
                     </button>
                 </div>
             </div>
