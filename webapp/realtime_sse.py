@@ -12,6 +12,17 @@ import pytz
 
 logger = logging.getLogger(__name__)
 
+
+def fix_encoding(text: str) -> str:
+    """Corrige problemas de encoding UTF-8 en textos de BioStar."""
+    if not text:
+        return text
+    try:
+        # Intenta corregir encoding mal interpretado (latin-1 -> utf-8)
+        return text.encode('latin-1').decode('utf-8')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return text
+
 # Importar EVENT_CODES y classify_event desde device_monitor
 from src.api.device_monitor import EVENT_CODES
 
@@ -79,6 +90,10 @@ class RealtimeSSE:
         event_code = event_type_id.get('code') if isinstance(event_type_id, dict) else None
         event_type = event_type_id.get('name', '') if isinstance(event_type_id, dict) else ''
         
+        # Obtener y corregir encoding del nombre
+        user_name = event.get('user_id', {}).get('name')
+        user_name = fix_encoding(user_name) if user_name else user_name
+        
         return {
             'id': event.get('id'),
             'datetime': event.get('datetime'),
@@ -88,7 +103,7 @@ class RealtimeSSE:
             'event_code': event_code,
             'event_type': event_type,
             'user_id': event.get('user_id', {}).get('user_id'),
-            'user_name': event.get('user_id', {}).get('name'),
+            'user_name': user_name,
             'door_id': event.get('door_id', [{}])[0].get('id') if event.get('door_id') else None,
             'door_name': event.get('door_id', [{}])[0].get('name') if event.get('door_id') else None,
         }
