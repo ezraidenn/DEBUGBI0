@@ -1,0 +1,116 @@
+================================================================================
+                            ¡EMPIEZA AQUÍ!
+                    LOGSCHECA - BioStar Debug Monitor
+================================================================================
+
+👋 ¡Bienvenido! Este proyecto ha sido configurado para permitir conexiones
+   desde la IP 10.0.0.10
+
+📋 ESTADO ACTUAL:
+   ✅ Repositorio descargado
+   ✅ Configurado para IP 10.0.0.10
+   ✅ Scripts de instalación creados
+   ⚠️  Python NO está instalado (requerido)
+
+
+🚀 INICIO RÁPIDO (3 pasos):
+================================================================================
+
+PASO 1: Instalar Python
+------------------------
+⚠️ IMPORTANTE: Python NO está instalado en este sistema
+
+1. Abre el archivo: INSTALAR_PYTHON.md
+2. Descarga Python desde: https://www.python.org/downloads/
+3. Durante la instalación, MARCA "Add Python to PATH"
+4. Verifica: python --version
+
+
+PASO 2: Instalar el proyecto
+-----------------------------
+Doble clic en: instalar.bat
+
+O desde PowerShell:
+   .\instalar.ps1
+
+
+PASO 3: Iniciar el servidor
+----------------------------
+Doble clic en: iniciar.bat
+
+O desde PowerShell:
+   .\iniciar.ps1
+
+
+================================================================================
+                            ARCHIVOS ÚTILES
+================================================================================
+
+📄 LEEME.txt                  → Guía rápida de referencia
+📄 ESTADO_CONFIGURACION.txt   → Estado completo del proyecto
+📄 INSTALAR_PYTHON.md         → Cómo instalar Python (LEER PRIMERO)
+📄 INICIO_RAPIDO.md           → Guía detallada paso a paso
+📄 CONFIGURACION_RED.md       → Detalles de configuración de red
+
+🔧 instalar.bat               → Instalación automática (Windows)
+🔧 instalar.ps1               → Instalación automática (PowerShell)
+🔧 iniciar.bat                → Iniciar servidor (Windows)
+🔧 iniciar.ps1                → Iniciar servidor (PowerShell)
+🔧 configurar_firewall.ps1    → Configurar firewall (Administrador)
+
+
+================================================================================
+                        ACCESO AL SISTEMA
+================================================================================
+
+Una vez instalado e iniciado:
+
+🌐 Desde este equipo:
+   http://localhost:5000
+
+🌐 Desde la red (10.0.0.10):
+   http://10.0.0.10:5000
+
+👤 Credenciales:
+   Usuario: admin
+   Contraseña: admin123
+
+
+================================================================================
+                        ¿NECESITAS AYUDA?
+================================================================================
+
+❓ Python no está instalado
+   → Lee: INSTALAR_PYTHON.md
+
+❓ No sé por dónde empezar
+   → Lee: INICIO_RAPIDO.md
+
+❓ Problemas de red/firewall
+   → Lee: CONFIGURACION_RED.md
+
+❓ Ver estado completo
+   → Lee: ESTADO_CONFIGURACION.txt
+
+❓ Documentación completa
+   → Lee: README.md
+
+
+================================================================================
+                        ORDEN RECOMENDADO
+================================================================================
+
+1. 📖 Lee este archivo (EMPIEZA_AQUI.txt) ← Estás aquí
+2. 📖 Lee INSTALAR_PYTHON.md
+3. 🔧 Instala Python
+4. 🔧 Ejecuta instalar.bat
+5. 🔧 Ejecuta configurar_firewall.ps1 (como Administrador)
+6. 🔧 Ejecuta iniciar.bat
+7. 🌐 Abre http://localhost:5000 en tu navegador
+
+
+================================================================================
+                          ¡Listo para empezar!
+================================================================================
+
+Siguiente paso → Abre: INSTALAR_PYTHON.md

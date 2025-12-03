@@ -1,0 +1,689 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - BioStar Logs Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>
+        <i class="bi bi-speedometer2"></i>
+        Dashboard
+        <span class="badge bg-success ms-2" id="realtimeStatus">
+            <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real
+        </span>
+    </h2>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle"></i> Error al conectar con BioStar. Verifica la configuración.
+</div>
+{% else %}
+
+<!-- Statistics Cards - Solo Accesos Concedidos -->
+<div class="row mb-3 mb-md-4">
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <h6>Dispositivos</h6>
+            <h2 id="statDevices">{% if lazy_load %}<span class="spinner-border spinner-border-sm"></span>{% else %}{{ total_devices }}{% endif %}</h2>
+            <small><i class="bi bi-hdd-network-fill"></i> Activos</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="stat-card success">
+            <h6>Accesos Hoy</h6>
+            <h2 id="statAccesos">{% if lazy_load %}<span class="spinner-border spinner-border-sm"></span>{% else %}{{ total_granted }}{% endif %}</h2>
+            <small><i class="bi bi-check-circle-fill"></i> Concedidos</small>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="stat-card clickable-card" onclick="openUsersModal()" style="cursor: pointer;" title="Click para ver usuarios">
+            <h6>Usuarios Únicos</h6>
+            <h2 id="statUsuarios">{% if lazy_load %}<span class="spinner-border spinner-border-sm"></span>{% else %}{{ total_users }}{% endif %}</h2>
+            <small><i class="bi bi-people-fill"></i> Hoy <i class="bi bi-box-arrow-up-right ms-1"></i></small>
+        </div>
+    </div>
+</div>
+
+<!-- Container para dispositivos (carga lazy) -->
+<div id="devicesContainer">
+{% if lazy_load %}
+<div class="text-center py-5">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-3 text-muted">Cargando dispositivos...</p>
+</div>
+{% endif %}
+</div>
+
+<!-- Modal de Usuarios Únicos - Pantalla Completa en Móvil -->
+<div class="modal fade" id="usersModal" tabindex="-1" aria-labelledby="usersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg">
+            <!-- Header -->
+            <div class="modal-header border-0 py-3" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2" 
+                         style="width: 36px; height: 36px; background: rgba(255,255,255,0.15);">
+                        <i class="bi bi-people-fill text-white" style="font-size: 1rem;"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title text-white mb-0 fw-bold" id="usersModalLabel">Usuarios del Día</h6>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Accesos únicos</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <!-- Buscador - fuera del modal-body -->
+            <div class="px-3 py-2" style="background: white; border-bottom: 1px solid rgba(62,39,35,0.08);">
+                <div class="input-group" style="border-radius: 8px; overflow: hidden; border: 1px solid #E8E0DB;">
+                    <span class="input-group-text bg-white border-0 py-2 ps-3">
+                        <i class="bi bi-search" style="color: #3E2723; font-size: 0.85rem;"></i>
+                    </span>
+                    <input type="text" class="form-control border-0 py-2" 
+                           id="userSearchInput" 
+                           placeholder="Buscar por nombre o ID..."
+                           autocomplete="off"
+                           style="font-size: 0.85rem;">
+                    <button class="btn bg-white border-0 px-2" type="button" id="clearSearchBtn" style="display: none;">
+                        <i class="bi bi-x-circle-fill" style="color: #8D6E63;"></i>
+                    </button>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <span class="badge" style="background: #3E2723; padding: 4px 10px; font-size: 0.7rem;">
+                        <i class="bi bi-person-check me-1"></i><span id="usersCount">0</span> usuarios únicos
+                    </span>
+                    <small class="text-muted fw-medium" id="searchResultCount" style="font-size: 0.7rem;"></small>
+                </div>
+            </div>
+            
+            <!-- Body - Lista con scroll -->
+            <div class="modal-body p-0" id="usersListContainer" style="background: #F8F6F4; overflow-y: auto;">
+                <div class="text-center py-4" id="usersLoading">
+                    <div class="spinner-grow" role="status" style="color: #3E2723; width: 2rem; height: 2rem;">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-muted" style="font-size: 0.8rem;">Cargando...</p>
+                </div>
+                <div class="px-2 py-1" id="usersList"></div>
+                <div class="text-center py-4" id="noUsersFound" style="display: none;">
+                    <i class="bi bi-search" style="font-size: 2rem; color: #8D6E63;"></i>
+                    <p class="text-muted mb-0 mt-2" style="font-size: 0.85rem;">Sin resultados</p>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="modal-footer border-0 p-2" style="background: white; border-top: 1px solid rgba(62,39,35,0.1) !important;">
+                <button type="button" class="btn w-100" data-bs-dismiss="modal" 
+                        style="background: #3E2723; color: white; border-radius: 10px; font-size: 0.85rem; font-weight: 600; padding: 12px;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Devices by Type -->
+{% for device_type, devices in devices_by_type.items() %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            {% if device_type == 'checador' %}
+            <i class="bi bi-fingerprint"></i> Checadores
+            {% elif device_type == 'puerta' %}
+            <i class="bi bi-door-open"></i> Puertas
+            {% elif device_type == 'facial' %}
+            <i class="bi bi-person-bounding-box"></i> Faciales
+            {% else %}
+            <i class="bi bi-hdd-network"></i> Otros
+            {% endif %}
+            <span class="badge bg-secondary ms-2">{{ devices|length }}</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for device in devices %}
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
+                <div class="device-card" data-device-id="{{ device.id }}" onclick="location.href='{{ url_for('debug_device', device_id=device.id) }}'">
+                    <div class="device-card-header">
+                        <div>
+                            <h5>
+                                {% if device.alias %}
+                                    {{ device.alias }}
+                                {% else %}
+                                    {{ device.name }}
+                                {% endif %}
+                            </h5>
+                            <small class="text-muted"><i class="bi bi-hash"></i> {{ device.id }}</small>
+                            {% if device.location %}
+                            <br><small class="text-muted"><i class="bi bi-geo-alt-fill"></i> {{ device.location }}</small>
+                            {% endif %}
+                        </div>
+                        <span class="badge bg-success">
+                            <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Activo
+                        </span>
+                    </div>
+                    
+                    <div class="device-stats">
+                        <div class="device-stat">
+                            <strong style="color: var(--success);">{{ device.summary.access_granted }}</strong>
+                            <small>Accesos</small>
+                        </div>
+                        <div class="device-stat">
+                            <strong>{{ device.summary.unique_users }}</strong>
+                            <small>Usuarios</small>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-device-debug w-100" onclick="event.stopPropagation(); location.href='{{ url_for('debug_device', device_id=device.id) }}'">
+                        <i class="bi bi-journal-text"></i> Ver Logs
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Mensaje de error removido - 2025-12-02 -->
+
+{% endif %}
+
+{% block extra_js %}
+<script>
+// ==================== DASHBOARD CON CARGA LAZY Y TIEMPO REAL ====================
+let dashboardEventSource = null;
+let reconnectAttempts = 0;
+let allUserIds = new Set();
+let allowedDeviceIds = new Set();
+let dashboardLoaded = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Dashboard iniciando...');
+    {% if lazy_load %}
+    loadDashboardData();
+    {% else %}
+    // IDs de dispositivos ya cargados
+    allowedDeviceIds = new Set([
+    {% for device_type, devices in devices_by_type.items() %}
+    {% for device in devices %}
+    '{{ device.id }}',
+    {% endfor %}
+    {% endfor %}
+    ]);
+    dashboardLoaded = true;
+    connectRealtime();
+    {% endif %}
+});
+
+// Cargar datos del dashboard via AJAX
+function loadDashboardData() {
+    fetch('/api/dashboard-data')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Actualizar estadísticas
+                document.getElementById('statDevices').textContent = data.total_devices;
+                document.getElementById('statAccesos').textContent = data.total_granted;
+                document.getElementById('statUsuarios').textContent = data.total_users;
+                
+                // Guardar IDs permitidos
+                data.devices.forEach(d => allowedDeviceIds.add(String(d.id)));
+                
+                // Renderizar dispositivos
+                renderDevices(data.devices);
+                
+                dashboardLoaded = true;
+                console.log('✅ Dashboard cargado. Dispositivos:', allowedDeviceIds.size);
+                
+                // Iniciar tiempo real
+                connectRealtime();
+            } else {
+                document.getElementById('devicesContainer').innerHTML = 
+                    '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error al cargar datos</div>';
+            }
+        })
+        .catch(err => {
+            console.error('Error cargando dashboard:', err);
+            document.getElementById('devicesContainer').innerHTML = 
+                '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error de conexión</div>';
+        });
+}
+
+// Renderizar dispositivos dinámicamente
+function renderDevices(devices) {
+    // Agrupar por tipo
+    const byType = {};
+    devices.forEach(d => {
+        const type = d.device_type || 'checador';
+        if (!byType[type]) byType[type] = [];
+        byType[type].push(d);
+    });
+    
+    const typeLabels = {checador: 'Checadores', puerta: 'Puertas', facial: 'Facial', otro: 'Otros'};
+    const typeIcons = {checador: 'bi-fingerprint', puerta: 'bi-door-open', facial: 'bi-person-bounding-box', otro: 'bi-hdd'};
+    
+    let html = '';
+    for (const [type, devs] of Object.entries(byType)) {
+        html += `
+        <div class="device-type-section mb-4">
+            <h5 class="mb-3"><i class="bi ${typeIcons[type] || 'bi-hdd'} me-2"></i>${typeLabels[type] || type}</h5>
+            <div class="row">
+        `;
+        
+        devs.forEach(device => {
+            const name = device.alias || device.name;
+            const accesos = device.summary?.access_granted || 0;
+            const usuarios = device.summary?.unique_users || 0;
+            
+            html += `
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
+                <div class="device-card" data-device-id="${device.id}" onclick="location.href='/debug/device/${device.id}'">
+                    <div class="device-card-header">
+                        <div>
+                            <h5>${escapeHtml(name)}</h5>
+                            <small class="text-muted">ID: ${device.id}</small>
+                        </div>
+                        <span class="badge bg-success">Online</span>
+                    </div>
+                    <div class="device-stats">
+                        <div class="device-stat">
+                            <strong style="color: var(--success);">${accesos}</strong>
+                            <small>Accesos</small>
+                        </div>
+                        <div class="device-stat">
+                            <strong>${usuarios}</strong>
+                            <small>Usuarios</small>
+                        </div>
+                    </div>
+                    <button class="btn btn-device-debug w-100" onclick="event.stopPropagation(); location.href='/debug/device/${device.id}'">
+                        <i class="bi bi-journal-text"></i> Ver Logs
+                    </button>
+                </div>
+            </div>
+            `;
+        });
+        
+        html += '</div></div>';
+    }
+    
+    document.getElementById('devicesContainer').innerHTML = html || '<p class="text-muted">No hay dispositivos disponibles</p>';
+}
+
+// Escape HTML para prevenir XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function connectRealtime() {
+    const statusBadge = document.getElementById('realtimeStatus');
+    
+    if (dashboardEventSource && dashboardEventSource.readyState !== EventSource.CLOSED) return;
+    
+    if (statusBadge) {
+        statusBadge.classList.remove('bg-success', 'bg-danger');
+        statusBadge.classList.add('bg-warning');
+        statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
+    }
+    
+    if (dashboardEventSource) dashboardEventSource.close();
+    
+    dashboardEventSource = new EventSource('/stream/all-devices?interval=3');
+    
+    dashboardEventSource.addEventListener('connection', (e) => {
+        console.log('✅ Tiempo real activo');
+        reconnectAttempts = 0;
+        if (statusBadge) {
+            statusBadge.classList.remove('bg-warning', 'bg-danger');
+            statusBadge.classList.add('bg-success');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real';
+        }
+    });
+    
+    dashboardEventSource.addEventListener('new_event', (e) => {
+        const event = JSON.parse(e.data);
+        const deviceId = String(event.device_id || event.source_device_id);
+        
+        // Solo procesar dispositivos permitidos
+        if (!allowedDeviceIds.has(deviceId)) return;
+        
+        // Solo procesar accesos concedidos
+        if (event.badge_class !== 'success') return;
+        
+        console.log('📥', event.user, '@', event.datetime);
+        
+        // 1. Incrementar contador de la tarjeta del dispositivo
+        const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
+        if (card) {
+            const accesosEl = card.querySelector('.device-stat:first-child strong');
+            if (accesosEl) {
+                accesosEl.textContent = parseInt(accesosEl.textContent || 0) + 1;
+            }
+        }
+        
+        // 2. Agregar usuario al set global
+        if (event.user_id) {
+            allUserIds.add(String(event.user_id));
+        }
+        
+        // 3. Actualizar totales del header
+        updateHeaderTotals();
+    });
+    
+    dashboardEventSource.addEventListener('heartbeat', (e) => {});
+    
+    dashboardEventSource.onerror = (error) => {
+        if (statusBadge) {
+            statusBadge.classList.remove('bg-success', 'bg-warning');
+            statusBadge.classList.add('bg-danger');
+            statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
+        }
+        if (dashboardEventSource.readyState === EventSource.CLOSED) attemptReconnect();
+    };
+}
+
+function updateHeaderTotals() {
+    // Sumar accesos de todas las tarjetas
+    let totalAccesos = 0;
+    document.querySelectorAll('.device-card .device-stat:first-child strong').forEach(el => {
+        totalAccesos += parseInt(el.textContent || 0);
+    });
+    
+    // Actualizar solo accesos en el header
+    // Usuarios únicos se mantiene del servidor (requiere recarga para actualizar)
+    const statCards = document.querySelectorAll('.stat-card h2');
+    if (statCards[1]) statCards[1].textContent = totalAccesos;
+    // statCards[2] = usuarios únicos, NO se actualiza en tiempo real
+}
+
+function attemptReconnect() {
+    reconnectAttempts++;
+    if (dashboardEventSource) {
+        dashboardEventSource.close();
+        dashboardEventSource = null;
+    }
+    setTimeout(() => connectRealtime(), Math.min(3000 * reconnectAttempts, 30000));
+}
+
+// ==================== MODAL DE USUARIOS ÚNICOS ====================
+
+let allUsers = [];  // Cache de usuarios
+let usersModal = null;
+
+function openUsersModal() {
+    if (!usersModal) {
+        usersModal = new bootstrap.Modal(document.getElementById('usersModal'));
+    }
+    usersModal.show();
+    loadUniqueUsers();
+}
+
+function loadUniqueUsers() {
+    const loading = document.getElementById('usersLoading');
+    const list = document.getElementById('usersList');
+    const noFound = document.getElementById('noUsersFound');
+    const countEl = document.getElementById('usersCount');
+    
+    loading.style.display = 'block';
+    list.innerHTML = '';
+    noFound.style.display = 'none';
+    
+    fetch('/api/unique-users')
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = 'none';
+            
+            if (data.success && data.users) {
+                allUsers = data.users;
+                countEl.textContent = `${data.total} usuarios únicos`;
+                renderUsers(allUsers);
+            } else {
+                countEl.textContent = 'Error al cargar';
+            }
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            countEl.textContent = 'Error de conexión';
+            console.error(err);
+        });
+}
+
+function renderUsers(users) {
+    const list = document.getElementById('usersList');
+    const noFound = document.getElementById('noUsersFound');
+    
+    if (users.length === 0) {
+        list.innerHTML = '';
+        noFound.style.display = 'block';
+        return;
+    }
+    
+    noFound.style.display = 'none';
+    
+    // Renderizar en chunks para fluidez
+    const fragment = document.createDocumentFragment();
+    
+    users.forEach((user, idx) => {
+        const item = document.createElement('div');
+        item.className = 'user-card-item';
+        item.style.cssText = `
+            background: white;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            box-shadow: 0 1px 4px rgba(62, 39, 35, 0.06);
+            border-left: 3px solid #3E2723;
+            transition: all 0.2s ease;
+        `;
+        
+        const time = formatTime(user.last_check);
+        const name = user.name || 'Sin nombre';
+        const avatarColors = ['#3E2723', '#5D4037', '#6D4C41', '#795548', '#8D6E63'];
+        const colorIdx = Math.abs(hashCode(user.user_id)) % avatarColors.length;
+        
+        item.innerHTML = `
+            <div class="d-flex w-100 align-items-center">
+                <div class="rounded-circle text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0" 
+                     style="width: 36px; height: 36px; font-size: 0.75rem; font-weight: 600; background: ${avatarColors[colorIdx]};">
+                    ${getInitials(name)}
+                </div>
+                <div style="min-width: 0; flex: 1;">
+                    <div class="fw-semibold text-truncate" style="color: #3E2723; font-size: 0.85rem;">${escapeHtml(name)}</div>
+                    <div style="font-size: 0.7rem; color: #8D6E63;">
+                        ID: ${user.user_id} · ${escapeHtml(user.device)}
+                    </div>
+                </div>
+                <div class="text-end flex-shrink-0 ms-2">
+                    <div class="fw-bold" style="color: #43A047; font-size: 0.9rem;">${time}</div>
+                </div>
+            </div>
+        `;
+        
+        fragment.appendChild(item);
+    });
+    
+    list.innerHTML = '';
+    list.appendChild(fragment);
+}
+
+function filterUsers(query) {
+    const resultCount = document.getElementById('searchResultCount');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (!query.trim()) {
+        renderUsers(allUsers);
+        resultCount.textContent = '';
+        clearBtn.style.display = 'none';
+        return;
+    }
+    
+    clearBtn.style.display = 'block';
+    
+    // Búsqueda flexible: divide query en palabras y busca que todas coincidan
+    const terms = query.toLowerCase().trim().split(/\s+/);
+    
+    const filtered = allUsers.filter(user => {
+        const searchStr = `${user.name || ''} ${user.user_id}`.toLowerCase();
+        return terms.every(term => searchStr.includes(term));
+    });
+    
+    resultCount.textContent = `${filtered.length} de ${allUsers.length}`;
+    renderUsers(filtered);
+}
+
+function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.split(' ').filter(p => p);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return (parts[0] || '?').substring(0, 2).toUpperCase();
+}
+
+function formatTime(datetime) {
+    if (!datetime) return '--:--';
+    try {
+        const date = new Date(datetime);
+        return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '--:--';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return hash;
+}
+
+// Event listeners para búsqueda
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('userSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (searchInput) {
+        let debounceTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => filterUsers(this.value), 150);
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            document.getElementById('userSearchInput').value = '';
+            filterUsers('');
+            document.getElementById('userSearchInput').focus();
+        });
+    }
+    
+    // Limpiar búsqueda al cerrar modal
+    document.getElementById('usersModal')?.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('userSearchInput').value = '';
+        document.getElementById('searchResultCount').textContent = '';
+        document.getElementById('clearSearchBtn').style.display = 'none';
+    });
+});
+
+// ==================== CLEAR DASHBOARD CACHE ====================
+
+function clearDashboardCache() {
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Limpiando...';
+    
+    // Call API to clear cache for all devices
+    fetch('/api/clear-all-cache', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            btn.innerHTML = '<i class="bi bi-check-circle"></i> Cache limpiado';
+            btn.classList.remove('btn-dashboard-clear-cache');
+            btn.classList.add('btn-success');
+            
+            // Show notification
+            showDashboardNotification('success', data.message);
+            
+            // Reload page after 1 second
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            // Show error
+            btn.innerHTML = '<i class="bi bi-x-circle"></i> Error';
+            btn.classList.remove('btn-dashboard-clear-cache');
+            btn.classList.add('btn-danger');
+            
+            showDashboardNotification('error', data.error || 'Error al limpiar cache');
+            
+            // Restore button after 2 seconds
+            setTimeout(() => {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-dashboard-clear-cache');
+                btn.disabled = false;
+            }, 2000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.innerHTML = '<i class="bi bi-x-circle"></i> Error';
+        btn.classList.remove('btn-dashboard-clear-cache');
+        btn.classList.add('btn-danger');
+        
+        showDashboardNotification('error', 'Error de conexión');
+        
+        // Restore button after 2 seconds
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-dashboard-clear-cache');
+            btn.disabled = false;
+        }, 2000);
+    });
+}
+
+function showDashboardNotification(type, message) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show notification-toast`;
+    notification.style.cssText = 'position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+    notification.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
+{% endblock %}

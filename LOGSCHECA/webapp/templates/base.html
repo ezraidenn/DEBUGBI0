@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BioStar Logs Monitor{% endblock %}</title>
+    
+    <!-- Preconnect para recursos externos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    
+    <!-- CSS Crítico Inline para LCP rápido -->
+    <style>
+        :root{--primary-brown:#3E2723;--medium-brown:#5D4037;--bg-light:#FAF8F5}
+        body{font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-light);margin:0}
+        .sidebar{position:fixed;left:0;top:0;width:250px;height:100vh;background:linear-gradient(180deg,#3E2723 0%,#5D4037 100%);z-index:1000}
+        .main-content{margin-left:250px;padding:20px;min-height:100vh}
+        .stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(62,39,35,.08);border-left:4px solid var(--medium-brown)}
+        .stat-card h2{font-size:2rem;font-weight:700;color:var(--primary-brown);margin:8px 0}
+        .card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(62,39,35,.08);border:none}
+        @media(max-width:991px){.sidebar{transform:translateX(-100%)}.main-content{margin-left:0}}
+    </style>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- CSS no crítico con preload -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"></noscript>
+    
+    <!-- Google Fonts con display=swap -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+        <i class="bi bi-list"></i>
+    </button>
+    
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+    
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <img src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
+                    <h4>BioStar</h4>
+                    <small>Logs Monitor</small>
+                </div>
+                
+                <ul class="nav flex-column" style="padding-top: 20px;">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    
+                    {% if current_user.is_admin or current_user.can_manage_devices %}
+                    <li class="nav-item">
+                        <div class="sidebar-heading">ADMINISTRACIÓN</div>
+                    </li>
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}" href="{{ url_for('users_list') }}">
+                            <i class="bi bi-people-fill"></i>
+                            <span>Usuarios</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'config_devices' %}active{% endif %}" href="{{ url_for('config_devices') }}">
+                            <i class="bi bi-gear-fill"></i>
+                            <span>Configuración</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <div class="sidebar-user">
+                    <div class="sidebar-user-info">
+                        <i class="bi bi-person-circle" style="font-size: 20px; margin-right: 8px;"></i>
+                        {{ current_user.full_name or current_user.username }}
+                        <small>{{ current_user.email }}</small>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light w-100">
+                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                    </a>
+                </div>
+            </nav>
+            
+            <!-- Main content -->
+            <main class="col-md-10 ms-sm-auto px-md-4 main-content">
+                <div class="py-4">
+                    <!-- Flash messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+    {% else %}
+    {% block fullpage %}{% endblock %}
+    {% endif %}
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Mobile Menu Script -->
+    <script>
+    function toggleMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const menuBtn = document.getElementById('mobileMenuBtn');
+        
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+        
+        // Cambiar icono del botón
+        const icon = menuBtn.querySelector('i');
+        if (sidebar.classList.contains('show')) {
+            icon.className = 'bi bi-x-lg';
+        } else {
+            icon.className = 'bi bi-list';
+        }
+    }
+    
+    // Cerrar menú al hacer click en un link (mobile)
+    if (window.innerWidth <= 768) {
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                toggleMobileMenu();
+            });
+        });
+    }
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

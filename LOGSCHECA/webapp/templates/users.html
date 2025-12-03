@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Usuarios - BioStar{% endblock %}
+
+{% block extra_css %}
+<style>
+    .btn-new-user {
+        background-color: #5D4037 !important;
+        border-color: #5D4037 !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        padding: 8px 16px !important;
+    }
+    .btn-new-user:hover {
+        background-color: #4E342E !important;
+        border-color: #4E342E !important;
+        color: #ffffff !important;
+    }
+    .btn-edit {
+        background-color: #ffc107 !important;
+        border-color: #ffc107 !important;
+        color: #000 !important;
+        font-weight: 500;
+    }
+    .btn-edit:hover {
+        background-color: #ffb300 !important;
+        border-color: #ffb300 !important;
+        color: #000 !important;
+    }
+    .btn-delete {
+        background-color: #dc3545 !important;
+        border-color: #dc3545 !important;
+        color: #fff !important;
+        font-weight: 500;
+    }
+    .btn-delete:hover {
+        background-color: #c82333 !important;
+        border-color: #c82333 !important;
+        color: #fff !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap">
+    <h2 class="mb-0"><i class="bi bi-people"></i> Usuarios</h2>
+    <a href="{{ url_for('user_create') }}" class="btn btn-new-user btn-sm d-flex align-items-center gap-2">
+        <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Nuevo Usuario</span><span class="d-sm-none">Nuevo</span>
+    </a>
+</div>
+
+<!-- Desktop: Tabla -->
+<div class="card hide-mobile">
+    <div class="card-body p-0 p-md-3">
+        <div class="table-responsive">
+            <table class="table table-hover users-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Nombre</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Último Acceso</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <strong>{{ user.username }}</strong>
+                            {% if user.id == current_user.id %}
+                                <span class="badge bg-info">Tú</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.full_name or '-' }}</td>
+                        <td>
+                            {% if user.is_admin %}
+                                <span class="badge bg-danger">Admin</span>
+                            {% else %}
+                                <span class="badge bg-secondary">User</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Activo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.last_login %}
+                                <small>{{ user.last_login.strftime('%d/%m/%Y %H:%M') }}</small>
+                            {% else %}
+                                <span class="text-muted">Nunca</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('user_edit', user_id=user.id) }}" 
+                               class="btn btn-sm btn-edit" title="Editar">
+                                <i class="bi bi-pencil"></i> Editar
+                            </a>
+                            {% if user.id != current_user.id %}
+                            <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" 
+                                    class="btn btn-sm btn-delete" title="Eliminar">
+                                <i class="bi bi-trash"></i> Eliminar
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile: Lista de Cards Premium -->
+<div class="user-list hide-desktop" style="padding: 0 4px;">
+    {% for user in users %}
+    <div class="user-card" style="background: white; border-radius: 14px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(62,39,35,0.08); border-left: 4px solid #3E2723;">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <strong style="font-size: 1.05rem; color: #3E2723;">{{ user.username }}</strong>
+                    {% if user.id == current_user.id %}
+                    <span class="badge" style="background: #3E2723; font-size: 0.65rem; padding: 3px 8px;">Tú</span>
+                    {% endif %}
+                </div>
+                <small style="color: #6D4C41;">{{ user.email }}</small>
+            </div>
+            <div class="d-flex gap-1">
+                {% if user.is_admin %}
+                <span class="badge bg-danger" style="font-size: 0.7rem;">Admin</span>
+                {% else %}
+                <span class="badge" style="background: #8D6E63; font-size: 0.7rem;">User</span>
+                {% endif %}
+                {% if user.is_active %}
+                <span class="badge bg-success" style="font-size: 0.7rem;">Activo</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div style="font-size: 0.85rem; color: #6D4C41; margin-bottom: 12px;">
+            {% if user.full_name %}
+            <div class="mb-1"><i class="bi bi-person me-2"></i>{{ user.full_name }}</div>
+            {% endif %}
+            <div><i class="bi bi-clock me-2"></i>
+                {% if user.last_login %}{{ user.last_login.strftime('%d/%m %H:%M') }}{% else %}Nunca{% endif %}
+            </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('user_edit', user_id=user.id) }}" class="btn btn-sm flex-grow-1" 
+               style="background: #3E2723; color: white; border-radius: 10px; padding: 10px; font-weight: 600;">
+                <i class="bi bi-pencil me-1"></i> Editar
+            </a>
+            {% if user.id != current_user.id %}
+            <button onclick="deleteUser({{ user.id }}, '{{ user.username }}')" class="btn btn-sm" 
+                    style="background: #FFEBEE; color: #C62828; border-radius: 10px; padding: 10px;">
+                <i class="bi bi-trash"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+function deleteUser(userId, username) {
+    if (!confirm(`¿Estás seguro de eliminar al usuario "${username}"?`)) {
+        return;
+    }
+    
+    fetch(`/users/${userId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error al eliminar usuario: ' + error);
+    });
+}
+</script>
+{% endblock %}
