@@ -194,7 +194,7 @@
 {% block extra_js %}
 <script>
 // ==================== DASHBOARD CON CARGA LAZY Y TIEMPO REAL ====================
-let dashboardEventSource = null;
+let eventSource = null;
 let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
