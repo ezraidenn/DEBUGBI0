@@ -46,7 +46,9 @@
                         <input type="password" class="form-control" id="password" name="password" 
                                {% if action == 'create' %}required{% endif %}>
                         {% if action == 'create' %}
-                        <small class="text-muted">Mínimo 6 caracteres</small>
+                        <small class="text-muted">
+                            <strong>Requisitos:</strong> Mínimo 8 caracteres, debe incluir mayúsculas, minúsculas, números y caracteres especiales (!@#$%^&*)
+                        </small>
                         {% endif %}
                     </div>
                     
