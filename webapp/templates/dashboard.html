@@ -203,6 +203,9 @@ let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
 let dashboardLoaded = false;
+let lastHeartbeat = Date.now();
+let heartbeatCheckInterval = null;
+const maxReconnectAttempts = 10;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Dashboard iniciando...');
@@ -337,11 +340,18 @@ function connectRealtime() {
     
     if (eventSource) eventSource.close();
     
+    // Reset heartbeat tracking
+    lastHeartbeat = Date.now();
+    
     eventSource = new EventSource('/stream/all-devices?interval=3');
+    
+    // Iniciar verificación de heartbeat
+    startHeartbeatCheck();
     
     eventSource.addEventListener('connection', (e) => {
         console.log('✅ Tiempo real activo');
         reconnectAttempts = 0;
+        lastHeartbeat = Date.now();
         if (statusBadge) {
             statusBadge.classList.remove('bg-warning', 'bg-danger');
             statusBadge.classList.add('bg-success');
@@ -350,6 +360,7 @@ function connectRealtime() {
     });
     
     eventSource.addEventListener('new_event', (e) => {
+        lastHeartbeat = Date.now(); // Cualquier evento cuenta como heartbeat
         const event = JSON.parse(e.data);
         const deviceId = String(event.device_id || event.source_device_id);
         
@@ -379,9 +390,13 @@ function connectRealtime() {
         updateHeaderTotals();
     });
     
-    eventSource.addEventListener('heartbeat', (e) => {});
+    eventSource.addEventListener('heartbeat', (e) => {
+        lastHeartbeat = Date.now();
+        console.log('💓 Heartbeat recibido');
+    });
     
     eventSource.onerror = (error) => {
+        console.error('❌ Error en SSE:', error);
         if (statusBadge) {
             statusBadge.classList.remove('bg-success', 'bg-warning');
             statusBadge.classList.add('bg-danger');
@@ -389,6 +404,24 @@ function connectRealtime() {
         }
         if (eventSource.readyState === EventSource.CLOSED) attemptReconnect();
     };
+}
+
+// Verificación de heartbeat para detectar conexiones muertas
+function startHeartbeatCheck() {
+    if (heartbeatCheckInterval) {
+        clearInterval(heartbeatCheckInterval);
+    }
+    
+    // Verificar cada 20 segundos si hemos recibido algún mensaje
+    heartbeatCheckInterval = setInterval(() => {
+        const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+        
+        // Si no hay heartbeat en 45 segundos, reconectar
+        if (timeSinceLastHeartbeat > 45000) {
+            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
+            attemptReconnect();
+        }
+    }, 20000);
 }
 
 function updateHeaderTotals() {
@@ -406,12 +439,31 @@ function updateHeaderTotals() {
 }
 
 function attemptReconnect() {
+    // Limpiar heartbeat check
+    if (heartbeatCheckInterval) {
+        clearInterval(heartbeatCheckInterval);
+        heartbeatCheckInterval = null;
+    }
+    
+    // Verificar límite de reconexiones
+    if (reconnectAttempts >= maxReconnectAttempts) {
+        console.error('❌ Máximo de intentos de reconexión alcanzado');
+        const statusBadge = document.getElementById('realtimeStatus');
+        if (statusBadge) {
+            statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill" style="font-size: 8px;"></i> Error - Recarga página';
+        }
+        return;
+    }
+    
     reconnectAttempts++;
     if (eventSource) {
         eventSource.close();
         eventSource = null;
     }
-    setTimeout(() => connectRealtime(), Math.min(3000 * reconnectAttempts, 30000));
+    
+    const delay = Math.min(3000 * reconnectAttempts, 30000);
+    console.log(`⏳ Reconectando en ${delay / 1000}s (intento ${reconnectAttempts}/${maxReconnectAttempts})...`);
+    setTimeout(() => connectRealtime(), delay);
 }
 
 // ==================== MODAL DE USUARIOS ÚNICOS ====================
