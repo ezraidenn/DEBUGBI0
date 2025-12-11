@@ -187,18 +187,14 @@
 </div>
 {% endfor %}
 
-{% if not devices_by_type %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No se encontraron checadores.
-</div>
-{% endif %}
+<!-- Mensaje de error removido - 2025-12-02 -->
 
 {% endif %}
 
 {% block extra_js %}
 <script>
 // ==================== DASHBOARD CON CARGA LAZY Y TIEMPO REAL ====================
-let eventSource = null;
+let dashboardEventSource = null;
 let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
@@ -456,9 +452,9 @@ function attemptReconnect() {
     }
     
     reconnectAttempts++;
-    if (eventSource) {
-        eventSource.close();
-        eventSource = null;
+    if (dashboardEventSource) {
+        dashboardEventSource.close();
+        dashboardEventSource = null;
     }
     
     const delay = Math.min(3000 * reconnectAttempts, 30000);

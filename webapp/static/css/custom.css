@@ -2899,3 +2899,25 @@ textarea {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 }
+
+/* ============================================
+   FIX: Botón Nuevo Usuario - CAFÉ OSCURO
+   ============================================ */
+.btn-new-user,
+a[href*="user_create"].btn,
+.page-header a[href*="user_create"] {
+    background-color: #5D4037 !important;
+    background-image: none !important;
+    border-color: #5D4037 !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+.btn-new-user:hover,
+a[href*="user_create"].btn:hover,
+.page-header a[href*="user_create"]:hover {
+    background-color: #4E342E !important;
+    background-image: none !important;
+    border-color: #4E342E !important;
+    color: #ffffff !important;
+}
