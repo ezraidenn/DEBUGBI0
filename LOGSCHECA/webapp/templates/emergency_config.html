@@ -6,8 +6,15 @@
 <div class="container-fluid py-4">
     <div class="row mb-4">
         <div class="col-12">
-            <h2><i class="bi bi-gear-fill"></i> Configuración de Emergencias</h2>
-            <p class="text-muted">Gestiona zonas, grupos y asigna usuarios</p>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-gear-fill"></i> Configuración de Emergencias</h2>
+                    <p class="text-muted mb-0">Gestiona zonas, grupos, usuarios y dispositivos</p>
+                </div>
+                <span class="badge bg-success" id="realtimeStatus">
+                    <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real
+                </span>
+            </div>
         </div>
     </div>
 
@@ -33,23 +40,50 @@
         </div>
     </div>
 
-    <!-- Grupos de la zona seleccionada -->
-    <div class="row" id="groups-section" style="display: none;">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people"></i> Grupos de <span id="selected-zone-name"></span>
-                    </h5>
-                    <button class="btn btn-success btn-sm" onclick="showCreateGroupModal()">
-                        <i class="bi bi-plus-lg"></i> Nuevo Grupo
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="groups-container" class="row"></div>
+    <!-- Sección de Zona Seleccionada -->
+    <div id="zone-details-section" style="display: none;">
+        <!-- Dispositivos de la Zona (para control de emergencias) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-hdd-network"></i> Dispositivos de <span class="selected-zone-name"></span>
+                        </h5>
+                        <button class="btn btn-warning btn-sm" onclick="showAddDeviceModal()">
+                            <i class="bi bi-plus-lg"></i> Agregar Dispositivo
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info small mb-3">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                            <strong>Control de Emergencias:</strong> Los dispositivos asignados emitirán <strong>sonido de alarma</strong> y <strong>desbloquearán puertas</strong> automáticamente cuando se active una emergencia en esta zona.
+                        </div>
+                        <div id="devices-container" class="row"></div>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Grupos de la zona seleccionada -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-people"></i> Grupos de <span class="selected-zone-name"></span>
+                        </h5>
+                        <button class="btn btn-success btn-sm" onclick="showCreateGroupModal()">
+                            <i class="bi bi-plus-lg"></i> Nuevo Grupo
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="groups-container" class="row"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -117,43 +151,113 @@
     </div>
 </div>
 
-<!-- Modal: Miembros del Grupo -->
-<div class="modal fade" id="membersModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
+<!-- Modal: Miembros del Grupo - CENTRADO CON ESTILOS INLINE -->
+<div class="modal fade" id="membersModal" tabindex="-1" style="display: none;">
+    <div class="modal-dialog modal-lg" style="display: flex; align-items: center; min-height: calc(100% - 1rem); margin: 0.5rem auto;">
+        <div class="modal-content" style="margin: auto;">
+            <div class="modal-header" style="background: #3E2723; color: white;">
                 <h5 class="modal-title">
                     <i class="bi bi-people"></i> Miembros de <span id="group-name"></span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <!-- Buscador de usuarios -->
                 <div class="mb-3">
-                    <label class="form-label">Buscar usuario para agregar</label>
+                    <label class="form-label fw-bold">Buscar usuario para agregar</label>
                     <div class="input-group">
-                        <input type="text" class="form-control" id="userSearch" placeholder="Escribe nombre o ID...">
-                        <button class="btn btn-outline-secondary" onclick="searchUsers()">
+                        <input type="text" class="form-control" id="userSearch" 
+                               placeholder="Escribe nombre o ID (mínimo 2 caracteres)...">
+                        <button type="button" class="btn btn-primary" onclick="buscarUsuarios()">
                             <i class="bi bi-search"></i> Buscar
                         </button>
                     </div>
+                    <small class="text-muted">Busca entre los usuarios que han registrado acceso hoy</small>
                 </div>
                 
                 <!-- Resultados de búsqueda -->
                 <div id="searchResults" class="mb-3" style="display: none;">
-                    <div class="list-group" id="searchResultsList"></div>
+                    <label class="form-label fw-bold text-success">Resultados:</label>
+                    <div class="list-group" id="searchResultsList" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
                 
                 <hr>
                 
                 <!-- Lista de miembros actuales -->
-                <h6>Miembros actuales:</h6>
+                <h6 class="fw-bold">Miembros actuales: <span class="badge bg-primary" id="members-count">0</span></h6>
                 <div id="members-list">
                     <div class="text-center py-3">
                         <div class="spinner-border spinner-border-sm" role="status"></div>
                         <p class="mt-2 small">Cargando...</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Agregar Dispositivo a Zona -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-10">
+                <h5 class="modal-title">
+                    <i class="bi bi-hdd-network"></i> Agregar Dispositivo a Zona
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Seleccionar Dispositivo</label>
+                    <select class="form-select" id="deviceSelect">
+                        <option value="">Cargando dispositivos...</option>
+                    </select>
+                </div>
+                <div class="alert alert-warning small">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Al activar una emergencia, este dispositivo emitirá sonido de alarma y desbloqueará puertas automáticamente.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="addDeviceToZone()">
+                    <i class="bi bi-plus-lg"></i> Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Zona -->
+<div class="modal fade" id="editZoneModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Zona</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editZoneForm">
+                    <input type="hidden" name="zone_id" id="editZoneId">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" name="name" id="editZoneName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" id="editZoneDescription" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <input type="color" class="form-control" name="color" id="editZoneColor" value="#8B4513">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto" onclick="deleteZone()">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="updateZone()">Guardar</button>
             </div>
         </div>
     </div>
@@ -169,6 +273,7 @@ let selectedGroupId = null;
 // Cargar zonas al iniciar
 document.addEventListener('DOMContentLoaded', () => {
     loadZones();
+    loadAvailableDevices();
 });
 
 async function loadZones() {
@@ -194,14 +299,18 @@ function renderZones(zones) {
     
     container.innerHTML = zones.map(zone => `
         <div class="col-md-4 mb-3">
-            <div class="card h-100 zone-card" onclick="selectZone(${zone.id}, '${zone.name}')" style="border-left: 4px solid ${zone.color}; cursor: pointer;">
-                <div class="card-body">
+            <div class="card h-100 zone-card ${selectedZoneId === zone.id ? 'border-primary' : ''}" 
+                 style="border-left: 4px solid ${zone.color}; cursor: pointer;">
+                <div class="card-body" onclick="selectZone(${zone.id}, '${escapeHtml(zone.name)}')">
                     <h5 class="card-title">
-                        <i class="${zone.icon}"></i> ${zone.name}
+                        <i class="${zone.icon}"></i> ${escapeHtml(zone.name)}
                     </h5>
-                    <p class="card-text text-muted small">${zone.description || 'Sin descripción'}</p>
+                    <p class="card-text text-muted small">${escapeHtml(zone.description || 'Sin descripción')}</p>
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="badge bg-secondary">${zone.groups_count} grupos</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); showEditZoneModal(${zone.id}, '${escapeHtml(zone.name)}', '${escapeHtml(zone.description || '')}', '${zone.color}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -209,11 +318,33 @@ function renderZones(zones) {
     `).join('');
 }
 
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function selectZone(zoneId, zoneName) {
     selectedZoneId = zoneId;
-    document.getElementById('selected-zone-name').textContent = zoneName;
-    document.getElementById('groups-section').style.display = 'block';
+    
+    // Actualizar todos los elementos con clase selected-zone-name
+    document.querySelectorAll('.selected-zone-name').forEach(el => {
+        el.textContent = zoneName;
+    });
+    
+    // Mostrar sección de detalles
+    document.getElementById('zone-details-section').style.display = 'block';
+    
+    // Cargar datos
     loadGroups(zoneId);
+    loadZoneDevices(zoneId);
+    
+    // Resaltar zona seleccionada
+    loadZones();
+    
+    // Scroll suave a la sección
+    document.getElementById('zone-details-section').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function loadGroups(zoneId) {
@@ -330,10 +461,17 @@ async function showMembersModal(groupId, groupName) {
     selectedGroupId = groupId;
     document.getElementById('group-name').textContent = groupName;
     
+    // Limpiar búsqueda anterior
+    document.getElementById('userSearch').value = '';
+    document.getElementById('searchResults').style.display = 'none';
+    
     const modal = new bootstrap.Modal(document.getElementById('membersModal'));
     modal.show();
     
     loadMembers(groupId);
+    
+    // Pre-cargar usuarios para búsqueda
+    cargarUsuariosParaBusqueda();
 }
 
 async function loadMembers(groupId) {
@@ -351,6 +489,7 @@ async function loadMembers(groupId) {
 
 function renderMembers(members) {
     const container = document.getElementById('members-list');
+    document.getElementById('members-count').textContent = members.length;
     
     if (members.length === 0) {
         container.innerHTML = '<p class="text-muted text-center">No hay miembros. Busca usuarios para agregar.</p>';
@@ -358,11 +497,11 @@ function renderMembers(members) {
     }
     
     container.innerHTML = `
-        <div class="list-group">
+        <div class="list-group" style="max-height: 400px; overflow-y: auto;">
             ${members.map(member => `
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>${member.user_name}</strong>
+                        <strong>${escapeHtml(member.user_name)}</strong>
                         <br><small class="text-muted">ID: ${member.biostar_user_id}</small>
                     </div>
                     <button class="btn btn-sm btn-outline-danger" onclick="removeMember(${member.id})">
@@ -374,25 +513,87 @@ function renderMembers(members) {
     `;
 }
 
-async function searchUsers() {
-    const query = document.getElementById('userSearch').value.trim();
+// Cache de usuarios para búsqueda
+var todosLosUsuarios = [];
+var usuariosCargados = false;
+
+// Cargar usuarios al abrir el modal - usa API de BioStar directamente
+function cargarUsuariosParaBusqueda() {
+    if (usuariosCargados && todosLosUsuarios.length > 0) {
+        console.log('Usuarios ya cargados:', todosLosUsuarios.length);
+        return;
+    }
+    
+    fetch('/api/users/all')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success && data.users) {
+                todosLosUsuarios = data.users;
+                usuariosCargados = true;
+                console.log('Usuarios BioStar cargados:', todosLosUsuarios.length);
+            }
+        })
+        .catch(function(err) {
+            console.error('Error cargando usuarios:', err);
+        });
+}
+
+// Función de búsqueda - busca en BioStar si no hay cache, o filtra localmente
+function buscarUsuarios() {
+    var query = document.getElementById('userSearch').value.trim().toLowerCase();
+    var container = document.getElementById('searchResults');
+    var list = document.getElementById('searchResultsList');
+    
     if (!query || query.length < 2) {
         alert('Escribe al menos 2 caracteres');
         return;
     }
     
-    try {
-        const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (data.success && data.users) {
-            renderSearchResults(data.users);
-        } else {
-            alert('Error: ' + (data.message || 'No se encontraron usuarios'));
-        }
-    } catch (error) {
-        console.error('Error buscando usuarios:', error);
-        alert('Error buscando usuarios');
+    // Mostrar loading
+    container.style.display = 'block';
+    list.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Buscando...</div>';
+    
+    // Si tenemos usuarios en cache, filtrar localmente
+    if (todosLosUsuarios.length > 0) {
+        filtrarUsuarios(query);
+        return;
+    }
+    
+    // Si no hay cache, buscar directamente en BioStar
+    fetch('/api/users/search?q=' + encodeURIComponent(query))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success && data.users) {
+                if (data.users.length > 0) {
+                    renderSearchResults(data.users);
+                } else {
+                    list.innerHTML = '<div class="list-group-item text-muted text-center">No se encontraron usuarios con "' + query + '"</div>';
+                }
+            } else {
+                list.innerHTML = '<div class="list-group-item text-danger">Error: ' + (data.message || 'Error desconocido') + '</div>';
+            }
+        })
+        .catch(function(err) {
+            list.innerHTML = '<div class="list-group-item text-danger">Error: ' + err.message + '</div>';
+        });
+}
+
+function filtrarUsuarios(query) {
+    var list = document.getElementById('searchResultsList');
+    
+    var resultados = todosLosUsuarios.filter(function(user) {
+        var nombre = (user.name || '').toLowerCase();
+        var id = String(user.user_id || '').toLowerCase();
+        return nombre.indexOf(query) !== -1 || id.indexOf(query) !== -1;
+    });
+    
+    // Limitar a 30 resultados
+    resultados = resultados.slice(0, 30);
+    
+    if (resultados.length > 0) {
+        renderSearchResults(resultados);
+    } else {
+        list.innerHTML = '<div class="list-group-item text-muted text-center">No se encontraron usuarios con "' + query + '"</div>';
     }
 }
 
@@ -400,21 +601,22 @@ function renderSearchResults(users) {
     const container = document.getElementById('searchResults');
     const list = document.getElementById('searchResultsList');
     
-    if (users.length === 0) {
-        list.innerHTML = '<div class="list-group-item">No se encontraron usuarios</div>';
-    } else {
-        list.innerHTML = users.map(user => `
-            <a href="#" class="list-group-item list-group-item-action" onclick="addMember('${user.user_id}', '${user.name}'); return false;">
-                <div class="d-flex justify-content-between">
+    list.innerHTML = users.map(user => {
+        const userName = escapeHtml(user.name || 'Sin nombre');
+        const userId = user.user_id || user.id || 'N/A';
+        return `
+            <div class="list-group-item list-group-item-action" onclick="addMember('${userId}', '${userName.replace(/'/g, "\\'")}')"
+                 style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>${user.name}</strong>
-                        <br><small class="text-muted">ID: ${user.user_id}</small>
+                        <strong>${userName}</strong>
+                        <br><small class="text-muted">ID: ${userId}</small>
                     </div>
-                    <i class="bi bi-plus-circle text-success"></i>
+                    <i class="bi bi-plus-circle-fill text-success" style="font-size: 1.2rem;"></i>
                 </div>
-            </a>
-        `).join('');
-    }
+            </div>
+        `;
+    }).join('');
     
     container.style.display = 'block';
 }
@@ -447,7 +649,18 @@ async function addMember(biostarUserId, userName) {
 }
 
 async function removeMember(memberId) {
-    if (!confirm('¿Remover este usuario del grupo?')) return;
+    const result = await Swal.fire({
+        title: '¿Remover usuario?',
+        text: 'El usuario será removido del grupo',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, remover',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
     
     try {
         const response = await fetch(`/api/groups/${selectedGroupId}/members/${memberId}`, {
@@ -458,15 +671,273 @@ async function removeMember(memberId) {
         
         if (data.success) {
             loadMembers(selectedGroupId);
-            alert('Usuario removido del grupo');
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Usuario removido',
+                showConfirmButton: false,
+                timer: 2000
+            });
         } else {
-            alert('Error: ' + data.message);
+            Swal.fire('Error', data.message, 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error removiendo usuario');
+        Swal.fire('Error', 'Error removiendo usuario', 'error');
     }
 }
+
+// ==================== DISPOSITIVOS POR ZONA ====================
+
+let availableDevices = [];
+
+async function loadAvailableDevices() {
+    try {
+        const response = await fetch('/api/devices/available');
+        const data = await response.json();
+        
+        if (data.success) {
+            availableDevices = data.devices;
+            updateDeviceSelect();
+        }
+    } catch (error) {
+        console.error('Error cargando dispositivos:', error);
+    }
+}
+
+function updateDeviceSelect() {
+    const select = document.getElementById('deviceSelect');
+    if (availableDevices.length === 0) {
+        select.innerHTML = '<option value="">No hay dispositivos disponibles</option>';
+        return;
+    }
+    
+    select.innerHTML = '<option value="">Selecciona un dispositivo...</option>' +
+        availableDevices.map(d => `<option value="${d.id}" data-name="${escapeHtml(d.name)}">${escapeHtml(d.name)} (ID: ${d.id})</option>`).join('');
+}
+
+async function loadZoneDevices(zoneId) {
+    try {
+        const response = await fetch(`/api/zones/${zoneId}/devices`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderZoneDevices(data.devices);
+        }
+    } catch (error) {
+        console.error('Error cargando dispositivos de zona:', error);
+    }
+}
+
+function renderZoneDevices(devices) {
+    const container = document.getElementById('devices-container');
+    
+    if (devices.length === 0) {
+        container.innerHTML = '<div class="col-12"><p class="text-muted text-center">No hay checadores asignados. Agrega uno para habilitar detección automática.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = devices.map(device => `
+        <div class="col-md-4 mb-2">
+            <div class="card">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-hdd-network text-warning"></i>
+                        <strong class="ms-2">${escapeHtml(device.device_name)}</strong>
+                        <br><small class="text-muted">ID: ${device.device_id}</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeDeviceFromZone(${device.device_id})">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showAddDeviceModal() {
+    if (!selectedZoneId) {
+        Swal.fire('Error', 'Selecciona una zona primero', 'warning');
+        return;
+    }
+    const modal = new bootstrap.Modal(document.getElementById('addDeviceModal'));
+    modal.show();
+}
+
+async function addDeviceToZone() {
+    const select = document.getElementById('deviceSelect');
+    const deviceId = select.value;
+    const deviceName = select.options[select.selectedIndex]?.dataset?.name || `Dispositivo ${deviceId}`;
+    
+    if (!deviceId) {
+        Swal.fire('Error', 'Selecciona un dispositivo', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/zones/${selectedZoneId}/devices`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                device_id: parseInt(deviceId),
+                device_name: deviceName
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
+            loadZoneDevices(selectedZoneId);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Checador asignado',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error asignando checador', 'error');
+    }
+}
+
+async function removeDeviceFromZone(deviceId) {
+    const result = await Swal.fire({
+        title: '¿Remover checador?',
+        text: 'El checador ya no detectará presencia en esta zona',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, remover',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    try {
+        const response = await fetch(`/api/zones/${selectedZoneId}/devices/${deviceId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadZoneDevices(selectedZoneId);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Checador removido',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error removiendo checador', 'error');
+    }
+}
+
+// ==================== EDITAR ZONA ====================
+
+function showEditZoneModal(zoneId, name, description, color) {
+    document.getElementById('editZoneId').value = zoneId;
+    document.getElementById('editZoneName').value = name;
+    document.getElementById('editZoneDescription').value = description;
+    document.getElementById('editZoneColor').value = color;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editZoneModal'));
+    modal.show();
+}
+
+async function updateZone() {
+    const zoneId = document.getElementById('editZoneId').value;
+    const form = document.getElementById('editZoneForm');
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch(`/api/zones/${zoneId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.fromEntries(formData))
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
+            loadZones();
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Zona actualizada',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error actualizando zona', 'error');
+    }
+}
+
+async function deleteZone() {
+    const zoneId = document.getElementById('editZoneId').value;
+    
+    const result = await Swal.fire({
+        title: '¿Eliminar zona?',
+        text: 'Se eliminarán todos los grupos y miembros asociados',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    try {
+        const response = await fetch(`/api/zones/${zoneId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
+            selectedZoneId = null;
+            document.getElementById('zone-details-section').style.display = 'none';
+            loadZones();
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Zona eliminada',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error eliminando zona', 'error');
+    }
+}
+
 </script>
 
 <style>
@@ -476,15 +947,26 @@ async function removeMember(memberId) {
     transition: all 0.2s;
 }
 
-/* Centrar modales */
-.modal-dialog {
-    display: flex;
-    align-items: center;
-    min-height: calc(100% - 1rem);
+/* Estilos para modales */
+#membersModal .modal-content,
+#addDeviceModal .modal-content,
+#editZoneModal .modal-content {
+    max-height: 85vh;
 }
 
-.modal.fade .modal-dialog {
-    transition: transform 0.3s ease-out;
+#membersModal .modal-body {
+    overflow-y: auto;
+    max-height: 65vh;
+}
+
+#searchResultsList .list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#searchResultsList .list-group-item:hover {
+    background-color: #e8f4e8;
+    border-left: 3px solid #28a745;
 }
 </style>
 {% endblock %}

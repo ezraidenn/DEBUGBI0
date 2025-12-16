@@ -384,6 +384,7 @@ class EmergencySession(db.Model):
     resolved_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='active')  # active, resolved
     notes = db.Column(db.Text)
+    unlocked_doors = db.Column(db.Text)  # JSON con IDs de puertas desbloqueadas
     
     # Relaciones
     zone = db.relationship('Zone', backref='emergencies')
@@ -414,3 +415,25 @@ class RollCallEntry(db.Model):
     
     def __repr__(self):
         return f'<RollCallEntry {self.user_name} - {self.status}>'
+
+
+class ZoneDevice(db.Model):
+    """Dispositivos/Checadores asignados a zonas para detección automática de presencia"""
+    __tablename__ = 'zone_devices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    device_id = db.Column(db.Integer, nullable=False)  # ID del dispositivo BioStar
+    device_name = db.Column(db.String(200))  # Nombre para referencia
+    is_active = db.Column(db.Boolean, default=True)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relación
+    zone = db.relationship('Zone', backref=db.backref('devices', lazy='dynamic'))
+    
+    __table_args__ = (
+        db.UniqueConstraint('zone_id', 'device_id', name='unique_zone_device'),
+    )
+    
+    def __repr__(self):
+        return f'<ZoneDevice {self.device_name} in {self.zone.name}>'

@@ -101,34 +101,58 @@
 
 <!-- Modal: Tipo de Emergencia -->
 <div class="modal fade" id="emergencyTypeModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Tipo de Emergencia</h5>
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Activar Emergencia</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="emergencyTypeForm">
                     <div class="mb-3">
-                        <label class="form-label">Tipo de emergencia</label>
+                        <label class="form-label fw-bold">Tipo de emergencia</label>
                         <select class="form-select" name="emergency_type" required>
                             <option value="general">General</option>
-                            <option value="incendio">Incendio</option>
-                            <option value="sismo">Sismo</option>
-                            <option value="evacuacion">Evacuación</option>
-                            <option value="seguridad">Seguridad</option>
+                            <option value="incendio">🔥 Incendio</option>
+                            <option value="sismo">🌍 Sismo</option>
+                            <option value="evacuacion">🚪 Evacuación</option>
+                            <option value="seguridad">🔒 Seguridad</option>
                         </select>
                     </div>
+                    
+                    <!-- Acciones de dispositivos -->
                     <div class="mb-3">
-                        <label class="form-label">Notas</label>
-                        <textarea class="form-control" name="notes" rows="3"></textarea>
+                        <label class="form-label fw-bold">Acciones en dispositivos de la zona</label>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="unlock_doors" id="unlockDoorsCheck" checked>
+                                    <label class="form-check-label" for="unlockDoorsCheck">
+                                        <i class="bi bi-door-open text-success"></i> <strong>Desbloquear puertas</strong>
+                                        <br><small class="text-muted">Abre todas las puertas de los checadores de esta zona</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="trigger_alarms" id="triggerAlarmsCheck">
+                                    <label class="form-check-label" for="triggerAlarmsCheck">
+                                        <i class="bi bi-bell-fill text-warning"></i> <strong>Activar alarmas</strong>
+                                        <br><small class="text-muted">⚠ Soporte limitado - depende de configuración BioStar</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notas (opcional)</label>
+                        <textarea class="form-control" name="notes" rows="2" placeholder="Descripción adicional..."></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-danger" onclick="confirmActivateEmergency()">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Activar Emergencia
+                <button type="button" class="btn btn-danger btn-lg" onclick="confirmActivateEmergency()">
+                    <i class="bi bi-exclamation-triangle-fill"></i> ACTIVAR EMERGENCIA
                 </button>
             </div>
         </div>
@@ -141,19 +165,11 @@
 <script>
 let selectedZoneId = null;
 let activeEmergencyId = null;
-let refreshInterval = null;
+let emergencyEventSource = null;  // SSE para tiempo real
 
 document.addEventListener('DOMContentLoaded', () => {
     loadZones();
     checkEmergencyStatus();
-    
-    // Auto-refresh cada 5 segundos
-    refreshInterval = setInterval(() => {
-        if (activeEmergencyId) {
-            loadRollCall(activeEmergencyId);
-        }
-        checkEmergencyStatus();
-    }, 5000);
 });
 
 async function loadZones() {
@@ -226,13 +242,69 @@ function showActiveEmergencies(emergencies) {
     const list = document.getElementById('active-emergencies-list');
     
     list.innerHTML = emergencies.map(e => `
-        <p class="mb-1">
-            <strong>${e.zone_name}</strong> - ${e.emergency_type} 
-            <small class="text-muted">(${new Date(e.started_at).toLocaleTimeString()})</small>
-        </p>
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-white rounded">
+            <div>
+                <strong>${e.zone_name}</strong> - ${e.emergency_type} 
+                <small class="text-muted">(${new Date(e.started_at).toLocaleTimeString()})</small>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-warning me-1" onclick="viewEmergency(${e.id}, ${e.zone_id}, '${e.zone_name}')">
+                    <i class="bi bi-eye"></i> Ver
+                </button>
+                <button class="btn btn-sm btn-success" onclick="quickResolveEmergency(${e.id}, '${e.zone_name}')">
+                    <i class="bi bi-check-circle"></i> Resolver
+                </button>
+            </div>
+        </div>
     `).join('');
     
     alert.style.display = 'block';
+}
+
+// Ver emergencia activa (mostrar pase de lista)
+function viewEmergency(emergencyId, zoneId, zoneName) {
+    selectedZoneId = zoneId;
+    activeEmergencyId = emergencyId;
+    document.getElementById('selected-zone-display').textContent = zoneName;
+    showRollCall(emergencyId);
+}
+
+// Resolver emergencia rápidamente desde la alerta
+async function quickResolveEmergency(emergencyId, zoneName) {
+    const result = await Swal.fire({
+        title: '¿Resolver Emergencia?',
+        text: `Esto finalizará la emergencia en ${zoneName}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, resolver',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    try {
+        const response = await fetch(`/api/emergency/${emergencyId}/resolve`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Emergencia Resuelta',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => location.reload());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error resolviendo emergencia');
+    }
 }
 
 function activateEmergency() {
@@ -243,14 +315,28 @@ function activateEmergency() {
     
     const modal = new bootstrap.Modal(document.getElementById('emergencyTypeModal'));
     document.getElementById('emergencyTypeForm').reset();
+    // Desbloquear puertas marcado por defecto, alarmas desmarcado (soporte limitado)
+    document.getElementById('unlockDoorsCheck').checked = true;
+    document.getElementById('triggerAlarmsCheck').checked = false;
     modal.show();
 }
 
 async function confirmActivateEmergency() {
     const form = document.getElementById('emergencyTypeForm');
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
-    data.zone_id = selectedZoneId;
+    
+    // Obtener datos del formulario
+    const data = {
+        zone_id: selectedZoneId,
+        emergency_type: form.querySelector('[name="emergency_type"]').value,
+        notes: form.querySelector('[name="notes"]').value,
+        unlock_doors: document.getElementById('unlockDoorsCheck').checked,
+        trigger_alarms: document.getElementById('triggerAlarmsCheck').checked
+    };
+    
+    // Cerrar modal primero para evitar problemas de aria-hidden
+    const modalEl = document.getElementById('emergencyTypeModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
     
     try {
         const response = await fetch('/api/emergency/activate', {
@@ -262,16 +348,80 @@ async function confirmActivateEmergency() {
         const result = await response.json();
         
         if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('emergencyTypeModal')).hide();
             activeEmergencyId = result.emergency_id;
+            
+            // Construir mensaje detallado de dispositivos
+            let deviceHtml = '';
+            if (result.devices) {
+                const total = result.devices.total || 0;
+                const activated = result.devices.activated || [];
+                const failed = result.devices.failed || [];
+                
+                if (total === 0) {
+                    deviceHtml = '<p class="text-muted"><i class="bi bi-info-circle"></i> No hay dispositivos asignados a esta zona</p>';
+                } else {
+                    deviceHtml = `<p><strong>Dispositivos:</strong> ${activated.length}/${total} activados</p>`;
+                    
+                    if (activated.length > 0) {
+                        deviceHtml += '<div class="text-start mt-2"><strong class="text-success">✓ Activados:</strong><ul class="mb-2">';
+                        activated.forEach(d => {
+                            let status = [];
+                            if (d.unlocked) status.push('🔓 Puerta abierta');
+                            if (d.alarm) status.push('🔔 Alarma');
+                            deviceHtml += `<li>${d.name} - ${status.join(', ') || 'Parcial'}</li>`;
+                        });
+                        deviceHtml += '</ul></div>';
+                    }
+                    
+                    if (failed.length > 0) {
+                        deviceHtml += '<div class="text-start"><strong class="text-warning">⚠ Sin respuesta:</strong><ul>';
+                        failed.forEach(d => {
+                            deviceHtml += `<li>${d.name}</li>`;
+                        });
+                        deviceHtml += '</ul></div>';
+                    }
+                }
+            }
+            
+            Swal.fire({
+                icon: 'warning',
+                title: '¡EMERGENCIA ACTIVADA!',
+                html: `<p>Emergencia iniciada correctamente.</p>${deviceHtml}`,
+                confirmButtonColor: '#dc3545'
+            });
+            
             showRollCall(result.emergency_id);
-            alert('¡EMERGENCIA ACTIVADA!');
+            checkEmergencyStatus(); // Actualizar alerta
         } else {
-            alert('Error: ' + result.message);
+            // Si ya hay emergencia activa, ofrecer verla
+            if (result.message && result.message.includes('Ya hay una emergencia activa')) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Emergencia Ya Activa',
+                    text: 'Ya existe una emergencia activa en esta zona. ¿Deseas verla?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ver emergencia',
+                    cancelButtonText: 'Cerrar'
+                }).then((res) => {
+                    if (res.isConfirmed) {
+                        checkEmergencyStatus();
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.message
+                });
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error activando emergencia');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error activando emergencia'
+        });
     }
 }
 
@@ -279,6 +429,128 @@ async function showRollCall(emergencyId) {
     document.getElementById('roll-call-section').style.display = 'block';
     document.getElementById('emergency-button-section').style.display = 'none';
     loadRollCall(emergencyId);
+    
+    // Iniciar SSE para tiempo real
+    startEmergencySSE(emergencyId);
+}
+
+// ==================== SSE TIEMPO REAL ====================
+
+function startEmergencySSE(emergencyId) {
+    if (emergencyEventSource) {
+        emergencyEventSource.close();
+    }
+    
+    console.log('🚀 Iniciando SSE para emergencia:', emergencyId);
+    emergencyEventSource = new EventSource(`/stream/emergency/${emergencyId}`);
+    
+    emergencyEventSource.addEventListener('connection', (e) => {
+        console.log('✅ Conectado a SSE de emergencia');
+    });
+    
+    emergencyEventSource.addEventListener('update', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('📥 Actualización recibida:', data);
+        
+        // Actualizar estadísticas
+        if (data.stats) {
+            document.getElementById('stat-total').textContent = data.stats.total;
+            document.getElementById('stat-present').textContent = data.stats.present;
+            document.getElementById('stat-absent').textContent = data.stats.absent;
+            document.getElementById('stat-pending').textContent = data.stats.pending;
+        }
+        
+        // Mostrar cambios recientes
+        if (data.recent_changes && data.recent_changes.length > 0) {
+            data.recent_changes.forEach(change => {
+                showRealtimeNotification(change);
+                updateMemberStatus(change);
+            });
+        }
+        
+        // Mostrar auto-marcados
+        if (data.auto_marked && data.auto_marked.length > 0) {
+            data.auto_marked.forEach(marked => {
+                showAutoMarkedNotification(marked);
+            });
+            // Recargar lista completa para reflejar cambios
+            loadRollCall(activeEmergencyId);
+        }
+    });
+    
+    emergencyEventSource.addEventListener('emergency_resolved', (e) => {
+        console.log('✅ Emergencia resuelta');
+        Swal.fire({
+            icon: 'success',
+            title: 'Emergencia Resuelta',
+            text: 'La emergencia ha sido resuelta',
+            timer: 3000
+        }).then(() => location.reload());
+    });
+    
+    emergencyEventSource.addEventListener('heartbeat', (e) => {
+        console.log('💓 Heartbeat');
+    });
+    
+    emergencyEventSource.onerror = (error) => {
+        console.error('❌ Error en SSE:', error);
+        if (emergencyEventSource.readyState === EventSource.CLOSED) {
+            // Reconectar después de 3 segundos
+            setTimeout(() => startEmergencySSE(emergencyId), 3000);
+        }
+    };
+}
+
+function showRealtimeNotification(change) {
+    const statusText = change.status === 'present' ? 'PRESENTE' : 'AUSENTE';
+    const statusClass = change.status === 'present' ? 'success' : 'danger';
+    
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: change.status === 'present' ? 'success' : 'error',
+        title: `${change.user_name}`,
+        text: `Marcado como ${statusText} por ${change.marked_by}`,
+        showConfirmButton: false,
+        timer: 3000
+    });
+}
+
+function showAutoMarkedNotification(marked) {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `✅ ${marked.user_name}`,
+        text: `Auto-detectado en ${marked.device}`,
+        showConfirmButton: false,
+        timer: 4000
+    });
+}
+
+function updateMemberStatus(change) {
+    // Buscar y actualizar el botón del miembro en la UI
+    const buttons = document.querySelectorAll(`button[onclick*="markAttendance(${change.id}"]`);
+    buttons.forEach(btn => {
+        const row = btn.closest('.list-group-item');
+        if (row) {
+            // Actualizar clases de botones
+            const presentBtn = row.querySelector('.btn-success, .btn-outline-success');
+            const absentBtn = row.querySelector('.btn-danger, .btn-outline-danger');
+            
+            if (change.status === 'present') {
+                presentBtn?.classList.remove('btn-outline-success');
+                presentBtn?.classList.add('btn-success');
+                absentBtn?.classList.remove('btn-danger');
+                absentBtn?.classList.add('btn-outline-danger');
+            } else {
+                absentBtn?.classList.remove('btn-outline-danger');
+                absentBtn?.classList.add('btn-danger');
+                presentBtn?.classList.remove('btn-success');
+                presentBtn?.classList.add('btn-outline-success');
+            }
+        }
+    });
 }
 
 async function loadRollCall(emergencyId) {
@@ -386,7 +658,26 @@ async function markAttendance(entryId, status) {
 }
 
 async function resolveEmergency() {
-    if (!confirm('¿Resolver la emergencia? Esto cerrará el pase de lista.')) return;
+    const result = await Swal.fire({
+        title: '¿Resolver Emergencia?',
+        html: '<p>Esto cerrará el pase de lista y finalizará la emergencia.</p><p><strong>Las puertas volverán a modo normal.</strong></p>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, resolver',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    // Mostrar loading
+    Swal.fire({
+        title: 'Resolviendo emergencia...',
+        html: '<p>Cerrando puertas y guardando pase de lista...</p>',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
     
     try {
         const response = await fetch(`/api/emergency/${activeEmergencyId}/resolve`, {
@@ -396,16 +687,49 @@ async function resolveEmergency() {
         const data = await response.json();
         
         if (data.success) {
-            alert('Emergencia resuelta');
-            location.reload();
+            // Cerrar SSE
+            if (emergencyEventSource) {
+                emergencyEventSource.close();
+            }
+            
+            // Construir mensaje con estado de puertas
+            let doorsHtml = '';
+            if (data.doors && data.doors.total > 0) {
+                const released = data.doors.released?.length || 0;
+                const failed = data.doors.failed?.length || 0;
+                
+                if (released > 0) {
+                    doorsHtml += `<p class="text-success"><i class="bi bi-check-circle-fill"></i> ${released} puerta(s) volvieron a modo normal</p>`;
+                }
+                if (failed > 0) {
+                    doorsHtml += `<p class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> ${failed} puerta(s) no pudieron cerrarse</p>`;
+                }
+            }
+            
+            Swal.fire({
+                icon: 'success',
+                title: '✅ Emergencia Resuelta',
+                html: `
+                    <p>El pase de lista ha sido guardado.</p>
+                    ${doorsHtml || '<p class="text-muted">No había puertas desbloqueadas.</p>'}
+                `,
+                confirmButtonColor: '#28a745'
+            }).then(() => location.reload());
         } else {
-            alert('Error: ' + data.message);
+            Swal.fire('Error', data.message, 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error resolviendo emergencia');
+        Swal.fire('Error', 'Error resolviendo emergencia', 'error');
     }
 }
+
+// Limpiar SSE al salir de la página
+window.addEventListener('beforeunload', () => {
+    if (emergencyEventSource) {
+        emergencyEventSource.close();
+    }
+});
 </script>
 
 <style>
