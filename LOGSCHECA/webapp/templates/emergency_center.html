@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Centro de Emergencias{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Alertas de emergencias activas -->
+    <div id="active-emergencies-alert" style="display: none;">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> ¡EMERGENCIA ACTIVA!</h5>
+            <div id="active-emergencies-list"></div>
+        </div>
+    </div>
+
+    <!-- Selector de zona -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-building"></i> Selecciona una zona</h5>
+                    <div id="zones-container" class="row">
+                        <div class="col-12 text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Cargando zonas...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón de emergencia (aparece al seleccionar zona) -->
+    <div id="emergency-button-section" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-danger">
+                    <div class="card-body text-center py-5">
+                        <h3 class="mb-4">Zona: <span id="selected-zone-display"></span></h3>
+                        <button id="activateEmergencyBtn" class="btn btn-danger btn-lg px-5 py-3" onclick="activateEmergency()">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span style="font-size: 1.5rem; display: block; margin-top: 10px;">
+                                ACTIVAR EMERGENCIA
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pase de lista (aparece cuando hay emergencia activa) -->
+    <div id="roll-call-section" style="display: none;">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clipboard-check"></i> Pase de Lista en Tiempo Real
+                        </h5>
+                        <button class="btn btn-light btn-sm" onclick="resolveEmergency()">
+                            <i class="bi bi-check-circle"></i> Resolver Emergencia
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <!-- Estadísticas -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 id="stat-total">0</h3>
+                                    <p class="text-muted mb-0">Total</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #28a745;">
+                                    <h3 id="stat-present" class="text-success">0</h3>
+                                    <p class="text-muted mb-0">Presentes</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #dc3545;">
+                                    <h3 id="stat-absent" class="text-danger">0</h3>
+                                    <p class="text-muted mb-0">Ausentes</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #ffc107;">
+                                    <h3 id="stat-pending" class="text-warning">0</h3>
+                                    <p class="text-muted mb-0">Pendientes</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lista agrupada por grupos -->
+                        <div id="roll-call-groups"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Tipo de Emergencia -->
+<div class="modal fade" id="emergencyTypeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Tipo de Emergencia</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="emergencyTypeForm">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de emergencia</label>
+                        <select class="form-select" name="emergency_type" required>
+                            <option value="general">General</option>
+                            <option value="incendio">Incendio</option>
+                            <option value="sismo">Sismo</option>
+                            <option value="evacuacion">Evacuación</option>
+                            <option value="seguridad">Seguridad</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <textarea class="form-control" name="notes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmActivateEmergency()">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Activar Emergencia
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedZoneId = null;
+let activeEmergencyId = null;
+let refreshInterval = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadZones();
+    checkEmergencyStatus();
+    
+    // Auto-refresh cada 5 segundos
+    refreshInterval = setInterval(() => {
+        if (activeEmergencyId) {
+            loadRollCall(activeEmergencyId);
+        }
+        checkEmergencyStatus();
+    }, 5000);
+});
+
+async function loadZones() {
+    try {
+        const response = await fetch('/api/zones');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderZones(data.zones);
+        }
+    } catch (error) {
+        console.error('Error cargando zonas:', error);
+    }
+}
+
+function renderZones(zones) {
+    const container = document.getElementById('zones-container');
+    
+    if (zones.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No hay zonas configuradas. Ve a Configuración.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = zones.map(zone => `
+        <div class="col-md-4 mb-3">
+            <div class="card zone-card" onclick="selectZone(${zone.id}, '${zone.name}')" style="border-left: 4px solid ${zone.color}; cursor: pointer;">
+                <div class="card-body">
+                    <h5><i class="${zone.icon}"></i> ${zone.name}</h5>
+                    <p class="text-muted small">${zone.description || ''}</p>
+                    <span class="badge bg-secondary">${zone.groups_count} grupos</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectZone(zoneId, zoneName) {
+    selectedZoneId = zoneId;
+    document.getElementById('selected-zone-display').textContent = zoneName;
+    document.getElementById('emergency-button-section').style.display = 'block';
+    
+    // Scroll al botón
+    document.getElementById('emergency-button-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function checkEmergencyStatus() {
+    try {
+        const response = await fetch('/api/emergency/status');
+        const data = await response.json();
+        
+        if (data.success && data.has_active) {
+            showActiveEmergencies(data.emergencies);
+            
+            // Si hay emergencia en la zona seleccionada, mostrar pase de lista
+            const zoneEmergency = data.emergencies.find(e => e.zone_id === selectedZoneId);
+            if (zoneEmergency) {
+                activeEmergencyId = zoneEmergency.id;
+                showRollCall(zoneEmergency.id);
+            }
+        } else {
+            document.getElementById('active-emergencies-alert').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error verificando estado:', error);
+    }
+}
+
+function showActiveEmergencies(emergencies) {
+    const alert = document.getElementById('active-emergencies-alert');
+    const list = document.getElementById('active-emergencies-list');
+    
+    list.innerHTML = emergencies.map(e => `
+        <p class="mb-1">
+            <strong>${e.zone_name}</strong> - ${e.emergency_type} 
+            <small class="text-muted">(${new Date(e.started_at).toLocaleTimeString()})</small>
+        </p>
+    `).join('');
+    
+    alert.style.display = 'block';
+}
+
+function activateEmergency() {
+    if (!selectedZoneId) {
+        alert('Selecciona una zona primero');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('emergencyTypeModal'));
+    document.getElementById('emergencyTypeForm').reset();
+    modal.show();
+}
+
+async function confirmActivateEmergency() {
+    const form = document.getElementById('emergencyTypeForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    data.zone_id = selectedZoneId;
+    
+    try {
+        const response = await fetch('/api/emergency/activate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('emergencyTypeModal')).hide();
+            activeEmergencyId = result.emergency_id;
+            showRollCall(result.emergency_id);
+            alert('¡EMERGENCIA ACTIVADA!');
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error activando emergencia');
+    }
+}
+
+async function showRollCall(emergencyId) {
+    document.getElementById('roll-call-section').style.display = 'block';
+    document.getElementById('emergency-button-section').style.display = 'none';
+    loadRollCall(emergencyId);
+}
+
+async function loadRollCall(emergencyId) {
+    try {
+        const response = await fetch(`/api/emergency/${emergencyId}/roll-call`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderRollCall(data.groups);
+            updateStats(data.groups);
+        }
+    } catch (error) {
+        console.error('Error cargando pase de lista:', error);
+    }
+}
+
+function renderRollCall(groups) {
+    const container = document.getElementById('roll-call-groups');
+    
+    container.innerHTML = groups.map(group => `
+        <div class="card mb-3" style="border-left: 4px solid ${group.group_color};">
+            <div class="card-header" style="background-color: ${group.group_color}20;">
+                <h6 class="mb-0">
+                    <i class="bi bi-people-fill"></i> ${group.group_name}
+                    <span class="badge bg-secondary float-end">${group.members.length} personas</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    ${group.members.map(member => `
+                        <div class="list-group-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-5">
+                                    <strong>${member.user_name}</strong>
+                                    <br><small class="text-muted">ID: ${member.biostar_user_id}</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
+                                                onclick="markAttendance(${member.id}, 'present')">
+                                            <i class="bi bi-check-circle"></i> Presente
+                                        </button>
+                                        <button class="btn ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
+                                                onclick="markAttendance(${member.id}, 'absent')">
+                                            <i class="bi bi-x-circle"></i> Ausente
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 text-end">
+                                    ${member.marked_at ? `
+                                        <small class="text-muted">
+                                            ${new Date(member.marked_at).toLocaleTimeString()}
+                                            <br>por ${member.marked_by}
+                                        </small>
+                                    ` : '<small class="text-warning">Sin marcar</small>'}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateStats(groups) {
+    let total = 0;
+    let present = 0;
+    let absent = 0;
+    let pending = 0;
+    
+    groups.forEach(group => {
+        group.members.forEach(member => {
+            total++;
+            if (member.status === 'present') present++;
+            else if (member.status === 'absent') absent++;
+            else pending++;
+        });
+    });
+    
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-present').textContent = present;
+    document.getElementById('stat-absent').textContent = absent;
+    document.getElementById('stat-pending').textContent = pending;
+}
+
+async function markAttendance(entryId, status) {
+    try {
+        const response = await fetch(`/api/roll-call/${entryId}/mark`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadRollCall(activeEmergencyId);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function resolveEmergency() {
+    if (!confirm('¿Resolver la emergencia? Esto cerrará el pase de lista.')) return;
+    
+    try {
+        const response = await fetch(`/api/emergency/${activeEmergencyId}/resolve`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Emergencia resuelta');
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error resolviendo emergencia');
+    }
+}
+</script>
+
+<style>
+.zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+#activateEmergencyBtn {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    border-left: 4px solid #6c757d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Centrar modales */
+.modal-dialog {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+}
+
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+}
+</style>
+{% endblock %}

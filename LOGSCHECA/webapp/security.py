@@ -539,7 +539,7 @@ def configure_flask_security(app):
             # En desarrollo, generar una temporal (no recomendado)
             import secrets
             secret_key = secrets.token_hex(32)
-            print("⚠️ ADVERTENCIA: Usando SECRET_KEY temporal. Configura una en .env para producción.")
+            print("[!] ADVERTENCIA: Usando SECRET_KEY temporal. Configura una en .env para produccion.")
     
     app.config['SECRET_KEY'] = secret_key
     

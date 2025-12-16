@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Áreas Físicas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="bi bi-building"></i> Configuración de Áreas Físicas</h2>
+            <p class="text-muted">Gestiona las áreas físicas del complejo (edificios, zonas, pisos)</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalArea">
+                <i class="bi bi-plus-circle"></i> Nueva Área
+            </button>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Áreas -->
+    <div class="row" id="areasContainer">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="text-muted mt-2">Cargando áreas...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Crear/Editar Área -->
+<div class="modal fade" id="modalArea" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAreaTitle">Nueva Área Física</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formArea">
+                    <input type="hidden" id="areaId">
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del Área *</label>
+                                <input type="text" class="form-control" id="areaName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="areaCode" required>
+                                <small class="text-muted">Ej: EDIF-A, GYM</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="areaDescription" rows="2"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Edificio</label>
+                                <input type="text" class="form-control" id="areaBuildingNumber">
+                                <small class="text-muted">Ej: A, B, Anexo</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Piso</label>
+                                <input type="text" class="form-control" id="areaFloor">
+                                <small class="text-muted">Ej: PB, 1, 2, Todos</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Capacidad Máxima</label>
+                                <input type="number" class="form-control" id="areaCapacity" min="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Color</label>
+                                <input type="color" class="form-control form-control-color" id="areaColor" value="#6c757d">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Icono</label>
+                                <select class="form-select" id="areaIcon">
+                                    <option value="bi-building">Edificio</option>
+                                    <option value="bi-house">Casa</option>
+                                    <option value="bi-shop">Tienda</option>
+                                    <option value="bi-hospital">Hospital</option>
+                                    <option value="bi-heart-pulse">Gimnasio</option>
+                                    <option value="bi-cup-hot">Cafetería</option>
+                                    <option value="bi-briefcase">Oficina</option>
+                                    <option value="bi-gear">Operaciones</option>
+                                    <option value="bi-tools">Mantenimiento</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Prioridad</label>
+                                <select class="form-select" id="areaPriority">
+                                    <option value="0">Baja</option>
+                                    <option value="1">Media</option>
+                                    <option value="2" selected>Alta</option>
+                                    <option value="3">Crítica</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="areaEmergencyExit" checked>
+                        <label class="form-check-label" for="areaEmergencyExit">
+                            Tiene salida de emergencia
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveArea()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ver Dispositivos -->
+<div class="modal fade" id="modalDevices" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Dispositivos del Área</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="devicesContainer">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let areas = [];
+
+// Cargar áreas al iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadAreas();
+});
+
+// Cargar áreas desde API
+async function loadAreas() {
+    try {
+        const response = await fetch('/api/areas');
+        const data = await response.json();
+        
+        if (data.success) {
+            areas = data.areas;
+            renderAreas();
+        } else {
+            showError('Error cargando áreas: ' + data.message);
+        }
+    } catch (error) {
+        showError('Error de conexión: ' + error.message);
+    }
+}
+
+// Renderizar áreas
+function renderAreas() {
+    const container = document.getElementById('areasContainer');
+    
+    if (areas.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-building" style="font-size: 4rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No hay áreas configuradas</p>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalArea">
+                    <i class="bi bi-plus-circle"></i> Crear Primera Área
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = areas.map(area => `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header" style="background-color: ${area.color}; color: white;">
+                    <h5 class="mb-0">
+                        <i class="bi ${area.icon}"></i> ${area.name}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-2"><strong>Código:</strong> ${area.code}</p>
+                    ${area.description ? `<p class="mb-2">${area.description}</p>` : ''}
+                    
+                    <div class="row text-center mt-3">
+                        <div class="col-6">
+                            <small class="text-muted">Edificio</small>
+                            <p class="mb-0"><strong>${area.building_number || 'N/A'}</strong></p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Piso</small>
+                            <p class="mb-0"><strong>${area.floor || 'N/A'}</strong></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center mt-2">
+                        <div class="col-6">
+                            <small class="text-muted">Capacidad</small>
+                            <p class="mb-0"><strong>${area.max_capacity || 'N/A'}</strong></p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Dispositivos</small>
+                            <p class="mb-0"><strong>${area.device_count}</strong></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <span class="badge bg-${getPriorityBadge(area.priority)}">
+                            ${getPriorityText(area.priority)}
+                        </span>
+                        ${area.has_emergency_exit ? '<span class="badge bg-success ms-1"><i class="bi bi-door-open"></i> Salida</span>' : ''}
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="btn-group w-100" role="group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editArea(${area.id})">
+                            <i class="bi bi-pencil"></i> Editar
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" onclick="viewDevices(${area.id})">
+                            <i class="bi bi-hdd"></i> Dispositivos
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteArea(${area.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Obtener badge de prioridad
+function getPriorityBadge(priority) {
+    const badges = {0: 'secondary', 1: 'info', 2: 'warning', 3: 'danger'};
+    return badges[priority] || 'secondary';
+}
+
+// Obtener texto de prioridad
+function getPriorityText(priority) {
+    const texts = {0: 'Baja', 1: 'Media', 2: 'Alta', 3: 'Crítica'};
+    return texts[priority] || 'N/A';
+}
+
+// Guardar área
+async function saveArea() {
+    const id = document.getElementById('areaId').value;
+    const data = {
+        name: document.getElementById('areaName').value,
+        code: document.getElementById('areaCode').value,
+        description: document.getElementById('areaDescription').value,
+        building_number: document.getElementById('areaBuildingNumber').value,
+        floor: document.getElementById('areaFloor').value,
+        max_capacity: parseInt(document.getElementById('areaCapacity').value) || null,
+        color: document.getElementById('areaColor').value,
+        icon: document.getElementById('areaIcon').value,
+        priority: parseInt(document.getElementById('areaPriority').value),
+        has_emergency_exit: document.getElementById('areaEmergencyExit').checked
+    };
+    
+    try {
+        const url = id ? `/api/areas/${id}` : '/api/areas';
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalArea')).hide();
+            showSuccess(result.message);
+            loadAreas();
+            document.getElementById('formArea').reset();
+        } else {
+            showError(result.message);
+        }
+    } catch (error) {
+        showError('Error guardando área: ' + error.message);
+    }
+}
+
+// Editar área
+function editArea(id) {
+    const area = areas.find(a => a.id === id);
+    if (!area) return;
+    
+    document.getElementById('modalAreaTitle').textContent = 'Editar Área';
+    document.getElementById('areaId').value = area.id;
+    document.getElementById('areaName').value = area.name;
+    document.getElementById('areaCode').value = area.code;
+    document.getElementById('areaDescription').value = area.description || '';
+    document.getElementById('areaBuildingNumber').value = area.building_number || '';
+    document.getElementById('areaFloor').value = area.floor || '';
+    document.getElementById('areaCapacity').value = area.max_capacity || '';
+    document.getElementById('areaColor').value = area.color;
+    document.getElementById('areaIcon').value = area.icon;
+    document.getElementById('areaPriority').value = area.priority;
+    document.getElementById('areaEmergencyExit').checked = area.has_emergency_exit;
+    
+    new bootstrap.Modal(document.getElementById('modalArea')).show();
+}
+
+// Eliminar área
+async function deleteArea(id) {
+    const area = areas.find(a => a.id === id);
+    if (!area) return;
+    
+    const result = await Swal.fire({
+        title: '¿Eliminar área?',
+        text: `Se eliminará el área "${area.name}"`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        try {
+            const response = await fetch(`/api/areas/${id}`, {method: 'DELETE'});
+            const data = await response.json();
+            
+            if (data.success) {
+                showSuccess(data.message);
+                loadAreas();
+            } else {
+                showError(data.message);
+            }
+        } catch (error) {
+            showError('Error eliminando área: ' + error.message);
+        }
+    }
+}
+
+// Ver dispositivos
+async function viewDevices(areaId) {
+    const modal = new bootstrap.Modal(document.getElementById('modalDevices'));
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/areas/${areaId}/devices`);
+        const data = await response.json();
+        
+        const container = document.getElementById('devicesContainer');
+        
+        if (data.success && data.devices.length > 0) {
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Tipo</th>
+                                <th>Rol Emergencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.devices.map(d => `
+                                <tr>
+                                    <td>${d.device_id}</td>
+                                    <td>${d.alias || 'Sin nombre'}</td>
+                                    <td><span class="badge bg-info">${d.device_type}</span></td>
+                                    <td>${d.emergency_role || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            container.innerHTML = '<p class="text-muted text-center py-3">No hay dispositivos asignados a esta área</p>';
+        }
+    } catch (error) {
+        document.getElementById('devicesContainer').innerHTML = '<p class="text-danger text-center">Error cargando dispositivos</p>';
+    }
+}
+
+// Limpiar formulario al cerrar modal
+document.getElementById('modalArea').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('formArea').reset();
+    document.getElementById('areaId').value = '';
+    document.getElementById('modalAreaTitle').textContent = 'Nueva Área Física';
+});
+
+// Helpers
+function showSuccess(message) {
+    Swal.fire({icon: 'success', title: 'Éxito', text: message, timer: 2000, showConfirmButton: false});
+}
+
+function showError(message) {
+    Swal.fire({icon: 'error', title: 'Error', text: message});
+}
+</script>
+{% endblock %}

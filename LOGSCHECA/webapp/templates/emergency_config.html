@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Emergencias{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-gear-fill"></i> Configuración de Emergencias</h2>
+            <p class="text-muted">Gestiona zonas, grupos y asigna usuarios</p>
+        </div>
+    </div>
+
+    <!-- Zonas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Zonas</h5>
+                    <button class="btn btn-primary btn-sm" onclick="showCreateZoneModal()">
+                        <i class="bi bi-plus-lg"></i> Nueva Zona
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="zones-container" class="row">
+                        <div class="col-12 text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Cargando zonas...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grupos de la zona seleccionada -->
+    <div class="row" id="groups-section" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people"></i> Grupos de <span id="selected-zone-name"></span>
+                    </h5>
+                    <button class="btn btn-success btn-sm" onclick="showCreateGroupModal()">
+                        <i class="bi bi-plus-lg"></i> Nuevo Grupo
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="groups-container" class="row"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nueva Zona -->
+<div class="modal fade" id="createZoneModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nueva Zona</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createZoneForm">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <input type="color" class="form-control" name="color" value="#8B4513">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="createZone()">Crear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nuevo Grupo -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createGroupForm">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <input type="color" class="form-control" name="color" value="#007bff">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="createGroup()">Crear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Miembros del Grupo -->
+<div class="modal fade" id="membersModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-people"></i> Miembros de <span id="group-name"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Buscador de usuarios -->
+                <div class="mb-3">
+                    <label class="form-label">Buscar usuario para agregar</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="userSearch" placeholder="Escribe nombre o ID...">
+                        <button class="btn btn-outline-secondary" onclick="searchUsers()">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Resultados de búsqueda -->
+                <div id="searchResults" class="mb-3" style="display: none;">
+                    <div class="list-group" id="searchResultsList"></div>
+                </div>
+                
+                <hr>
+                
+                <!-- Lista de miembros actuales -->
+                <h6>Miembros actuales:</h6>
+                <div id="members-list">
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                        <p class="mt-2 small">Cargando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedZoneId = null;
+let selectedGroupId = null;
+
+// Cargar zonas al iniciar
+document.addEventListener('DOMContentLoaded', () => {
+    loadZones();
+});
+
+async function loadZones() {
+    try {
+        const response = await fetch('/api/zones');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderZones(data.zones);
+        }
+    } catch (error) {
+        console.error('Error cargando zonas:', error);
+    }
+}
+
+function renderZones(zones) {
+    const container = document.getElementById('zones-container');
+    
+    if (zones.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay zonas. Crea una nueva.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = zones.map(zone => `
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 zone-card" onclick="selectZone(${zone.id}, '${zone.name}')" style="border-left: 4px solid ${zone.color}; cursor: pointer;">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="${zone.icon}"></i> ${zone.name}
+                    </h5>
+                    <p class="card-text text-muted small">${zone.description || 'Sin descripción'}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-secondary">${zone.groups_count} grupos</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectZone(zoneId, zoneName) {
+    selectedZoneId = zoneId;
+    document.getElementById('selected-zone-name').textContent = zoneName;
+    document.getElementById('groups-section').style.display = 'block';
+    loadGroups(zoneId);
+}
+
+async function loadGroups(zoneId) {
+    try {
+        const response = await fetch(`/api/zones/${zoneId}/groups`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderGroups(data.groups);
+        }
+    } catch (error) {
+        console.error('Error cargando grupos:', error);
+    }
+}
+
+function renderGroups(groups) {
+    const container = document.getElementById('groups-container');
+    
+    if (groups.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay grupos. Crea uno nuevo.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = groups.map(group => `
+        <div class="col-md-4 mb-3">
+            <div class="card h-100" style="border-left: 4px solid ${group.color};">
+                <div class="card-body">
+                    <h6 class="card-title">${group.name}</h6>
+                    <p class="card-text text-muted small">${group.description || 'Sin descripción'}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-info">${group.members_count} miembros</span>
+                        <button class="btn btn-sm btn-outline-primary" onclick="showMembersModal(${group.id}, '${group.name}')">
+                            <i class="bi bi-people"></i> Ver
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Modales
+function showCreateZoneModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createZoneModal'));
+    document.getElementById('createZoneForm').reset();
+    modal.show();
+}
+
+function showCreateGroupModal() {
+    if (!selectedZoneId) {
+        alert('Selecciona una zona primero');
+        return;
+    }
+    const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+    document.getElementById('createGroupForm').reset();
+    modal.show();
+}
+
+async function createZone() {
+    const form = document.getElementById('createZoneForm');
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch('/api/zones', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.fromEntries(formData))
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createZoneModal')).hide();
+            loadZones();
+            alert('Zona creada exitosamente');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error creando zona');
+    }
+}
+
+async function createGroup() {
+    const form = document.getElementById('createGroupForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    data.zone_id = selectedZoneId;
+    
+    try {
+        const response = await fetch('/api/groups', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+            loadGroups(selectedZoneId);
+            alert('Grupo creado exitosamente');
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error creando grupo');
+    }
+}
+
+async function showMembersModal(groupId, groupName) {
+    selectedGroupId = groupId;
+    document.getElementById('group-name').textContent = groupName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('membersModal'));
+    modal.show();
+    
+    loadMembers(groupId);
+}
+
+async function loadMembers(groupId) {
+    try {
+        const response = await fetch(`/api/groups/${groupId}/members`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderMembers(data.members);
+        }
+    } catch (error) {
+        console.error('Error cargando miembros:', error);
+    }
+}
+
+function renderMembers(members) {
+    const container = document.getElementById('members-list');
+    
+    if (members.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No hay miembros. Busca usuarios para agregar.</p>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="list-group">
+            ${members.map(member => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${member.user_name}</strong>
+                        <br><small class="text-muted">ID: ${member.biostar_user_id}</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeMember(${member.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+async function searchUsers() {
+    const query = document.getElementById('userSearch').value.trim();
+    if (!query || query.length < 2) {
+        alert('Escribe al menos 2 caracteres');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.success && data.users) {
+            renderSearchResults(data.users);
+        } else {
+            alert('Error: ' + (data.message || 'No se encontraron usuarios'));
+        }
+    } catch (error) {
+        console.error('Error buscando usuarios:', error);
+        alert('Error buscando usuarios');
+    }
+}
+
+function renderSearchResults(users) {
+    const container = document.getElementById('searchResults');
+    const list = document.getElementById('searchResultsList');
+    
+    if (users.length === 0) {
+        list.innerHTML = '<div class="list-group-item">No se encontraron usuarios</div>';
+    } else {
+        list.innerHTML = users.map(user => `
+            <a href="#" class="list-group-item list-group-item-action" onclick="addMember('${user.user_id}', '${user.name}'); return false;">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${user.name}</strong>
+                        <br><small class="text-muted">ID: ${user.user_id}</small>
+                    </div>
+                    <i class="bi bi-plus-circle text-success"></i>
+                </div>
+            </a>
+        `).join('');
+    }
+    
+    container.style.display = 'block';
+}
+
+async function addMember(biostarUserId, userName) {
+    try {
+        const response = await fetch(`/api/groups/${selectedGroupId}/members`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                biostar_user_id: biostarUserId,
+                user_name: userName
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('searchResults').style.display = 'none';
+            document.getElementById('userSearch').value = '';
+            loadMembers(selectedGroupId);
+            alert('Usuario agregado al grupo');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error agregando usuario');
+    }
+}
+
+async function removeMember(memberId) {
+    if (!confirm('¿Remover este usuario del grupo?')) return;
+    
+    try {
+        const response = await fetch(`/api/groups/${selectedGroupId}/members/${memberId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadMembers(selectedGroupId);
+            alert('Usuario removido del grupo');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error removiendo usuario');
+    }
+}
+</script>
+
+<style>
+.zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+/* Centrar modales */
+.modal-dialog {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+}
+
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+}
+</style>
+{% endblock %}

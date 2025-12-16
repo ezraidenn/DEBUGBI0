@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}Pase de Lista{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2><i class="bi bi-clipboard-check"></i> Pase de Lista</h2>
+            <p class="text-muted mb-0" id="sessionTitle">Cargando...</p>
+            <small class="text-muted" id="sessionCode"></small>
+        </div>
+        <div class="col-md-6 text-end">
+            <div id="sessionStats" class="mb-2">
+                <span class="badge bg-success fs-6 me-2">
+                    <i class="bi bi-check-circle"></i> Presentes: <span id="presentCount">0</span>
+                </span>
+                <span class="badge bg-danger fs-6 me-2">
+                    <i class="bi bi-x-circle"></i> Ausentes: <span id="absentCount">0</span>
+                </span>
+                <span class="badge bg-secondary fs-6">
+                    <i class="bi bi-clock"></i> Pendientes: <span id="pendingCount">0</span>
+                </span>
+            </div>
+            <button class="btn btn-primary" onclick="exportToPDF()">
+                <i class="bi bi-file-pdf"></i> Exportar PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Participantes Activos -->
+    <div class="alert alert-info">
+        <strong><i class="bi bi-people"></i> Participantes activos:</strong>
+        <span id="participantsList">Cargando...</span>
+    </div>
+
+    <!-- Filtros y Búsqueda -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <input type="text" class="form-control" id="searchEntry" placeholder="Buscar por nombre..." onkeyup="filterEntries()">
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="filterStatus" onchange="filterEntries()">
+                <option value="">Todos los estados</option>
+                <option value="present">Presentes</option>
+                <option value="absent">Ausentes</option>
+                <option value="pending">Pendientes</option>
+                <option value="evacuated">Evacuados</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-outline-secondary w-100" onclick="loadRollCall()">
+                <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Lista de Personas -->
+    <div class="card">
+        <div class="card-body">
+            <div id="entriesContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="text-muted mt-2">Cargando lista...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Notas -->
+<div class="modal fade" id="modalNotes" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Notas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="notesEntryId">
+                <div class="mb-3">
+                    <label class="form-label">Persona</label>
+                    <input type="text" class="form-control" id="notesPersonName" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notas</label>
+                    <textarea class="form-control" id="notesText" rows="4" placeholder="Ej: Evacuado a zona segura, Requiere atención médica, etc."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveNotes()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const sessionId = {{ session_id }};
+let sessionData = null;
+let entries = [];
+let allEntries = [];
+let refreshInterval = null;
+
+// Cargar datos al iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadRollCall();
+    
+    // Actualizar cada 5 segundos
+    refreshInterval = setInterval(() => {
+        loadRollCall(true); // Silent refresh
+    }, 5000);
+});
+
+// Limpiar interval al salir
+window.addEventListener('beforeunload', function() {
+    if (refreshInterval) clearInterval(refreshInterval);
+});
+
+// Cargar pase de lista
+async function loadRollCall(silent = false) {
+    try {
+        const response = await fetch(`/api/roll-call/${sessionId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            sessionData = data.session;
+            allEntries = data.entries;
+            entries = allEntries;
+            
+            updateHeader();
+            updateStats();
+            updateParticipants();
+            renderEntries();
+        } else {
+            if (!silent) showError('Error cargando pase de lista: ' + data.message);
+        }
+    } catch (error) {
+        if (!silent) showError('Error de conexión: ' + error.message);
+    }
+}
+
+// Actualizar header
+function updateHeader() {
+    document.getElementById('sessionTitle').textContent = sessionData.title;
+    document.getElementById('sessionCode').textContent = `Código: ${sessionData.session_code} | Iniciado: ${new Date(sessionData.started_at).toLocaleString()}`;
+}
+
+// Actualizar estadísticas
+function updateStats() {
+    const present = entries.filter(e => e.status === 'present').length;
+    const absent = entries.filter(e => e.status === 'absent').length;
+    const pending = entries.filter(e => e.status === 'pending').length;
+    
+    document.getElementById('presentCount').textContent = present;
+    document.getElementById('absentCount').textContent = absent;
+    document.getElementById('pendingCount').textContent = pending;
+}
+
+// Actualizar participantes
+function updateParticipants() {
+    const participants = sessionData.participants || [];
+    const list = document.getElementById('participantsList');
+    
+    if (participants.length === 0) {
+        list.textContent = 'Solo tú';
+    } else {
+        list.innerHTML = participants.map(p => `
+            <span class="badge bg-primary me-1">
+                ${p.username} (${p.entries_marked} marcados)
+            </span>
+        `).join('');
+    }
+}
+
+// Renderizar entradas
+function renderEntries() {
+    const container = document.getElementById('entriesContainer');
+    
+    if (entries.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-5">No hay personas en esta lista</p>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Nombre</th>
+                        <th style="width: 15%;">Estado</th>
+                        <th style="width: 20%;">Última Ubicación</th>
+                        <th style="width: 15%;">Marcado Por</th>
+                        <th style="width: 10%;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entries.map(entry => `
+                        <tr class="${getRowClass(entry.status)}">
+                            <td>
+                                <strong>${entry.user_name || 'Sin nombre'}</strong><br>
+                                <small class="text-muted">ID: ${entry.biostar_user_id}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-${getStatusBadge(entry.status)}">
+                                    ${getStatusText(entry.status)}
+                                </span>
+                            </td>
+                            <td>
+                                ${entry.last_location || 'Desconocida'}<br>
+                                ${entry.last_seen_at ? `<small class="text-muted">${new Date(entry.last_seen_at).toLocaleString()}</small>` : ''}
+                            </td>
+                            <td>
+                                ${entry.marked_by || '-'}<br>
+                                ${entry.marked_at ? `<small class="text-muted">${new Date(entry.marked_at).toLocaleString()}</small>` : ''}
+                            </td>
+                            <td>
+                                <div class="btn-group-vertical btn-group-sm" role="group">
+                                    <button class="btn btn-success" onclick="markAttendance(${entry.id}, 'present')" ${entry.status === 'present' ? 'disabled' : ''}>
+                                        <i class="bi bi-check"></i>
+                                    </button>
+                                    <button class="btn btn-danger" onclick="markAttendance(${entry.id}, 'absent')" ${entry.status === 'absent' ? 'disabled' : ''}>
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                    <button class="btn btn-info" onclick="showNotesModal(${entry.id}, '${entry.user_name}', '${entry.notes || ''}')">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        ${entry.notes ? `
+                            <tr class="${getRowClass(entry.status)}">
+                                <td colspan="5">
+                                    <small><i class="bi bi-info-circle"></i> <strong>Notas:</strong> ${entry.notes}</small>
+                                </td>
+                            </tr>
+                        ` : ''}
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// Filtrar entradas
+function filterEntries() {
+    const search = document.getElementById('searchEntry').value.toLowerCase();
+    const status = document.getElementById('filterStatus').value;
+    
+    entries = allEntries.filter(entry => {
+        const matchSearch = !search || entry.user_name.toLowerCase().includes(search);
+        const matchStatus = !status || entry.status === status;
+        return matchSearch && matchStatus;
+    });
+    
+    updateStats();
+    renderEntries();
+}
+
+// Marcar asistencia
+async function markAttendance(entryId, status) {
+    try {
+        const response = await fetch(`/api/roll-call/${sessionId}/mark`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                entry_id: entryId,
+                status: status
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Actualizar localmente
+            const entry = allEntries.find(e => e.id === entryId);
+            if (entry) {
+                entry.status = status;
+                entry.marked_at = new Date().toISOString();
+            }
+            
+            filterEntries(); // Re-aplicar filtros
+            
+            // Mostrar feedback visual
+            showToast(status === 'present' ? 'Marcado como presente' : 'Marcado como ausente');
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Error marcando asistencia: ' + error.message);
+    }
+}
+
+// Mostrar modal de notas
+function showNotesModal(entryId, personName, currentNotes) {
+    document.getElementById('notesEntryId').value = entryId;
+    document.getElementById('notesPersonName').value = personName;
+    document.getElementById('notesText').value = currentNotes;
+    
+    new bootstrap.Modal(document.getElementById('modalNotes')).show();
+}
+
+// Guardar notas
+async function saveNotes() {
+    const entryId = document.getElementById('notesEntryId').value;
+    const notes = document.getElementById('notesText').value;
+    
+    try {
+        const response = await fetch(`/api/roll-call/${sessionId}/mark`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                entry_id: parseInt(entryId),
+                status: allEntries.find(e => e.id === parseInt(entryId)).status,
+                notes: notes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalNotes')).hide();
+            showSuccess('Notas guardadas');
+            loadRollCall();
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Error guardando notas: ' + error.message);
+    }
+}
+
+// Exportar a PDF
+function exportToPDF() {
+    Swal.fire({
+        icon: 'info',
+        title: 'Exportar a PDF',
+        text: 'Esta función estará disponible próximamente',
+        timer: 2000
+    });
+}
+
+// Helpers
+function getRowClass(status) {
+    const classes = {
+        present: 'table-success',
+        absent: 'table-danger',
+        pending: '',
+        evacuated: 'table-warning'
+    };
+    return classes[status] || '';
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        present: 'success',
+        absent: 'danger',
+        pending: 'secondary',
+        evacuated: 'warning'
+    };
+    return badges[status] || 'secondary';
+}
+
+function getStatusText(status) {
+    const texts = {
+        present: 'Presente',
+        absent: 'Ausente',
+        pending: 'Pendiente',
+        evacuated: 'Evacuado'
+    };
+    return texts[status] || status;
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 p-3';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        <div class="toast show" role="alert">
+            <div class="toast-body bg-success text-white">
+                <i class="bi bi-check-circle"></i> ${message}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+}
+
+function showSuccess(message) {
+    Swal.fire({icon: 'success', title: 'Éxito', text: message, timer: 2000, showConfirmButton: false});
+}
+
+function showError(message) {
+    Swal.fire({icon: 'error', title: 'Error', text: message});
+}
+</script>
+{% endblock %}
