@@ -199,6 +199,7 @@ let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
 let dashboardLoaded = false;
+let usersDataCache = [];  // Cache de usuarios para actualización en tiempo real
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Dashboard iniciando...');
@@ -227,7 +228,8 @@ function loadDashboardData() {
                 // Actualizar estadísticas
                 document.getElementById('statDevices').textContent = data.total_devices;
                 document.getElementById('statAccesos').textContent = data.total_granted;
-                document.getElementById('statUsuarios').textContent = data.total_users;
+                // NO usar data.total_users - cargar desde /api/unique-users para consistencia
+                loadUniqueUsersCount();
                 
                 // Guardar IDs permitidos
                 data.devices.forEach(d => allowedDeviceIds.add(String(d.id)));
@@ -366,12 +368,25 @@ function connectRealtime() {
             }
         }
         
-        // 2. Agregar usuario al set global
+        // 2. Agregar usuario al set global Y actualizar contador
         if (event.user_id) {
-            allUserIds.add(String(event.user_id));
+            const userId = String(event.user_id);
+            const isNewUser = !allUserIds.has(userId);
+            allUserIds.add(userId);
+            
+            // Actualizar contador de usuarios únicos en tiempo real
+            if (isNewUser) {
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) {
+                    statUsuarios.textContent = allUserIds.size;
+                }
+            }
+            
+            // 3. Actualizar cache de usuarios para el modal
+            updateUsersCache(event, deviceId);
         }
         
-        // 3. Actualizar totales del header
+        // 4. Actualizar totales del header
         updateHeaderTotals();
     });
     
@@ -394,11 +409,50 @@ function updateHeaderTotals() {
         totalAccesos += parseInt(el.textContent || 0);
     });
     
-    // Actualizar solo accesos en el header
-    // Usuarios únicos se mantiene del servidor (requiere recarga para actualizar)
-    const statCards = document.querySelectorAll('.stat-card h2');
-    if (statCards[1]) statCards[1].textContent = totalAccesos;
-    // statCards[2] = usuarios únicos, NO se actualiza en tiempo real
+    // Actualizar accesos en el header
+    const statAccesos = document.getElementById('statAccesos');
+    if (statAccesos) statAccesos.textContent = totalAccesos;
+    
+    // Actualizar usuarios únicos en tiempo real
+    const statUsuarios = document.getElementById('statUsuarios');
+    if (statUsuarios) statUsuarios.textContent = allUserIds.size;
+}
+
+// Actualizar cache de usuarios para el modal en tiempo real
+function updateUsersCache(event, deviceId) {
+    const userId = String(event.user_id);
+    const userName = event.user || 'Sin nombre';
+    const deviceName = event.device_name || `Dispositivo ${deviceId}`;
+    const lastCheck = event.datetime_full || new Date().toISOString();
+    
+    // Buscar si el usuario ya existe en el cache
+    const existingIndex = usersDataCache.findIndex(u => u.user_id === userId);
+    
+    if (existingIndex >= 0) {
+        // Actualizar último chequeo si es más reciente
+        if (lastCheck > usersDataCache[existingIndex].last_check) {
+            usersDataCache[existingIndex].last_check = lastCheck;
+            usersDataCache[existingIndex].device = deviceName;
+        }
+    } else {
+        // Agregar nuevo usuario al cache
+        usersDataCache.unshift({
+            user_id: userId,
+            name: userName,
+            last_check: lastCheck,
+            device: deviceName
+        });
+    }
+    
+    // Reordenar por último chequeo
+    usersDataCache.sort((a, b) => b.last_check.localeCompare(a.last_check));
+    
+    // Si el modal está abierto, actualizar la vista
+    if (usersModal && usersModal._isShown) {
+        allUsers = usersDataCache;
+        document.getElementById('usersCount').textContent = `${allUsers.length} usuarios únicos`;
+        filterUsers(document.getElementById('userSearchInput')?.value || '');
+    }
 }
 
 function attemptReconnect() {
@@ -423,11 +477,37 @@ function openUsersModal() {
     loadUniqueUsers();
 }
 
+// Cargar solo el contador de usuarios únicos (para el dashboard)
+function loadUniqueUsersCount() {
+    fetch('/api/unique-users')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) statUsuarios.textContent = data.total;
+                // Guardar en cache para el modal
+                usersDataCache = data.users || [];
+            }
+        })
+        .catch(err => console.error('Error cargando usuarios:', err));
+}
+
 function loadUniqueUsers() {
     const loading = document.getElementById('usersLoading');
     const list = document.getElementById('usersList');
     const noFound = document.getElementById('noUsersFound');
     const countEl = document.getElementById('usersCount');
+    
+    // Si ya tenemos datos en cache, mostrarlos inmediatamente
+    if (usersDataCache.length > 0) {
+        loading.style.display = 'none';
+        allUsers = usersDataCache;
+        countEl.textContent = allUsers.length;
+        renderUsers(allUsers);
+        // Actualizar en background
+        refreshUsersInBackground();
+        return;
+    }
     
     loading.style.display = 'block';
     list.innerHTML = '';
@@ -440,8 +520,15 @@ function loadUniqueUsers() {
             
             if (data.success && data.users) {
                 allUsers = data.users;
-                countEl.textContent = `${data.total} usuarios únicos`;
+                usersDataCache = data.users;  // Guardar en cache
+                countEl.textContent = data.total;
+                // Sincronizar con el contador principal del dashboard
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) statUsuarios.textContent = data.total;
                 renderUsers(allUsers);
+                
+                // Inicializar allUserIds con los usuarios cargados
+                data.users.forEach(u => allUserIds.add(String(u.user_id)));
             } else {
                 countEl.textContent = 'Error al cargar';
             }
@@ -451,6 +538,45 @@ function loadUniqueUsers() {
             countEl.textContent = 'Error de conexión';
             console.error(err);
         });
+}
+
+// Actualizar usuarios en background sin bloquear UI
+function refreshUsersInBackground() {
+    fetch('/api/unique-users')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.users) {
+                // Merge con datos existentes (mantener los más recientes)
+                const serverUsers = data.users;
+                const mergedMap = new Map();
+                
+                // Primero agregar usuarios del servidor
+                serverUsers.forEach(u => mergedMap.set(u.user_id, u));
+                
+                // Luego actualizar con cache local (puede tener datos más recientes)
+                usersDataCache.forEach(u => {
+                    const existing = mergedMap.get(u.user_id);
+                    if (!existing || u.last_check > existing.last_check) {
+                        mergedMap.set(u.user_id, u);
+                    }
+                });
+                
+                // Convertir a array y ordenar
+                usersDataCache = Array.from(mergedMap.values())
+                    .sort((a, b) => b.last_check.localeCompare(a.last_check));
+                
+                // Actualizar allUserIds
+                usersDataCache.forEach(u => allUserIds.add(String(u.user_id)));
+                
+                // Si el modal está abierto, actualizar
+                if (usersModal && usersModal._isShown) {
+                    allUsers = usersDataCache;
+                    document.getElementById('usersCount').textContent = `${allUsers.length} usuarios únicos`;
+                    filterUsers(document.getElementById('userSearchInput')?.value || '');
+                }
+            }
+        })
+        .catch(err => console.error('Error refreshing users:', err));
 }
 
 function renderUsers(users) {

@@ -135,3 +135,51 @@ def filter_users_list(users: List[Dict]) -> List[Dict]:
             filtered.append(user)
     
     return filtered
+
+
+def get_filtered_users(query: str = None) -> List[Dict]:
+    """
+    Obtiene usuarios de BioStar, opcionalmente filtrados por búsqueda.
+    
+    Args:
+        query: Texto opcional para buscar usuarios
+        
+    Returns:
+        Lista de usuarios (filtrados si hay grupos excluidos configurados)
+    """
+    try:
+        from src.api.biostar_client import BioStarAPIClient
+        from src.utils.config import Config
+        
+        config = Config()
+        client = BioStarAPIClient(
+            host=config.biostar_host,
+            username=config.biostar_user,
+            password=config.biostar_password
+        )
+        
+        if not client.login():
+            print("Error: No se pudo conectar a BioStar")
+            return []
+        
+        # Obtener usuarios
+        if query:
+            users = client.search_users(query, limit=50)
+        else:
+            users = client.get_all_users(limit=500)
+        
+        # Normalizar formato de usuarios
+        normalized = []
+        for user in users:
+            normalized.append({
+                'user_id': user.get('user_id') or user.get('id'),
+                'name': user.get('name', 'Sin nombre'),
+                'user_group_id': user.get('user_group_id', {})
+            })
+        
+        # Aplicar filtro de grupos excluidos
+        return filter_users_list(normalized)
+        
+    except Exception as e:
+        print(f"Error obteniendo usuarios: {e}")
+        return []
