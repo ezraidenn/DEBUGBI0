@@ -83,6 +83,23 @@
                             <span>Configuración</span>
                         </a>
                     </li>
+                    {% if current_user.is_admin %}
+                    <li class="nav-item" style="padding-left: 20px;">
+                        <a class="nav-link {% if request.endpoint == 'emergency.config_page' %}active{% endif %}" href="{{ url_for('emergency.config_page') }}">
+                            <i class="bi bi-people"></i>
+                            <span>Zonas y Grupos</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                    
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'emergency.emergency_page' %}active{% endif %}" href="{{ url_for('emergency.emergency_page') }}">
+                            <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                            <span>Centro de Emergencias</span>
+                        </a>
+                    </li>
                     {% endif %}
                 </ul>
                 

@@ -310,3 +310,107 @@ def init_db(app):
                 admin.can_manage_devices = True
         
         db.session.commit()
+
+
+# ============================================
+# SISTEMA DE EMERGENCIAS
+# ============================================
+
+class Zone(db.Model):
+    """Zonas físicas (Casa Club, Gimnasio, etc.)"""
+    __tablename__ = 'zones'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(200))
+    color = db.Column(db.String(7), default='#6c757d')
+    icon = db.Column(db.String(50), default='bi-building')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relaciones
+    groups = db.relationship('Group', backref='zone', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Zone {self.name}>'
+
+
+class Group(db.Model):
+    """Grupos/Departamentos dentro de una zona (IT, Desarrollo, etc.)"""
+    __tablename__ = 'groups'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(200))
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    color = db.Column(db.String(7), default='#007bff')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relaciones
+    members = db.relationship('GroupMember', backref='group', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Group {self.name} in {self.zone.name}>'
+
+
+class GroupMember(db.Model):
+    """Usuarios asignados a grupos"""
+    __tablename__ = 'group_members'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    biostar_user_id = db.Column(db.String(50), nullable=False)
+    user_name = db.Column(db.String(200))
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('group_id', 'biostar_user_id', name='unique_group_member'),
+    )
+    
+    def __repr__(self):
+        return f'<GroupMember {self.user_name} in {self.group.name}>'
+
+
+class EmergencySession(db.Model):
+    """Sesión de emergencia activa"""
+    __tablename__ = 'emergency_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    emergency_type = db.Column(db.String(50), default='general')  # incendio, sismo, evacuacion
+    started_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='active')  # active, resolved
+    notes = db.Column(db.Text)
+    
+    # Relaciones
+    zone = db.relationship('Zone', backref='emergencies')
+    started_by_user = db.relationship('User', backref='started_emergencies')
+    roll_call_entries = db.relationship('RollCallEntry', backref='emergency', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<EmergencySession {self.zone.name} - {self.status}>'
+
+
+class RollCallEntry(db.Model):
+    """Entrada de pase de lista"""
+    __tablename__ = 'roll_call_entries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    emergency_id = db.Column(db.Integer, db.ForeignKey('emergency_sessions.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    biostar_user_id = db.Column(db.String(50), nullable=False)
+    user_name = db.Column(db.String(200))
+    status = db.Column(db.String(20), default='pending')  # pending, present, absent
+    marked_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    marked_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    
+    # Relaciones
+    group = db.relationship('Group', backref='roll_call_entries')
+    marked_by_user = db.relationship('User', backref='marked_roll_calls')
+    
+    def __repr__(self):
+        return f'<RollCallEntry {self.user_name} - {self.status}>'

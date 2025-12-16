@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Header -->
+    <LinearLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/gradient_header"
+        android:orientation="vertical"
+        android:padding="16dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📹 Test de Cámara"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="BioStar Monitor"
+            android:textColor="#E0E0E0"
+            android:textSize="14sp"
+            android:layout_gravity="center"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
+    <!-- Camera Preview -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/header"
+        app:layout_constraintBottom_toTopOf="@id/controls"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:scaleType="fillCenter" />
+
+    <!-- Placeholder cuando no hay cámara -->
+    <LinearLayout
+        android:id="@+id/placeholder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="@id/previewView"
+        app:layout_constraintBottom_toBottomOf="@id/previewView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📷"
+            android:textSize="80sp"
+            android:textColor="#666666" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Presiona Iniciar para activar la cámara"
+            android:textColor="#999999"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+    </LinearLayout>
+
+    <!-- Controls -->
+    <LinearLayout
+        android:id="@+id/controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center"
+        android:background="#1A1A1A"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶ Iniciar"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/button_primary"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏹ Detener"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/button_danger"
+            android:textColor="#FFFFFF"
+            android:visibility="gone"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnFullscreen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⛶ Pantalla Completa"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/button_info"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

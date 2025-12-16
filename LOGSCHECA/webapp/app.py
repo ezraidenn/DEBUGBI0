@@ -1562,5 +1562,13 @@ def config_category_update(category_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ============================================
+# REGISTRAR BLUEPRINT DE EMERGENCIAS
+# ============================================
+from webapp.emergency_routes import emergency_bp
+app.register_blueprint(emergency_bp)
+logger.info("✓ Sistema de emergencias registrado")
+
+
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
