@@ -265,9 +265,9 @@ class DeviceMonitor:
         
         return filtered_events
     
-    # Caché simple para eventos del día (TTL 30 segundos)
+    # Caché simple para eventos del día (TTL 5 segundos para tiempo real)
     _events_cache = {}
-    _cache_ttl = 30  # segundos
+    _cache_ttl = 5  # segundos - reducido para mejor tiempo real
     
     def get_device_events_today(self, device_id: int) -> List[Dict]:
         """

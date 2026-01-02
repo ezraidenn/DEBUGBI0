@@ -8,7 +8,7 @@ from webapp.models import db, User
 with app.app_context():
     admin = User.query.filter_by(username='admin').first()
     if admin:
-        admin.set_password('Admin123!')
+        admin.set_password('admin123')
         admin.failed_login_attempts = 0
         admin.locked_until = None
         admin.is_permanently_locked = False
@@ -17,7 +17,7 @@ with app.app_context():
         print("=" * 50)
         print("✅ Contraseña del admin reseteada")
         print("   Usuario: admin")
-        print("   Contraseña: Admin123!")
+        print("   Contraseña: admin123")
         print("=" * 50)
     else:
         print("❌ No existe usuario admin")

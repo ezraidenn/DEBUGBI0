@@ -32,6 +32,36 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
+
+/* Estilos para listas de pendientes y completos */
+.pending-item, .complete-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.pending-item:last-child, .complete-item:last-child {
+    border-bottom: none;
+}
+
+.pending-user, .complete-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pending-time, .complete-times {
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.complete-times {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 </style>
 {% endblock %}
 
@@ -95,10 +125,10 @@
         </div>
     </div>
     <div class="col-6 col-md-3 mb-2">
-        <div class="stat-card" style="background: #e8f5e9;">
+        <div class="stat-card" style="background: #e8f5e9; cursor: pointer;" onclick="toggleCompleteList()">
             <h6>Completos</h6>
             <h2 id="statComplete">{{ pairs_data.complete|length }}</h2>
-            <small>Entrada + Salida</small>
+            <small>Ver lista <i class="bi bi-chevron-right"></i></small>
         </div>
     </div>
     {% endif %}
@@ -120,7 +150,7 @@
     <div class="card-header bg-warning bg-opacity-25">
         <h5 class="mb-0">
             <i class="bi bi-exclamation-triangle"></i> 
-            Usuarios que NO han salido ({{ pairs_data.pending|length }})
+            Usuarios que NO han salido (<span id="pendingListCount">{{ pairs_data.pending|length }}</span>)
         </h5>
     </div>
     <div class="card-body p-0">
@@ -135,6 +165,42 @@
                 <div class="pending-time">
                     <i class="bi bi-box-arrow-in-right text-success"></i>
                     Entrada: {{ user.first_event.strftime('%H:%M:%S') if user.first_event else '-' }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Complete Users (Entrada + Salida) - Solo para Checadores -->
+{% if is_checador and pairs_data and pairs_data.complete %}
+<div class="card mb-3" id="completeCard" style="display: none; border-left: 4px solid #4caf50;">
+    <div class="card-header bg-success bg-opacity-25">
+        <h5 class="mb-0">
+            <i class="bi bi-check-circle"></i> 
+            Usuarios completos - Entrada + Salida (<span id="completeListCount">{{ pairs_data.complete|length }}</span>)
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="complete-list">
+            {% for user in pairs_data.complete %}
+            <div class="complete-item">
+                <div class="complete-user">
+                    <i class="bi bi-person-check-fill text-success"></i>
+                    <strong>{{ user.user_name }}</strong>
+                    <small class="text-muted">#{{ user.user_id }}</small>
+                </div>
+                <div class="complete-times">
+                    <span class="text-success">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        {{ user.first_event.strftime('%H:%M:%S') if user.first_event else '-' }}
+                    </span>
+                    <i class="bi bi-arrow-right mx-1"></i>
+                    <span class="text-danger">
+                        <i class="bi bi-box-arrow-right"></i>
+                        {{ user.last_event.strftime('%H:%M:%S') if user.last_event else '-' }}
+                    </span>
                 </div>
             </div>
             {% endfor %}
@@ -253,6 +319,18 @@ function togglePendingList() {
     }
 }
 
+function toggleCompleteList() {
+    const card = document.getElementById('completeCard');
+    if (card) {
+        if (card.style.display === 'none') {
+            card.style.display = 'block';
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            card.style.display = 'none';
+        }
+    }
+}
+
 // ==================== SSE REALTIME (AUTO-START) ====================
 
 let eventSource = null;
@@ -263,6 +341,20 @@ let maxReconnectAttempts = 999; // Intentos infinitos
 let reconnectDelay = 3000; // 3 segundos
 let lastHeartbeat = Date.now();
 let heartbeatCheckInterval = null;
+
+// Tracking de usuarios para "No han salido" en tiempo real
+// NOTA: No pre-inicializamos userEventsMap - los contadores del backend ya son correctos
+// Solo usamos esto para tracking de NUEVOS eventos SSE
+let userEventsMap = new Map();  // user_id -> {name, events: [timestamps]}
+let uniqueUsersSet = new Set();
+
+// Guardar valores iniciales del backend para no sobrescribirlos
+let initialPending = {{ pairs_data.pending|length if pairs_data else 0 }};
+let initialComplete = {{ pairs_data.complete|length if pairs_data else 0 }};
+let initialUsers = {{ summary.unique_users if summary else 0 }};
+
+// Flag para saber si ya recibimos eventos SSE
+let hasReceivedSSEEvents = false;
 
 function startRealtimeSSE() {
     if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
@@ -503,26 +595,168 @@ function addEventToTable(event) {
 }
 
 function updateCounters(event) {
-    // Actualizar contador total
-    const totalCard = document.querySelector('.stat-card h2');
-    if (totalCard) {
-        const current = parseInt(totalCard.textContent) || 0;
-        totalCard.textContent = current + 1;
+    // Actualizar contador total de accesos
+    const statTotal = document.getElementById('statTotal');
+    if (statTotal) {
+        const current = parseInt(statTotal.textContent) || 0;
+        statTotal.textContent = current + 1;
     }
     
-    // Actualizar contador de concedidos/denegados
-    if (event.is_granted) {
-        const grantedCard = document.querySelectorAll('.stat-card.success h2')[0];
-        if (grantedCard) {
-            const current = parseInt(grantedCard.textContent) || 0;
-            grantedCard.textContent = current + 1;
+    // Tracking de usuarios para pares (entrada/salida)
+    const userId = event.user_id;
+    const userName = event.user || 'Desconocido';
+    
+    if (userId) {
+        // Marcar que hemos recibido eventos SSE
+        hasReceivedSSEEvents = true;
+        
+        // Agregar al set de usuarios únicos
+        const isNewUser = !uniqueUsersSet.has(String(userId));
+        uniqueUsersSet.add(String(userId));
+        
+        // Actualizar contador de usuarios únicos (sumar al inicial)
+        if (isNewUser) {
+            const statUsers = document.getElementById('statUsers');
+            if (statUsers) {
+                statUsers.textContent = initialUsers + uniqueUsersSet.size;
+            }
         }
-    } else if (event.is_denied) {
-        const deniedCard = document.querySelectorAll('.stat-card.danger h2')[0];
-        if (deniedCard) {
-            const current = parseInt(deniedCard.textContent) || 0;
-            deniedCard.textContent = current + 1;
+        
+        // Tracking para pares (entrada/salida)
+        if (!userEventsMap.has(userId)) {
+            userEventsMap.set(userId, {
+                name: userName,
+                events: []
+            });
         }
+        userEventsMap.get(userId).events.push(event.datetime_full || new Date().toISOString());
+        
+        // Actualizar contadores de pares en tiempo real
+        updatePairsCounters();
+    }
+}
+
+// Actualizar contadores de "No han salido" y "Completos" en tiempo real
+// SOLO se llama cuando hay NUEVOS eventos SSE
+function updatePairsCounters() {
+    // Si no hemos recibido eventos SSE, no hacer nada - los valores del backend son correctos
+    if (!hasReceivedSSEEvents) {
+        return;
+    }
+    
+    let pending = 0;   // Solo entrada (1 evento)
+    let complete = 0;  // Entrada + salida (2 eventos)
+    let multiple = 0;  // Más de 2 eventos
+    
+    userEventsMap.forEach((data, userId) => {
+        const count = data.events.length;
+        if (count === 1) pending++;
+        else if (count === 2) complete++;
+        else if (count > 2) multiple++;
+    });
+    
+    // Sumar los valores iniciales del backend + nuevos eventos SSE
+    const totalPending = initialPending + pending;
+    const totalComplete = initialComplete + complete;
+    
+    // Actualizar UI - tarjetas de estadísticas
+    const statPending = document.getElementById('statPending');
+    const statComplete = document.getElementById('statComplete');
+    const pendingListCount = document.getElementById('pendingListCount');
+    const completeListCount = document.getElementById('completeListCount');
+    
+    if (statPending) statPending.textContent = totalPending;
+    if (statComplete) statComplete.textContent = totalComplete;
+    if (pendingListCount) pendingListCount.textContent = totalPending;
+    if (completeListCount) completeListCount.textContent = totalComplete;
+    
+    // Actualizar listas si están visibles
+    updatePendingList();
+    updateCompleteList();
+}
+
+// Actualizar lista de usuarios que no han salido
+function updatePendingList() {
+    const pendingCard = document.getElementById('pendingCard');
+    if (!pendingCard || pendingCard.style.display === 'none') return;
+    
+    const pendingList = pendingCard.querySelector('.pending-list');
+    if (!pendingList) return;
+    
+    let html = '';
+    userEventsMap.forEach((data, userId) => {
+        if (data.events.length === 1) {
+            const entryTime = new Date(data.events[0]).toLocaleTimeString('es-MX');
+            html += `
+                <div class="pending-item">
+                    <div class="pending-user">
+                        <i class="bi bi-person-fill"></i>
+                        <strong>${escapeHtml(data.name)}</strong>
+                        <small class="text-muted">#${userId}</small>
+                    </div>
+                    <div class="pending-time">
+                        <i class="bi bi-box-arrow-in-right text-success"></i>
+                        Entrada: ${entryTime}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    if (html) {
+        pendingList.innerHTML = html;
+    } else {
+        pendingList.innerHTML = '<div class="text-center text-muted py-3">Todos han registrado salida</div>';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Actualizar lista de usuarios completos (entrada + salida)
+function updateCompleteList() {
+    const completeCard = document.getElementById('completeCard');
+    if (!completeCard || completeCard.style.display === 'none') return;
+    
+    const completeList = completeCard.querySelector('.complete-list');
+    if (!completeList) return;
+    
+    let html = '';
+    userEventsMap.forEach((data, userId) => {
+        if (data.events.length === 2) {
+            const entryTime = new Date(data.events[0]).toLocaleTimeString('es-MX');
+            const exitTime = new Date(data.events[1]).toLocaleTimeString('es-MX');
+            html += `
+                <div class="complete-item">
+                    <div class="complete-user">
+                        <i class="bi bi-person-check-fill text-success"></i>
+                        <strong>${escapeHtml(data.name)}</strong>
+                        <small class="text-muted">#${userId}</small>
+                    </div>
+                    <div class="complete-times">
+                        <span class="text-success">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                            ${entryTime}
+                        </span>
+                        <i class="bi bi-arrow-right mx-1"></i>
+                        <span class="text-danger">
+                            <i class="bi bi-box-arrow-right"></i>
+                            ${exitTime}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    if (html) {
+        completeList.innerHTML = html;
+    } else {
+        completeList.innerHTML = '<div class="text-center text-muted py-3">Ningún usuario ha completado entrada + salida</div>';
     }
 }
 

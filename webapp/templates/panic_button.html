@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Botón de Pánico - BioStar{% endblock %}
+
+{% block extra_css %}
+<style>
+@keyframes pulse-red {
+    0%, 100% { 
+        background-color: #dc3545;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    50% { 
+        background-color: #ff4757;
+        box-shadow: 0 0 0 20px rgba(220, 53, 69, 0);
+    }
+}
+
+.panic-container {
+    max-width: 600px;
+    margin: 50px auto;
+    text-align: center;
+}
+
+.panic-button {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.panic-button:not(.active) {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+
+.panic-button:not(.active):hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+}
+
+.panic-button.active {
+    animation: pulse-red 1.5s infinite;
+}
+
+.device-selector {
+    margin-bottom: 30px;
+}
+
+.device-selector select {
+    font-size: 1.1rem;
+    padding: 12px;
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    min-width: 300px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    margin-top: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="panic-container">
+    <h2 class="mb-4">
+        <i class="bi bi-shield-exclamation"></i>
+        Botón de Pánico
+    </h2>
+    
+    <div class="device-selector">
+        <label for="deviceSelect" class="form-label fw-bold">Seleccionar Dispositivo:</label>
+        <select id="deviceSelect" class="form-select" onchange="loadDeviceStatus()">
+            <option value="">-- Selecciona un dispositivo --</option>
+            {% for device in devices %}
+            <option value="{{ device.id }}" data-name="{{ device.name }}">
+                {{ device.name }} (ID: {{ device.id }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div id="panicButtonContainer" style="display: none;">
+        <button id="panicButton" class="panic-button" onclick="togglePanic()">
+            <i class="bi bi-shield-exclamation" style="font-size: 3rem;"></i>
+            <br>
+            <span id="panicText">ACTIVAR<br>PÁNICO</span>
+        </button>
+        
+        <div id="statusBadge" class="status-badge bg-secondary text-white">
+            <i class="bi bi-info-circle"></i> Selecciona un dispositivo
+        </div>
+    </div>
+</div>
+
+<script>
+let currentDeviceId = null;
+let currentDeviceName = null;
+let isActive = false;
+
+function loadDeviceStatus() {
+    const select = document.getElementById('deviceSelect');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (!select.value) {
+        document.getElementById('panicButtonContainer').style.display = 'none';
+        return;
+    }
+    
+    currentDeviceId = select.value;
+    currentDeviceName = selectedOption.dataset.name;
+    
+    document.getElementById('panicButtonContainer').style.display = 'block';
+    
+    // Cargar estado actual del dispositivo
+    fetch(`/api/panic-mode/status`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const deviceStatus = data.devices.find(d => d.device_id === currentDeviceId);
+                if (deviceStatus && deviceStatus.is_active) {
+                    isActive = true;
+                    updateButtonState(true, deviceStatus.alarm_active);
+                } else {
+                    isActive = false;
+                    updateButtonState(false, false);
+                }
+            }
+        })
+        .catch(err => console.error('Error cargando estado:', err));
+}
+
+function togglePanic() {
+    if (!currentDeviceId) {
+        Swal.fire('Error', 'Selecciona un dispositivo primero', 'error');
+        return;
+    }
+    
+    if (isActive) {
+        // Desactivar
+        Swal.fire({
+            title: '¿Desactivar Modo Pánico?',
+            html: `<p>Dispositivo: <strong>${currentDeviceName}</strong></p>
+                   <p class="text-muted">Esto bloqueará la puerta y desactivará la alarma.</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Desactivar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executePanicAction('deactivate', false);
+            }
+        });
+    } else {
+        // Activar con opción de alarma
+        Swal.fire({
+            title: '🚨 ACTIVAR Modo Pánico',
+            html: `
+                <p>Dispositivo: <strong>${currentDeviceName}</strong></p>
+                <p class="text-muted mb-3">Esto desbloqueará la puerta permanentemente.</p>
+                <div class="form-check text-start" style="padding-left: 2.5rem;">
+                    <input class="form-check-input" type="checkbox" id="alarmCheckbox" style="width: 20px; height: 20px;">
+                    <label class="form-check-label ms-2" for="alarmCheckbox" style="font-size: 1rem;">
+                        <i class="bi bi-volume-up-fill"></i> Activar alarma de sonido
+                    </label>
+                    <small class="d-block text-muted ms-4 mt-1">
+                        El checador emitirá sonido de alarma (opcional)
+                    </small>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '🚨 Activar Pánico',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                return document.getElementById('alarmCheckbox').checked;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const activateAlarm = result.value;
+                executePanicAction('activate', activateAlarm);
+            }
+        });
+    }
+}
+
+function executePanicAction(action, activateAlarm) {
+    Swal.fire({
+        title: 'Procesando...',
+        text: 'Enviando comando al dispositivo',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    fetch(`/api/panic-mode/${currentDeviceId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            action: action,
+            activate_alarm: activateAlarm
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            isActive = data.is_active;
+            updateButtonState(data.is_active, data.alarm_active);
+            
+            Swal.fire({
+                icon: 'success',
+                title: action === 'activate' ? '🚨 Modo Pánico Activado' : '✅ Modo Pánico Desactivado',
+                html: `<p><strong>${currentDeviceName}</strong></p>
+                       ${data.alarm_active ? '<p class="text-warning"><i class="bi bi-volume-up-fill"></i> Alarma activada</p>' : ''}`,
+                timer: 3000,
+                showConfirmButton: false
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message || 'No se pudo ejecutar la acción'
+            });
+        }
+    })
+    .catch(err => {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de conexión',
+            text: 'No se pudo comunicar con el servidor'
+        });
+    });
+}
+
+function updateButtonState(active, alarmActive) {
+    const button = document.getElementById('panicButton');
+    const text = document.getElementById('panicText');
+    const icon = button.querySelector('i');
+    const badge = document.getElementById('statusBadge');
+    
+    if (active) {
+        button.classList.add('active');
+        icon.className = 'bi bi-exclamation-triangle-fill';
+        text.innerHTML = 'PÁNICO<br>ACTIVO';
+        badge.className = 'status-badge bg-danger text-white';
+        badge.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Modo Pánico Activo${alarmActive ? ' + Alarma' : ''}`;
+    } else {
+        button.classList.remove('active');
+        icon.className = 'bi bi-shield-exclamation';
+        text.innerHTML = 'ACTIVAR<br>PÁNICO';
+        badge.className = 'status-badge bg-success text-white';
+        badge.innerHTML = '<i class="bi bi-check-circle"></i> Modo Normal';
+    }
+}
+</script>
+{% endblock %}

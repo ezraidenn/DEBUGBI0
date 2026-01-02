@@ -555,6 +555,15 @@ def configure_flask_security(app):
     
     # Database
     db_url = os.environ.get('DATABASE_URL', 'sqlite:///biostar_users.db')
+    
+    # Si la URL es relativa, convertirla a absoluta
+    if db_url.startswith('sqlite:///') and not db_url.startswith('sqlite:////'):
+        # Obtener el directorio base del proyecto
+        base_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        db_path = db_url.replace('sqlite:///', '')
+        absolute_db_path = os.path.join(base_dir, db_path)
+        db_url = f'sqlite:///{absolute_db_path}'
+    
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     

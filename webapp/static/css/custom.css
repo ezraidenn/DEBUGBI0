@@ -178,10 +178,12 @@ textarea {
 /* Contenedor scrolleable para navegación */
 .sidebar .nav {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: auto !important;
     overflow-x: hidden;
     padding: 16px 0;
     -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 200px);
+    min-height: 0;
 }
 
 .sidebar .nav-link {
@@ -222,7 +224,6 @@ textarea {
 .sidebar .nav-link.active {
     background: rgba(255,255,255,0.15);
     color: #FFFFFF !important;
-    border: 1px solid rgba(255,255,255,0.3);
 }
 
 .sidebar .nav-link.active span,

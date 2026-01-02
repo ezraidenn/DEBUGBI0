@@ -1,0 +1,770 @@
+{% extends "base.html" %}
+
+{% block title %}Centro de Emergencias{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Alertas de emergencias activas -->
+    <div id="active-emergencies-alert" style="display: none;">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> ¡EMERGENCIA ACTIVA!</h5>
+            <div id="active-emergencies-list"></div>
+        </div>
+    </div>
+
+    <!-- Selector de zona -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-building"></i> Selecciona una zona</h5>
+                    <div id="zones-container" class="row">
+                        <div class="col-12 text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Cargando zonas...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón de emergencia (aparece al seleccionar zona) -->
+    <div id="emergency-button-section" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-danger">
+                    <div class="card-body text-center py-5">
+                        <h3 class="mb-4">Zona: <span id="selected-zone-display"></span></h3>
+                        <button id="activateEmergencyBtn" class="btn btn-danger btn-lg px-5 py-3" onclick="activateEmergency()">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span style="font-size: 1.5rem; display: block; margin-top: 10px;">
+                                ACTIVAR EMERGENCIA
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pase de lista (aparece cuando hay emergencia activa) -->
+    <div id="roll-call-section" style="display: none;">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clipboard-check"></i> Pase de Lista en Tiempo Real
+                        </h5>
+                        <button class="btn btn-light btn-sm" onclick="resolveEmergency()">
+                            <i class="bi bi-check-circle"></i> Resolver Emergencia
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <!-- Estadísticas -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3 id="stat-total">0</h3>
+                                    <p class="text-muted mb-0">Total</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #28a745;">
+                                    <h3 id="stat-present" class="text-success">0</h3>
+                                    <p class="text-muted mb-0">Presentes</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #dc3545;">
+                                    <h3 id="stat-absent" class="text-danger">0</h3>
+                                    <p class="text-muted mb-0">Ausentes</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #ffc107;">
+                                    <h3 id="stat-pending" class="text-warning">0</h3>
+                                    <p class="text-muted mb-0">Pendientes</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lista agrupada por grupos -->
+                        <div id="roll-call-groups"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Tipo de Emergencia -->
+<div class="modal fade" id="emergencyTypeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Activar Emergencia</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="emergencyTypeForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tipo de emergencia</label>
+                        <select class="form-select" name="emergency_type" required>
+                            <option value="general">General</option>
+                            <option value="incendio">🔥 Incendio</option>
+                            <option value="sismo">🌍 Sismo</option>
+                            <option value="evacuacion">🚪 Evacuación</option>
+                            <option value="seguridad">🔒 Seguridad</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Acciones de dispositivos -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Acciones en dispositivos de la zona</label>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="unlock_doors" id="unlockDoorsCheck" checked>
+                                    <label class="form-check-label" for="unlockDoorsCheck">
+                                        <i class="bi bi-door-open text-success"></i> <strong>Desbloquear puertas</strong>
+                                        <br><small class="text-muted">Abre todas las puertas de los checadores de esta zona</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="trigger_alarms" id="triggerAlarmsCheck">
+                                    <label class="form-check-label" for="triggerAlarmsCheck">
+                                        <i class="bi bi-bell-fill text-warning"></i> <strong>Activar alarmas</strong>
+                                        <br><small class="text-muted">⚠ Soporte limitado - depende de configuración BioStar</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notas (opcional)</label>
+                        <textarea class="form-control" name="notes" rows="2" placeholder="Descripción adicional..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-lg" onclick="confirmActivateEmergency()">
+                    <i class="bi bi-exclamation-triangle-fill"></i> ACTIVAR EMERGENCIA
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedZoneId = null;
+let activeEmergencyId = null;
+let emergencyEventSource = null;  // SSE para tiempo real
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadZones();
+    checkEmergencyStatus();
+});
+
+async function loadZones() {
+    try {
+        const response = await fetch('/emergency/api/zones');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderZones(data.zones);
+        }
+    } catch (error) {
+        console.error('Error cargando zonas:', error);
+    }
+}
+
+function renderZones(zones) {
+    const container = document.getElementById('zones-container');
+    
+    if (zones.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No hay zonas configuradas. Ve a Configuración.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = zones.map(zone => `
+        <div class="col-md-4 mb-3">
+            <div class="card zone-card" onclick="selectZone(${zone.id}, '${zone.name}')" style="border-left: 4px solid ${zone.color}; cursor: pointer;">
+                <div class="card-body">
+                    <h5><i class="${zone.icon}"></i> ${zone.name}</h5>
+                    <p class="text-muted small">${zone.description || ''}</p>
+                    <span class="badge bg-secondary">${zone.groups_count} grupos</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectZone(zoneId, zoneName) {
+    selectedZoneId = zoneId;
+    document.getElementById('selected-zone-display').textContent = zoneName;
+    document.getElementById('emergency-button-section').style.display = 'block';
+    
+    // Scroll al botón
+    document.getElementById('emergency-button-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function checkEmergencyStatus() {
+    try {
+        const response = await fetch('/emergency/api/emergency/status');
+        const data = await response.json();
+        
+        if (data.success && data.has_active) {
+            showActiveEmergencies(data.emergencies);
+            
+            // Si hay emergencia en la zona seleccionada, mostrar pase de lista
+            const zoneEmergency = data.emergencies.find(e => e.zone_id === selectedZoneId);
+            if (zoneEmergency) {
+                activeEmergencyId = zoneEmergency.id;
+                showRollCall(zoneEmergency.id);
+            }
+        } else {
+            document.getElementById('active-emergencies-alert').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error verificando estado:', error);
+    }
+}
+
+function showActiveEmergencies(emergencies) {
+    const alert = document.getElementById('active-emergencies-alert');
+    const list = document.getElementById('active-emergencies-list');
+    
+    list.innerHTML = emergencies.map(e => `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-white rounded">
+            <div>
+                <strong>${e.zone_name}</strong> - ${e.emergency_type} 
+                <small class="text-muted">(${new Date(e.started_at).toLocaleTimeString()})</small>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-warning me-1" onclick="viewEmergency(${e.id}, ${e.zone_id}, '${e.zone_name}')">
+                    <i class="bi bi-eye"></i> Ver
+                </button>
+                <button class="btn btn-sm btn-success" onclick="quickResolveEmergency(${e.id}, '${e.zone_name}')">
+                    <i class="bi bi-check-circle"></i> Resolver
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    alert.style.display = 'block';
+}
+
+// Ver emergencia activa (mostrar pase de lista)
+function viewEmergency(emergencyId, zoneId, zoneName) {
+    selectedZoneId = zoneId;
+    activeEmergencyId = emergencyId;
+    document.getElementById('selected-zone-display').textContent = zoneName;
+    showRollCall(emergencyId);
+}
+
+// Resolver emergencia rápidamente desde la alerta
+async function quickResolveEmergency(emergencyId, zoneName) {
+    const result = await Swal.fire({
+        title: '¿Resolver Emergencia?',
+        text: `Esto finalizará la emergencia en ${zoneName}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, resolver',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${emergencyId}/resolve`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Emergencia Resuelta',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => location.reload());
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error resolviendo emergencia');
+    }
+}
+
+function activateEmergency() {
+    if (!selectedZoneId) {
+        alert('Selecciona una zona primero');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('emergencyTypeModal'));
+    document.getElementById('emergencyTypeForm').reset();
+    // Desbloquear puertas marcado por defecto, alarmas desmarcado (soporte limitado)
+    document.getElementById('unlockDoorsCheck').checked = true;
+    document.getElementById('triggerAlarmsCheck').checked = false;
+    modal.show();
+}
+
+async function confirmActivateEmergency() {
+    const form = document.getElementById('emergencyTypeForm');
+    
+    // Obtener datos del formulario
+    const data = {
+        zone_id: selectedZoneId,
+        emergency_type: form.querySelector('[name="emergency_type"]').value,
+        notes: form.querySelector('[name="notes"]').value,
+        unlock_doors: document.getElementById('unlockDoorsCheck').checked,
+        trigger_alarms: document.getElementById('triggerAlarmsCheck').checked
+    };
+    
+    // Cerrar modal primero para evitar problemas de aria-hidden
+    const modalEl = document.getElementById('emergencyTypeModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+    
+    try {
+        const response = await fetch('/emergency/api/emergency/activate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            activeEmergencyId = result.emergency_id;
+            
+            // Construir mensaje detallado de dispositivos
+            let deviceHtml = '';
+            if (result.devices) {
+                const total = result.devices.total || 0;
+                const activated = result.devices.activated || [];
+                const failed = result.devices.failed || [];
+                
+                if (total === 0) {
+                    deviceHtml = '<p class="text-muted"><i class="bi bi-info-circle"></i> No hay dispositivos asignados a esta zona</p>';
+                } else {
+                    deviceHtml = `<p><strong>Dispositivos:</strong> ${activated.length}/${total} activados</p>`;
+                    
+                    if (activated.length > 0) {
+                        deviceHtml += '<div class="text-start mt-2"><strong class="text-success">✓ Activados:</strong><ul class="mb-2">';
+                        activated.forEach(d => {
+                            let status = [];
+                            if (d.unlocked) status.push('🔓 Puerta abierta');
+                            if (d.alarm) status.push('🔔 Alarma');
+                            deviceHtml += `<li>${d.name} - ${status.join(', ') || 'Parcial'}</li>`;
+                        });
+                        deviceHtml += '</ul></div>';
+                    }
+                    
+                    if (failed.length > 0) {
+                        deviceHtml += '<div class="text-start"><strong class="text-warning">⚠ Sin respuesta:</strong><ul>';
+                        failed.forEach(d => {
+                            deviceHtml += `<li>${d.name}</li>`;
+                        });
+                        deviceHtml += '</ul></div>';
+                    }
+                }
+            }
+            
+            Swal.fire({
+                icon: 'warning',
+                title: '¡EMERGENCIA ACTIVADA!',
+                html: `<p>Emergencia iniciada correctamente.</p>${deviceHtml}`,
+                confirmButtonColor: '#dc3545'
+            });
+            
+            showRollCall(result.emergency_id);
+            checkEmergencyStatus(); // Actualizar alerta
+        } else {
+            // Si ya hay emergencia activa, ofrecer verla
+            if (result.message && result.message.includes('Ya hay una emergencia activa')) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Emergencia Ya Activa',
+                    text: 'Ya existe una emergencia activa en esta zona. ¿Deseas verla?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ver emergencia',
+                    cancelButtonText: 'Cerrar'
+                }).then((res) => {
+                    if (res.isConfirmed) {
+                        checkEmergencyStatus();
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.message
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error activando emergencia'
+        });
+    }
+}
+
+async function showRollCall(emergencyId) {
+    document.getElementById('roll-call-section').style.display = 'block';
+    document.getElementById('emergency-button-section').style.display = 'none';
+    loadRollCall(emergencyId);
+    
+    // Iniciar SSE para tiempo real
+    startEmergencySSE(emergencyId);
+}
+
+// ==================== SSE TIEMPO REAL ====================
+
+function startEmergencySSE(emergencyId) {
+    if (emergencyEventSource) {
+        emergencyEventSource.close();
+    }
+    
+    console.log('🚀 Iniciando SSE para emergencia:', emergencyId);
+    emergencyEventSource = new EventSource(`/emergency/stream/emergency/${emergencyId}`);
+    
+    emergencyEventSource.addEventListener('connection', (e) => {
+        console.log('✅ Conectado a SSE de emergencia');
+    });
+    
+    emergencyEventSource.addEventListener('update', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('📥 Actualización recibida:', data);
+        
+        // Actualizar estadísticas
+        if (data.stats) {
+            document.getElementById('stat-total').textContent = data.stats.total;
+            document.getElementById('stat-present').textContent = data.stats.present;
+            document.getElementById('stat-absent').textContent = data.stats.absent;
+            document.getElementById('stat-pending').textContent = data.stats.pending;
+        }
+        
+        // Mostrar cambios recientes
+        if (data.recent_changes && data.recent_changes.length > 0) {
+            data.recent_changes.forEach(change => {
+                showRealtimeNotification(change);
+                updateMemberStatus(change);
+            });
+        }
+        
+        // Mostrar auto-marcados
+        if (data.auto_marked && data.auto_marked.length > 0) {
+            data.auto_marked.forEach(marked => {
+                showAutoMarkedNotification(marked);
+            });
+            // Recargar lista completa para reflejar cambios
+            loadRollCall(activeEmergencyId);
+        }
+    });
+    
+    emergencyEventSource.addEventListener('emergency_resolved', (e) => {
+        console.log('✅ Emergencia resuelta');
+        Swal.fire({
+            icon: 'success',
+            title: 'Emergencia Resuelta',
+            text: 'La emergencia ha sido resuelta',
+            timer: 3000
+        }).then(() => location.reload());
+    });
+    
+    emergencyEventSource.addEventListener('heartbeat', (e) => {
+        console.log('💓 Heartbeat');
+    });
+    
+    emergencyEventSource.onerror = (error) => {
+        console.error('❌ Error en SSE:', error);
+        if (emergencyEventSource.readyState === EventSource.CLOSED) {
+            // Reconectar después de 3 segundos
+            setTimeout(() => startEmergencySSE(emergencyId), 3000);
+        }
+    };
+}
+
+function showRealtimeNotification(change) {
+    const statusText = change.status === 'present' ? 'PRESENTE' : 'AUSENTE';
+    const statusClass = change.status === 'present' ? 'success' : 'danger';
+    
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: change.status === 'present' ? 'success' : 'error',
+        title: `${change.user_name}`,
+        text: `Marcado como ${statusText} por ${change.marked_by}`,
+        showConfirmButton: false,
+        timer: 3000
+    });
+}
+
+function showAutoMarkedNotification(marked) {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `✅ ${marked.user_name}`,
+        text: `Auto-detectado en ${marked.device}`,
+        showConfirmButton: false,
+        timer: 4000
+    });
+}
+
+function updateMemberStatus(change) {
+    // Buscar y actualizar el botón del miembro en la UI
+    const buttons = document.querySelectorAll(`button[onclick*="markAttendance(${change.id}"]`);
+    buttons.forEach(btn => {
+        const row = btn.closest('.list-group-item');
+        if (row) {
+            // Actualizar clases de botones
+            const presentBtn = row.querySelector('.btn-success, .btn-outline-success');
+            const absentBtn = row.querySelector('.btn-danger, .btn-outline-danger');
+            
+            if (change.status === 'present') {
+                presentBtn?.classList.remove('btn-outline-success');
+                presentBtn?.classList.add('btn-success');
+                absentBtn?.classList.remove('btn-danger');
+                absentBtn?.classList.add('btn-outline-danger');
+            } else {
+                absentBtn?.classList.remove('btn-outline-danger');
+                absentBtn?.classList.add('btn-danger');
+                presentBtn?.classList.remove('btn-success');
+                presentBtn?.classList.add('btn-outline-success');
+            }
+        }
+    });
+}
+
+async function loadRollCall(emergencyId) {
+    try {
+        const response = await fetch(`/emergency/api/emergency/${emergencyId}/roll-call`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderRollCall(data.groups);
+            updateStats(data.groups);
+        }
+    } catch (error) {
+        console.error('Error cargando pase de lista:', error);
+    }
+}
+
+function renderRollCall(groups) {
+    const container = document.getElementById('roll-call-groups');
+    
+    container.innerHTML = groups.map(group => `
+        <div class="card mb-3" style="border-left: 4px solid ${group.group_color};">
+            <div class="card-header" style="background-color: ${group.group_color}20;">
+                <h6 class="mb-0">
+                    <i class="bi bi-people-fill"></i> ${group.group_name}
+                    <span class="badge bg-secondary float-end">${group.members.length} personas</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    ${group.members.map(member => `
+                        <div class="list-group-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-5">
+                                    <strong>${member.user_name}</strong>
+                                    <br><small class="text-muted">ID: ${member.biostar_user_id}</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
+                                                onclick="markAttendance(${member.id}, 'present')">
+                                            <i class="bi bi-check-circle"></i> Presente
+                                        </button>
+                                        <button class="btn ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
+                                                onclick="markAttendance(${member.id}, 'absent')">
+                                            <i class="bi bi-x-circle"></i> Ausente
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 text-end">
+                                    ${member.marked_at ? `
+                                        <small class="text-muted">
+                                            ${new Date(member.marked_at).toLocaleTimeString()}
+                                            <br>por ${member.marked_by}
+                                        </small>
+                                    ` : '<small class="text-warning">Sin marcar</small>'}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateStats(groups) {
+    let total = 0;
+    let present = 0;
+    let absent = 0;
+    let pending = 0;
+    
+    groups.forEach(group => {
+        group.members.forEach(member => {
+            total++;
+            if (member.status === 'present') present++;
+            else if (member.status === 'absent') absent++;
+            else pending++;
+        });
+    });
+    
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-present').textContent = present;
+    document.getElementById('stat-absent').textContent = absent;
+    document.getElementById('stat-pending').textContent = pending;
+}
+
+async function markAttendance(entryId, status) {
+    try {
+        const response = await fetch(`/emergency/api/roll-call/${entryId}/mark`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadRollCall(activeEmergencyId);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function resolveEmergency() {
+    const result = await Swal.fire({
+        title: '¿Resolver Emergencia?',
+        html: '<p>Esto cerrará el pase de lista y finalizará la emergencia.</p><p><strong>Las puertas volverán a modo normal.</strong></p>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, resolver',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    // Mostrar loading
+    Swal.fire({
+        title: 'Resolviendo emergencia...',
+        html: '<p>Cerrando puertas y guardando pase de lista...</p>',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${activeEmergencyId}/resolve`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Cerrar SSE
+            if (emergencyEventSource) {
+                emergencyEventSource.close();
+            }
+            
+            // Construir mensaje con estado de puertas
+            let doorsHtml = '';
+            if (data.doors && data.doors.total > 0) {
+                const released = data.doors.released?.length || 0;
+                const failed = data.doors.failed?.length || 0;
+                
+                if (released > 0) {
+                    doorsHtml += `<p class="text-success"><i class="bi bi-check-circle-fill"></i> ${released} puerta(s) volvieron a modo normal</p>`;
+                }
+                if (failed > 0) {
+                    doorsHtml += `<p class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> ${failed} puerta(s) no pudieron cerrarse</p>`;
+                }
+            }
+            
+            Swal.fire({
+                icon: 'success',
+                title: '✅ Emergencia Resuelta',
+                html: `
+                    <p>El pase de lista ha sido guardado.</p>
+                    ${doorsHtml || '<p class="text-muted">No había puertas desbloqueadas.</p>'}
+                `,
+                confirmButtonColor: '#28a745'
+            }).then(() => location.reload());
+        } else {
+            Swal.fire('Error', data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', 'Error resolviendo emergencia', 'error');
+    }
+}
+
+// Limpiar SSE al salir de la página
+window.addEventListener('beforeunload', () => {
+    if (emergencyEventSource) {
+        emergencyEventSource.close();
+    }
+});
+</script>
+
+<style>
+.zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+#activateEmergencyBtn {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    border-left: 4px solid #6c757d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Centrar modales */
+.modal-dialog {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+}
+
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+}
+</style>
+{% endblock %}

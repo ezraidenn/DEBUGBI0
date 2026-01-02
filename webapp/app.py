@@ -538,6 +538,79 @@ def get_unique_users():
     })
 
 
+@app.route('/api/buscar-usuarios')
+@login_required
+def buscar_usuarios_api():
+    """Endpoint simple para buscar usuarios del día por nombre o ID."""
+    query = request.args.get('q', '').strip().lower()
+    
+    if not query or len(query) < 2:
+        return jsonify({'success': True, 'users': [], 'message': 'Query muy corta'})
+    
+    monitor = get_monitor()
+    if not monitor:
+        return jsonify({'success': False, 'message': 'Monitor no disponible'}), 500
+    
+    # Obtener dispositivos
+    all_devices = monitor.get_all_devices(refresh=False)
+    
+    # Recolectar usuarios únicos
+    users_dict = {}
+    
+    for device in all_devices:
+        try:
+            events = monitor.get_device_events_today(device['id'])
+            events = monitor._filter_events_by_time(events)
+            
+            for event in events:
+                event_code = event.get('event_type_id', {}).get('code', '')
+                if event_code not in EVENT_CODES['ACCESS_GRANTED']:
+                    continue
+                
+                user_data = event.get('user_id', {})
+                if isinstance(user_data, dict):
+                    user_id = user_data.get('user_id') or user_data.get('id')
+                    user_name = user_data.get('name', '')
+                else:
+                    user_id = user_data
+                    user_name = ''
+                
+                if not user_id or str(user_id) in ['', 'None', 'nan']:
+                    continue
+                
+                user_id_str = str(user_id)
+                
+                if user_id_str not in users_dict:
+                    users_dict[user_id_str] = {
+                        'user_id': user_id_str,
+                        'name': user_name or f'Usuario {user_id_str}'
+                    }
+                elif user_name and not users_dict[user_id_str].get('name'):
+                    users_dict[user_id_str]['name'] = user_name
+        except Exception as e:
+            continue
+    
+    # Filtrar por query
+    results = []
+    for user in users_dict.values():
+        name_lower = (user.get('name') or '').lower()
+        id_lower = str(user.get('user_id', '')).lower()
+        
+        if query in name_lower or query in id_lower:
+            results.append(user)
+            if len(results) >= 30:
+                break
+    
+    # Ordenar por nombre
+    results.sort(key=lambda x: (x.get('name') or '').lower())
+    
+    return jsonify({
+        'success': True,
+        'users': results,
+        'total': len(results)
+    })
+
+
 # ==================== DASHBOARD ROUTES ====================
 
 @app.route('/dashboard')
@@ -735,11 +808,22 @@ def debug_device(device_id):
         # Group events by user
         user_events = {}
         for event in events_list:
-            user_id = event.get('user_id')
-            if user_id and user_id != '' and user_id is not None:
+            # Extraer user_id correctamente (puede ser dict o string)
+            user_id_raw = event.get('user_id')
+            if isinstance(user_id_raw, dict):
+                user_id = user_id_raw.get('user_id') or user_id_raw.get('id')
+                user_name = user_id_raw.get('name') or event.get('user_name') or 'Desconocido'
+            else:
+                user_id = user_id_raw
+                user_name = event.get('user_name') or 'Desconocido'
+            
+            # Convertir a string y validar
+            user_id = str(user_id) if user_id else None
+            
+            if user_id and user_id not in ['', 'None', 'nan', 'NaN']:
                 if user_id not in user_events:
                     user_events[user_id] = {
-                        'user_name': event.get('user_name') or 'Desconocido',
+                        'user_name': user_name,
                         'events': []
                     }
                 user_events[user_id]['events'].append(event)
@@ -765,18 +849,31 @@ def debug_device(device_id):
             else:
                 pairs_data['multiple'].append(user_info)
     
-    # Get summary - use events_list which has processed user_ids
-    unique_users = set()
-    for e in events_list:
-        uid = e.get('user_id')
-        if uid and uid != '' and uid is not None:
-            unique_users.add(uid)
+    # Get summary - usar user_events que ya tiene los user_ids correctamente extraídos
+    # Si es checador, usar el conteo de user_events que ya procesó correctamente
+    if is_checador and pairs_data:
+        unique_users_count = len(pairs_data['pending']) + len(pairs_data['complete']) + len(pairs_data['multiple'])
+    else:
+        # Fallback: extraer user_id correctamente
+        unique_users = set()
+        for e in events_list:
+            uid_raw = e.get('user_id')
+            if isinstance(uid_raw, dict):
+                uid = uid_raw.get('user_id') or uid_raw.get('id')
+            else:
+                uid = uid_raw
+            uid = str(uid) if uid else None
+            if uid and uid not in ['', 'None', 'nan', 'NaN']:
+                unique_users.add(uid)
+        unique_users_count = len(unique_users)
     
+    # CORRECCIÓN CRÍTICA: Usar granted_events original, no events_list
+    # events_list puede tener más eventos debido al procesamiento del DataFrame
     summary = {
-        'total_events': len(events_list),
-        'access_granted': len(events_list),
+        'total_events': len(granted_events),
+        'access_granted': len(granted_events),
         'access_denied': 0,
-        'unique_users': len(unique_users),
+        'unique_users': unique_users_count,
         'first_event': utc_to_local(first_event_dt) if first_event_dt else None,
         'last_event': utc_to_local(last_event_dt) if last_event_dt else None
     }
@@ -1560,6 +1657,182 @@ def config_category_update(category_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# API - MODO PÁNICO
+# ============================================
+
+@app.route('/panic-button')
+@login_required
+def panic_button_page():
+    """Página del botón de pánico."""
+    if not current_user.is_admin:
+        flash('No tienes permisos para acceder a esta página.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    monitor = get_monitor()
+    devices = []
+    if monitor:
+        devices = monitor.get_all_devices() or []
+    
+    return render_template('panic_button.html', devices=devices)
+
+
+@app.route('/api/panic-mode/<device_id>', methods=['POST'])
+@login_required
+def toggle_panic_mode(device_id):
+    """Activa o desactiva el modo pánico para un dispositivo."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 403
+    
+    try:
+        from webapp.models import PanicModeStatus, PanicModeLog
+        from src.api.door_control import biostar_unlock_door, biostar_lock_door
+        
+        data = request.json
+        action = data.get('action')
+        activate_alarm = data.get('activate_alarm', False)
+        
+        monitor = get_monitor()
+        device_name = f"Dispositivo {device_id}"
+        if monitor:
+            devices = monitor.get_all_devices()
+            for d in devices:
+                if str(d.get('id')) == str(device_id):
+                    device_name = d.get('name', device_name)
+                    break
+        
+        status = PanicModeStatus.query.filter_by(device_id=str(device_id)).first()
+        
+        if action == 'activate':
+            success, message = biostar_unlock_door(device_id, activate_alarm=activate_alarm)
+            
+            if success:
+                if not status:
+                    status = PanicModeStatus(device_id=str(device_id), device_name=device_name)
+                    db.session.add(status)
+                
+                status.is_active = True
+                status.alarm_active = activate_alarm
+                status.activated_at = datetime.utcnow()
+                status.activated_by_user_id = current_user.id
+                
+                log = PanicModeLog(
+                    device_id=str(device_id),
+                    device_name=device_name,
+                    action='activate',
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    success=True,
+                    alarm_activated=activate_alarm
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'is_active': True,
+                    'alarm_active': activate_alarm,
+                    'message': message
+                })
+            else:
+                log = PanicModeLog(
+                    device_id=str(device_id),
+                    device_name=device_name,
+                    action='activate',
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    success=False,
+                    error_message=message
+                )
+                db.session.add(log)
+                db.session.commit()
+                return jsonify({'success': False, 'message': message}), 500
+        
+        elif action == 'deactivate':
+            deactivate_alarm = status.alarm_active if status else False
+            success, message = biostar_lock_door(device_id, deactivate_alarm=deactivate_alarm)
+            
+            if success:
+                if status:
+                    status.is_active = False
+                    status.alarm_active = False
+                    status.deactivated_at = datetime.utcnow()
+                    status.deactivated_by_user_id = current_user.id
+                
+                log = PanicModeLog(
+                    device_id=str(device_id),
+                    device_name=device_name,
+                    action='deactivate',
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    success=True
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'is_active': False,
+                    'alarm_active': False,
+                    'message': message
+                })
+            else:
+                log = PanicModeLog(
+                    device_id=str(device_id),
+                    device_name=device_name,
+                    action='deactivate',
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    success=False,
+                    error_message=message
+                )
+                db.session.add(log)
+                db.session.commit()
+                return jsonify({'success': False, 'message': message}), 500
+        
+        return jsonify({'success': False, 'message': 'Acción inválida'}), 400
+        
+    except Exception as e:
+        logger.error(f"Error en modo pánico: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/panic-mode/status', methods=['GET'])
+@login_required
+def get_panic_status():
+    """Obtiene el estado de todos los dispositivos en modo pánico."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 403
+    
+    try:
+        from webapp.models import PanicModeStatus
+        
+        statuses = PanicModeStatus.query.filter_by(is_active=True).all()
+        
+        return jsonify({
+            'success': True,
+            'devices': [{
+                'device_id': s.device_id,
+                'device_name': s.device_name,
+                'is_active': s.is_active,
+                'alarm_active': s.alarm_active,
+                'activated_at': s.activated_at.isoformat() if s.activated_at else None,
+                'activated_by': s.activated_by.username if s.activated_by else None
+            } for s in statuses]
+        })
+    except Exception as e:
+        logger.error(f"Error obteniendo estados de pánico: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================
+# REGISTRAR BLUEPRINT DE EMERGENCIAS
+# ============================================
+from webapp.emergency_routes import emergency_bp
+app.register_blueprint(emergency_bp)
+logger.info("✓ Sistema de emergencias registrado")
 
 
 if __name__ == '__main__':
