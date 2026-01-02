@@ -310,3 +310,172 @@ def init_db(app):
                 admin.can_manage_devices = True
         
         db.session.commit()
+
+
+# ============================================
+# SISTEMA DE EMERGENCIAS
+# ============================================
+
+class Zone(db.Model):
+    """Zonas físicas (Casa Club, Gimnasio, etc.)"""
+    __tablename__ = 'zones'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(200))
+    color = db.Column(db.String(7), default='#6c757d')
+    icon = db.Column(db.String(50), default='bi-building')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    groups = db.relationship('Group', backref='zone', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Zone {self.name}>'
+
+
+class Group(db.Model):
+    """Grupos/Departamentos dentro de una zona (IT, Desarrollo, etc.)"""
+    __tablename__ = 'groups'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(200))
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    color = db.Column(db.String(7), default='#007bff')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    members = db.relationship('GroupMember', backref='group', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Group {self.name} in {self.zone.name}>'
+
+
+class GroupMember(db.Model):
+    """Usuarios asignados a grupos"""
+    __tablename__ = 'group_members'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    biostar_user_id = db.Column(db.String(50), nullable=False)
+    user_name = db.Column(db.String(200))
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('group_id', 'biostar_user_id', name='unique_group_member'),
+    )
+    
+    def __repr__(self):
+        return f'<GroupMember {self.user_name} in {self.group.name}>'
+
+
+class EmergencySession(db.Model):
+    """Sesión de emergencia activa"""
+    __tablename__ = 'emergency_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    emergency_type = db.Column(db.String(50), default='general')
+    started_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='active')
+    notes = db.Column(db.Text)
+    unlocked_doors = db.Column(db.Text)
+    
+    zone = db.relationship('Zone', backref='emergencies')
+    started_by_user = db.relationship('User', backref='started_emergencies')
+    roll_call_entries = db.relationship('RollCallEntry', backref='emergency', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<EmergencySession {self.zone.name} - {self.status}>'
+
+
+class RollCallEntry(db.Model):
+    """Entrada de pase de lista"""
+    __tablename__ = 'roll_call_entries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    emergency_id = db.Column(db.Integer, db.ForeignKey('emergency_sessions.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    biostar_user_id = db.Column(db.String(50), nullable=False)
+    user_name = db.Column(db.String(200))
+    status = db.Column(db.String(20), default='pending')
+    marked_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    marked_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    
+    group = db.relationship('Group', backref='roll_call_entries')
+    marked_by_user = db.relationship('User', backref='marked_roll_calls')
+    
+    def __repr__(self):
+        return f'<RollCallEntry {self.user_name} - {self.status}>'
+
+
+class ZoneDevice(db.Model):
+    """Dispositivos/Checadores asignados a zonas para detección automática de presencia"""
+    __tablename__ = 'zone_devices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey('zones.id'), nullable=False)
+    device_id = db.Column(db.Integer, nullable=False)
+    device_name = db.Column(db.String(200))
+    is_active = db.Column(db.Boolean, default=True)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    zone = db.relationship('Zone', backref=db.backref('devices', lazy='dynamic'))
+    
+    __table_args__ = (
+        db.UniqueConstraint('zone_id', 'device_id', name='unique_zone_device'),
+    )
+    
+    def __repr__(self):
+        return f'<ZoneDevice {self.device_name} in zone {self.zone_id}>'
+
+
+# ============================================
+# SISTEMA DE BOTÓN DE PÁNICO
+# ============================================
+
+class PanicModeStatus(db.Model):
+    """Estado actual del modo pánico por dispositivo"""
+    __tablename__ = 'panic_mode_status'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), unique=True, nullable=False)
+    device_name = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    alarm_active = db.Column(db.Boolean, default=False)
+    activated_at = db.Column(db.DateTime)
+    activated_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    deactivated_at = db.Column(db.DateTime)
+    deactivated_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    activated_by = db.relationship('User', foreign_keys=[activated_by_user_id], backref='panic_activations')
+    deactivated_by = db.relationship('User', foreign_keys=[deactivated_by_user_id], backref='panic_deactivations')
+    
+    def __repr__(self):
+        return f'<PanicModeStatus {self.device_name} - {"ACTIVE" if self.is_active else "OFF"}>'
+
+
+class PanicModeLog(db.Model):
+    """Log de acciones del modo pánico"""
+    __tablename__ = 'panic_mode_log'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False)
+    device_name = db.Column(db.String(200), nullable=False)
+    action = db.Column(db.String(20), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    username = db.Column(db.String(80), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    success = db.Column(db.Boolean, default=True, nullable=False)
+    error_message = db.Column(db.Text)
+    alarm_activated = db.Column(db.Boolean, default=False)
+    
+    user = db.relationship('User', backref='panic_logs')
+    
+    def __repr__(self):
+        return f'<PanicModeLog {self.device_name} - {self.action} by {self.username}>'

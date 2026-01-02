@@ -29,12 +29,6 @@ from src.api.device_monitor import EVENT_CODES
 # Timezone de México
 MEXICO_TZ = pytz.timezone('America/Mexico_City')
 
-# Horario permitido para mostrar eventos (5:30 AM - 11:59 PM)
-ALLOWED_START_HOUR = 5
-ALLOWED_START_MINUTE = 30
-ALLOWED_END_HOUR = 23
-ALLOWED_END_MINUTE = 59
-
 
 class RealtimeSSE:
     """Gestor de eventos en tiempo real usando SSE."""
@@ -121,73 +115,6 @@ class RealtimeSSE:
             return event_type.get('code', '')
         return str(event_type) if event_type else ''
     
-    def _filter_events_by_time(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Filtra eventos por horario permitido (5:30 AM - 11:59 PM hora México).
-        IMPORTANTE: Evita mostrar eventos fuera del horario laboral.
-        
-        Args:
-            events: Lista de eventos procesados
-            
-        Returns:
-            Lista de eventos dentro del horario permitido
-        """
-        if not events:
-            return []
-        
-        filtered = []
-        today_local = datetime.now(MEXICO_TZ).date()
-        
-        start_minutes = ALLOWED_START_HOUR * 60 + ALLOWED_START_MINUTE
-        end_minutes = ALLOWED_END_HOUR * 60 + ALLOWED_END_MINUTE
-        
-        for event in events:
-            event_dt = event.get('datetime')
-            if not event_dt:
-                continue
-            
-            try:
-                # Convertir a datetime si es string
-                if isinstance(event_dt, str):
-                    from dateutil import parser
-                    event_dt = parser.parse(event_dt)
-                
-                if not isinstance(event_dt, datetime):
-                    continue
-                
-                # Convertir a hora local de México
-                if event_dt.tzinfo is None:
-                    event_dt = pytz.utc.localize(event_dt)
-                local_dt = event_dt.astimezone(MEXICO_TZ)
-                
-                # Verificar que sea del día actual
-                if local_dt.date() != today_local:
-                    continue
-                
-                # Verificar horario permitido
-                event_minutes = local_dt.hour * 60 + local_dt.minute
-                if start_minutes <= event_minutes <= end_minutes:
-                    filtered.append(event)
-                    
-            except Exception as e:
-                logger.debug(f"Error filtrando evento por tiempo: {e}")
-                continue
-        
-        return filtered
-    
-    def _is_within_allowed_hours(self) -> bool:
-        """
-        Verifica si la hora actual está dentro del horario permitido.
-        
-        Returns:
-            True si estamos en horario permitido (5:30 AM - 11:59 PM)
-        """
-        now = datetime.now(MEXICO_TZ)
-        current_minutes = now.hour * 60 + now.minute
-        start_minutes = ALLOWED_START_HOUR * 60 + ALLOWED_START_MINUTE
-        end_minutes = ALLOWED_END_HOUR * 60 + ALLOWED_END_MINUTE
-        return start_minutes <= current_minutes <= end_minutes
-    
     def get_new_events(self, device_id: int, only_granted: bool = True) -> List[Dict[str, Any]]:
         """
         Obtiene eventos nuevos desde el último poll.
@@ -221,7 +148,8 @@ class RealtimeSSE:
                 logger.debug(f"No hay eventos para dispositivo {device_id}")
                 return []
             
-            # Si es la primera vez, guardar el último evento y retornar eventos recientes FILTRADOS
+            # Si es la primera vez, guardar el último evento y NO retornar eventos
+            # Los eventos iniciales ya están en la página, solo necesitamos el timestamp
             if device_id not in self.last_event_times:
                 # Ordenar por datetime descendente
                 sorted_events = sorted(
@@ -232,17 +160,9 @@ class RealtimeSSE:
                 if sorted_events:
                     # Guardar el timestamp del evento más reciente
                     self.last_event_times[device_id] = sorted_events[0].get('datetime')
-                    logger.info(f"Primera carga para dispositivo {device_id}: {len(sorted_events)} eventos totales")
-                    
-                    # CRÍTICO: Aplicar filtro de horario antes de enviar
-                    # Esto evita enviar eventos de horario bloqueado (00:00-05:29)
-                    filtered_events = self._filter_events_by_time(sorted_events[:10])
-                    if filtered_events:
-                        logger.info(f"Dispositivo {device_id}: {len(filtered_events)} eventos después de filtro horario")
-                        return filtered_events[:5]  # Máximo 5 eventos iniciales
-                    else:
-                        logger.info(f"Dispositivo {device_id}: Sin eventos en horario permitido")
-                        return []
+                    logger.info(f"Primera carga para dispositivo {device_id}: {len(sorted_events)} eventos totales - timestamp guardado, no se envían eventos")
+                    # NO retornar eventos en la primera carga - ya están en la página
+                    return []
                 return []
             
             # Filtrar solo eventos más recientes que el último visto
@@ -273,16 +193,10 @@ class RealtimeSSE:
                 )
                 self.last_event_times[device_id] = sorted_new[0].get('datetime')
                 logger.info(f"Dispositivo {device_id}: {len(new_events)} eventos nuevos detectados")
-                
-                # CRÍTICO: Aplicar filtro de horario a eventos nuevos
-                filtered_new = self._filter_events_by_time(new_events)
-                if len(filtered_new) != len(new_events):
-                    logger.info(f"Dispositivo {device_id}: {len(new_events) - len(filtered_new)} eventos filtrados por horario")
-                return filtered_new
             else:
                 logger.debug(f"Dispositivo {device_id}: Sin eventos nuevos desde {last_time}")
             
-            return []
+            return new_events
             
         except Exception as e:
             logger.error(f"Error obteniendo eventos nuevos para dispositivo {device_id}: {e}", exc_info=True)
@@ -528,15 +442,9 @@ class RealtimeSSE:
             'timestamp': datetime.now(MEXICO_TZ).isoformat()
         }, event='connection')
         
-        # Contador para heartbeat confiable (cada ~15 segundos con interval=3)
-        poll_count = 0
-        heartbeat_every = max(5, 15 // interval)  # Heartbeat cada ~15 segundos
-        
         try:
             while True:
                 try:
-                    poll_count += 1
-                    
                     # Obtener todos los dispositivos
                     devices = self.monitor.get_all_devices()
                     
@@ -546,7 +454,7 @@ class RealtimeSSE:
                         if not device_id:
                             continue
                         
-                        # Obtener eventos nuevos (ya filtrados por horario)
+                        # Obtener eventos nuevos
                         new_events = self.get_new_events(device_id)
                         
                         # Enviar eventos nuevos
@@ -557,12 +465,11 @@ class RealtimeSSE:
                                 formatted_event['device_alias'] = device.get('alias')
                                 yield self.format_sse_message(formatted_event, event='new_event')
                     
-                    # Heartbeat confiable basado en contador (no en time() % N)
-                    if poll_count % heartbeat_every == 0:
+                    # Heartbeat
+                    if int(time.time()) % 30 == 0:
                         yield self.format_sse_message({
                             'type': 'heartbeat',
-                            'timestamp': datetime.now(MEXICO_TZ).isoformat(),
-                            'poll_count': poll_count
+                            'timestamp': datetime.now(MEXICO_TZ).isoformat()
                         }, event='heartbeat')
                     
                     time.sleep(interval)

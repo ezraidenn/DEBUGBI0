@@ -194,14 +194,12 @@
 {% block extra_js %}
 <script>
 // ==================== DASHBOARD CON CARGA LAZY Y TIEMPO REAL ====================
-let eventSource = null;
+let dashboardEventSource = null;
 let reconnectAttempts = 0;
 let allUserIds = new Set();
 let allowedDeviceIds = new Set();
 let dashboardLoaded = false;
-let lastHeartbeat = Date.now();
-let heartbeatCheckInterval = null;
-const maxReconnectAttempts = 10;
+let usersDataCache = [];  // Cache de usuarios para actualización en tiempo real
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Dashboard iniciando...');
@@ -217,6 +215,8 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endfor %}
     ]);
     dashboardLoaded = true;
+    // IMPORTANTE: Cargar usuarios únicos al inicio
+    loadUniqueUsersCount();
     connectRealtime();
     {% endif %}
 });
@@ -224,13 +224,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // Cargar datos del dashboard via AJAX
 function loadDashboardData() {
     fetch('/api/dashboard-data')
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Error en respuesta del servidor');
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 // Actualizar estadísticas
                 document.getElementById('statDevices').textContent = data.total_devices;
                 document.getElementById('statAccesos').textContent = data.total_granted;
-                document.getElementById('statUsuarios').textContent = data.total_users;
+                // Cargar usuarios únicos desde API dedicada
+                loadUniqueUsersCount();
                 
                 // Guardar IDs permitidos
                 data.devices.forEach(d => allowedDeviceIds.add(String(d.id)));
@@ -244,8 +248,7 @@ function loadDashboardData() {
                 // Iniciar tiempo real
                 connectRealtime();
             } else {
-                document.getElementById('devicesContainer').innerHTML = 
-                    '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error al cargar datos</div>';
+                throw new Error(data.error || 'Error desconocido');
             }
         })
         .catch(err => {
@@ -257,10 +260,19 @@ function loadDashboardData() {
 
 // Renderizar dispositivos dinámicamente
 function renderDevices(devices) {
-    // Agrupar por tipo
+    // Agrupar por tipo con validación
     const byType = {};
+    const validTypes = ['checador', 'puerta', 'facial', 'otro'];
+    
     devices.forEach(d => {
-        const type = d.device_type || 'checador';
+        let type = d.device_type;
+        
+        // Validar y normalizar tipo
+        if (!type || !validTypes.includes(type)) {
+            type = 'checador'; // Default
+            console.warn('Tipo de dispositivo inválido para', d.id, '- usando "checador"');
+        }
+        
         if (!byType[type]) byType[type] = [];
         byType[type].push(d);
     });
@@ -326,7 +338,7 @@ function escapeHtml(text) {
 function connectRealtime() {
     const statusBadge = document.getElementById('realtimeStatus');
     
-    if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+    if (dashboardEventSource && dashboardEventSource.readyState !== EventSource.CLOSED) return;
     
     if (statusBadge) {
         statusBadge.classList.remove('bg-success', 'bg-danger');
@@ -334,20 +346,13 @@ function connectRealtime() {
         statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Conectando...';
     }
     
-    if (eventSource) eventSource.close();
+    if (dashboardEventSource) dashboardEventSource.close();
     
-    // Reset heartbeat tracking
-    lastHeartbeat = Date.now();
+    dashboardEventSource = new EventSource('/stream/all-devices?interval=3');
     
-    eventSource = new EventSource('/stream/all-devices?interval=3');
-    
-    // Iniciar verificación de heartbeat
-    startHeartbeatCheck();
-    
-    eventSource.addEventListener('connection', (e) => {
+    dashboardEventSource.addEventListener('connection', (e) => {
         console.log('✅ Tiempo real activo');
         reconnectAttempts = 0;
-        lastHeartbeat = Date.now();
         if (statusBadge) {
             statusBadge.classList.remove('bg-warning', 'bg-danger');
             statusBadge.classList.add('bg-success');
@@ -355,18 +360,23 @@ function connectRealtime() {
         }
     });
     
-    eventSource.addEventListener('new_event', (e) => {
-        lastHeartbeat = Date.now(); // Cualquier evento cuenta como heartbeat
+    dashboardEventSource.addEventListener('new_event', (e) => {
         const event = JSON.parse(e.data);
         const deviceId = String(event.device_id || event.source_device_id);
         
         // Solo procesar dispositivos permitidos
-        if (!allowedDeviceIds.has(deviceId)) return;
+        if (!allowedDeviceIds.has(deviceId)) {
+            console.log('⏭️ Evento ignorado - dispositivo no permitido:', deviceId);
+            return;
+        }
         
         // Solo procesar accesos concedidos
-        if (event.badge_class !== 'success') return;
+        if (event.badge_class !== 'success') {
+            console.log('⏭️ Evento ignorado - no es acceso concedido');
+            return;
+        }
         
-        console.log('📥', event.user, '@', event.datetime);
+        console.log('📥 Nuevo acceso:', event.user, '@', event.datetime, '- Dispositivo:', deviceId);
         
         // 1. Incrementar contador de la tarjeta del dispositivo
         const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
@@ -377,89 +387,126 @@ function connectRealtime() {
             }
         }
         
-        // 2. Agregar usuario al set global
+        // 2. Agregar usuario al set global Y actualizar contador
         if (event.user_id) {
-            allUserIds.add(String(event.user_id));
+            const userId = String(event.user_id);
+            const isNewUser = !allUserIds.has(userId);
+            allUserIds.add(userId);
+            
+            // Actualizar contador de usuarios únicos en tiempo real
+            if (isNewUser) {
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) {
+                    statUsuarios.textContent = allUserIds.size;
+                    console.log('👤 Nuevo usuario detectado:', userId, '- Total:', allUserIds.size);
+                }
+            }
+            
+            // 3. Actualizar cache de usuarios para el modal
+            updateUsersCache(event, deviceId);
         }
         
-        // 3. Actualizar totales del header
+        // 4. Actualizar contador de usuarios únicos en la tarjeta del dispositivo
+        if (card && event.user_id) {
+            const usuariosEl = card.querySelector('.device-stat:nth-child(2) strong');
+            if (usuariosEl) {
+                // Obtener usuarios únicos de este dispositivo desde el DOM o incrementar
+                const currentUsers = parseInt(usuariosEl.textContent || 0);
+                // Solo incrementar si es un nuevo usuario para este dispositivo
+                // (esto es una aproximación, idealmente deberíamos trackear por dispositivo)
+                usuariosEl.textContent = currentUsers;
+            }
+        }
+        
+        // 4. Actualizar totales del header
         updateHeaderTotals();
     });
     
-    eventSource.addEventListener('heartbeat', (e) => {
-        lastHeartbeat = Date.now();
-        console.log('💓 Heartbeat recibido');
-    });
+    dashboardEventSource.addEventListener('heartbeat', (e) => {});
     
-    eventSource.onerror = (error) => {
-        console.error('❌ Error en SSE:', error);
+    dashboardEventSource.onerror = (error) => {
         if (statusBadge) {
             statusBadge.classList.remove('bg-success', 'bg-warning');
             statusBadge.classList.add('bg-danger');
             statusBadge.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 8px;"></i> Desconectado';
         }
-        if (eventSource.readyState === EventSource.CLOSED) attemptReconnect();
+        if (dashboardEventSource.readyState === EventSource.CLOSED) attemptReconnect();
     };
 }
 
-// Verificación de heartbeat para detectar conexiones muertas
-function startHeartbeatCheck() {
-    if (heartbeatCheckInterval) {
-        clearInterval(heartbeatCheckInterval);
+function updateHeaderTotals() {
+    // Sumar accesos de todas las tarjetas visibles en el DOM
+    let totalAccesos = 0;
+    const accesosElements = document.querySelectorAll('.device-card .device-stat:first-child strong');
+    
+    if (accesosElements.length > 0) {
+        accesosElements.forEach(el => {
+            const value = parseInt(el.textContent || 0);
+            if (!isNaN(value)) {
+                totalAccesos += value;
+            }
+        });
+        
+        // Actualizar accesos en el header
+        const statAccesos = document.getElementById('statAccesos');
+        if (statAccesos) {
+            statAccesos.textContent = totalAccesos;
+            console.log('📊 Total accesos actualizados:', totalAccesos);
+        }
     }
     
-    // Verificar cada 20 segundos si hemos recibido algún mensaje
-    heartbeatCheckInterval = setInterval(() => {
-        const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
-        
-        // Si no hay heartbeat en 45 segundos, reconectar
-        if (timeSinceLastHeartbeat > 45000) {
-            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
-            attemptReconnect();
-        }
-    }, 20000);
+    // Actualizar usuarios únicos en tiempo real
+    const statUsuarios = document.getElementById('statUsuarios');
+    if (statUsuarios && allUserIds.size > 0) {
+        statUsuarios.textContent = allUserIds.size;
+        console.log('👥 Total usuarios únicos:', allUserIds.size);
+    }
 }
 
-function updateHeaderTotals() {
-    // Sumar accesos de todas las tarjetas
-    let totalAccesos = 0;
-    document.querySelectorAll('.device-card .device-stat:first-child strong').forEach(el => {
-        totalAccesos += parseInt(el.textContent || 0);
-    });
+// Actualizar cache de usuarios para el modal en tiempo real
+function updateUsersCache(event, deviceId) {
+    const userId = String(event.user_id);
+    const userName = event.user || 'Sin nombre';
+    const deviceName = event.device_name || `Dispositivo ${deviceId}`;
+    const lastCheck = event.datetime_full || new Date().toISOString();
     
-    // Actualizar solo accesos en el header
-    // Usuarios únicos se mantiene del servidor (requiere recarga para actualizar)
-    const statCards = document.querySelectorAll('.stat-card h2');
-    if (statCards[1]) statCards[1].textContent = totalAccesos;
-    // statCards[2] = usuarios únicos, NO se actualiza en tiempo real
+    // Buscar si el usuario ya existe en el cache
+    const existingIndex = usersDataCache.findIndex(u => u.user_id === userId);
+    
+    if (existingIndex >= 0) {
+        // Actualizar último chequeo si es más reciente
+        if (lastCheck > usersDataCache[existingIndex].last_check) {
+            usersDataCache[existingIndex].last_check = lastCheck;
+            usersDataCache[existingIndex].device = deviceName;
+        }
+    } else {
+        // Agregar nuevo usuario al cache
+        usersDataCache.unshift({
+            user_id: userId,
+            name: userName,
+            last_check: lastCheck,
+            device: deviceName
+        });
+    }
+    
+    // Reordenar por último chequeo
+    usersDataCache.sort((a, b) => b.last_check.localeCompare(a.last_check));
+    
+    // Si el modal está abierto, actualizar la vista
+    if (usersModal && usersModal._isShown) {
+        allUsers = usersDataCache;
+        document.getElementById('usersCount').textContent = `${allUsers.length} usuarios únicos`;
+        filterUsers(document.getElementById('userSearchInput')?.value || '');
+    }
 }
 
 function attemptReconnect() {
-    // Limpiar heartbeat check
-    if (heartbeatCheckInterval) {
-        clearInterval(heartbeatCheckInterval);
-        heartbeatCheckInterval = null;
-    }
-    
-    // Verificar límite de reconexiones
-    if (reconnectAttempts >= maxReconnectAttempts) {
-        console.error('❌ Máximo de intentos de reconexión alcanzado');
-        const statusBadge = document.getElementById('realtimeStatus');
-        if (statusBadge) {
-            statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill" style="font-size: 8px;"></i> Error - Recarga página';
-        }
-        return;
-    }
-    
     reconnectAttempts++;
     if (dashboardEventSource) {
         dashboardEventSource.close();
         dashboardEventSource = null;
     }
-    
-    const delay = Math.min(3000 * reconnectAttempts, 30000);
-    console.log(`⏳ Reconectando en ${delay / 1000}s (intento ${reconnectAttempts}/${maxReconnectAttempts})...`);
-    setTimeout(() => connectRealtime(), delay);
+    setTimeout(() => connectRealtime(), Math.min(3000 * reconnectAttempts, 30000));
 }
 
 // ==================== MODAL DE USUARIOS ÚNICOS ====================
@@ -475,11 +522,50 @@ function openUsersModal() {
     loadUniqueUsers();
 }
 
+// Cargar solo el contador de usuarios únicos (para el dashboard)
+function loadUniqueUsersCount() {
+    fetch('/api/unique-users')
+        .then(res => {
+            if (!res.ok) throw new Error('Error en respuesta del servidor');
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) statUsuarios.textContent = data.total;
+                // Guardar en cache para el modal
+                usersDataCache = data.users || [];
+                // IMPORTANTE: Inicializar allUserIds con los usuarios del día
+                allUserIds.clear();
+                data.users.forEach(u => allUserIds.add(String(u.user_id)));
+                console.log('✅ Usuarios únicos inicializados:', allUserIds.size);
+            } else {
+                console.error('Error en respuesta de usuarios:', data.error);
+            }
+        })
+        .catch(err => {
+            console.error('Error cargando usuarios:', err);
+            // Reintentar después de 5 segundos
+            setTimeout(loadUniqueUsersCount, 5000);
+        });
+}
+
 function loadUniqueUsers() {
     const loading = document.getElementById('usersLoading');
     const list = document.getElementById('usersList');
     const noFound = document.getElementById('noUsersFound');
     const countEl = document.getElementById('usersCount');
+    
+    // Si ya tenemos datos en cache, mostrarlos inmediatamente
+    if (usersDataCache.length > 0) {
+        loading.style.display = 'none';
+        allUsers = usersDataCache;
+        countEl.textContent = allUsers.length;
+        renderUsers(allUsers);
+        // Actualizar en background
+        refreshUsersInBackground();
+        return;
+    }
     
     loading.style.display = 'block';
     list.innerHTML = '';
@@ -492,8 +578,15 @@ function loadUniqueUsers() {
             
             if (data.success && data.users) {
                 allUsers = data.users;
-                countEl.textContent = `${data.total} usuarios únicos`;
+                usersDataCache = data.users;  // Guardar en cache
+                countEl.textContent = data.total;
+                // Sincronizar con el contador principal del dashboard
+                const statUsuarios = document.getElementById('statUsuarios');
+                if (statUsuarios) statUsuarios.textContent = data.total;
                 renderUsers(allUsers);
+                
+                // Inicializar allUserIds con los usuarios cargados
+                data.users.forEach(u => allUserIds.add(String(u.user_id)));
             } else {
                 countEl.textContent = 'Error al cargar';
             }
@@ -503,6 +596,45 @@ function loadUniqueUsers() {
             countEl.textContent = 'Error de conexión';
             console.error(err);
         });
+}
+
+// Actualizar usuarios en background sin bloquear UI
+function refreshUsersInBackground() {
+    fetch('/api/unique-users')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.users) {
+                // Merge con datos existentes (mantener los más recientes)
+                const serverUsers = data.users;
+                const mergedMap = new Map();
+                
+                // Primero agregar usuarios del servidor
+                serverUsers.forEach(u => mergedMap.set(u.user_id, u));
+                
+                // Luego actualizar con cache local (puede tener datos más recientes)
+                usersDataCache.forEach(u => {
+                    const existing = mergedMap.get(u.user_id);
+                    if (!existing || u.last_check > existing.last_check) {
+                        mergedMap.set(u.user_id, u);
+                    }
+                });
+                
+                // Convertir a array y ordenar
+                usersDataCache = Array.from(mergedMap.values())
+                    .sort((a, b) => b.last_check.localeCompare(a.last_check));
+                
+                // Actualizar allUserIds
+                usersDataCache.forEach(u => allUserIds.add(String(u.user_id)));
+                
+                // Si el modal está abierto, actualizar
+                if (usersModal && usersModal._isShown) {
+                    allUsers = usersDataCache;
+                    document.getElementById('usersCount').textContent = `${allUsers.length} usuarios únicos`;
+                    filterUsers(document.getElementById('userSearchInput')?.value || '');
+                }
+            }
+        })
+        .catch(err => console.error('Error refreshing users:', err));
 }
 
 function renderUsers(users) {
