@@ -123,83 +123,58 @@
     </div>
 </div>
 
-<!-- Modal: Editar Dispositivo - Pantalla Completa con Footer Fijo -->
+<!-- Modal: Editar Dispositivo -->
 <div class="modal fade" id="deviceModal" tabindex="-1" aria-labelledby="deviceModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content border-0 shadow-lg d-flex flex-column" style="height: 100%;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
+        <div class="modal-content border-0 shadow-lg">
             <!-- Header -->
-            <div class="modal-header border-0 py-3 flex-shrink-0" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);">
-                <div class="d-flex align-items-center">
-                    <div class="rounded-circle d-flex align-items-center justify-content-center me-2" 
-                         style="width: 36px; height: 36px; background: rgba(255,255,255,0.15);">
-                        <i class="bi bi-gear-fill text-white" style="font-size: 1rem;"></i>
-                    </div>
-                    <div>
-                        <h6 class="modal-title text-white mb-0 fw-bold" id="deviceModalLabel">Configurar Dispositivo</h6>
-                        <small class="text-white-50" style="font-size: 0.65rem;">Personalizar nombre y tipo</small>
-                    </div>
-                </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header">
+                <h5 class="modal-title" id="deviceModalLabel"><i class="bi bi-gear me-2"></i>Configurar Dispositivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             
-            <form id="deviceForm" onsubmit="saveDevice(event)" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+            <form id="deviceForm" onsubmit="saveDevice(event)">
                 <input type="hidden" id="deviceId" name="device_id">
                 
-                <!-- Body con scroll - ocupa todo el espacio disponible -->
-                <div class="flex-grow-1 overflow-auto" style="background: #F8F6F4;">
+                <div class="modal-body">
                     <!-- Info del dispositivo -->
-                    <div class="p-3" style="background: white; border-bottom: 1px solid rgba(62,39,35,0.08);">
-                        <div class="row g-2">
-                            <div class="col-5">
-                                <label class="form-label mb-1 small fw-semibold" style="color: #6c757d;">ID BioStar</label>
-                                <div class="p-2 rounded" style="background: #E8E0DB; font-size: 0.9rem;" id="deviceBiostarId"></div>
-                            </div>
-                            <div class="col-7">
-                                <label class="form-label mb-1 small fw-semibold" style="color: #6c757d;">Nombre Original</label>
-                                <div class="p-2 rounded" style="background: #E8E0DB; font-size: 0.9rem;" id="deviceOriginalName"></div>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">ID BioStar</label>
+                        <div class="p-2 rounded bg-light" id="deviceBiostarId"></div>
                     </div>
                     
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Nombre Original</label>
+                        <div class="p-2 rounded bg-light" id="deviceOriginalName"></div>
+                    </div>
+                    
+                    <hr>
+                    
                     <!-- Campos editables -->
-                    <div class="p-3">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" style="color: #3E2723;">Alias (nombre personalizado)</label>
-                            <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal"
-                                   style="border: 1px solid #E8E0DB; border-radius: 8px;">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" style="color: #3E2723;">Ubicación</label>
-                            <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A"
-                                   style="border: 1px solid #E8E0DB; border-radius: 8px;">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" style="color: #3E2723;">Tipo de Dispositivo</label>
-                            <select class="form-select" id="deviceType" name="device_type"
-                                    style="border: 1px solid #E8E0DB; border-radius: 8px;">
-                                <option value="checador">Checador (huella/facial)</option>
-                                <option value="puerta">Puerta (solo salida)</option>
-                                <option value="facial">Facial dedicado</option>
-                                <option value="otro">Otro</option>
-                            </select>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Alias (nombre personalizado)</label>
+                        <input type="text" class="form-control" id="deviceAlias" name="alias" placeholder="Ej: Entrada Principal">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Ubicación</label>
+                        <input type="text" class="form-control" id="deviceLocation" name="location" placeholder="Ej: Lobby Edificio A">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Dispositivo</label>
+                        <select class="form-select" id="deviceType" name="device_type">
+                            <option value="checador">Checador (huella/facial)</option>
+                            <option value="puerta">Puerta (solo salida)</option>
+                            <option value="facial">Facial dedicado</option>
+                            <option value="otro">Otro</option>
+                        </select>
                     </div>
                 </div>
                 
-                <!-- Footer FIJO abajo -->
-                <div class="flex-shrink-0 p-3" style="background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
-                    <div class="d-flex gap-2 w-100">
-                        <button type="button" class="btn flex-fill py-2" data-bs-dismiss="modal"
-                                style="background: transparent; border: 2px solid #3E2723; color: #3E2723; border-radius: 10px; font-weight: 600;">
-                            Cancelar
-                        </button>
-                        <button type="submit" class="btn flex-fill py-2"
-                                style="background: #3E2723; color: white; border-radius: 10px; font-weight: 600;">
-                            <i class="bi bi-check-lg me-1"></i> Guardar
-                        </button>
-                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
                 </div>
             </form>
         </div>
@@ -207,6 +182,23 @@
 </div>
 
 <style>
+/* Centrado total de modales (vertical + horizontal) */
+.modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 1rem);
+    margin: 0.5rem auto;
+}
+
+.modal.fade .modal-dialog-centered {
+    transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog-centered {
+    transform: none;
+}
+
 /* Mobile Cards para config - Premium */
 .device-config-list {
     display: flex;

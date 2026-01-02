@@ -89,7 +89,7 @@
 
 <!-- Modal: Nueva Zona -->
 <div class="modal fade" id="createZoneModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Nueva Zona</h5>
@@ -121,7 +121,7 @@
 
 <!-- Modal: Nuevo Grupo -->
 <div class="modal fade" id="createGroupModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Nuevo Grupo</h5>
@@ -229,7 +229,7 @@
 
 <!-- Modal: Editar Zona -->
 <div class="modal fade" id="editZoneModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Editar Zona</h5>
@@ -964,6 +964,23 @@ async function deleteZone() {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     transition: all 0.2s;
+}
+
+/* Centrado total de modales (vertical + horizontal) */
+.modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 1rem);
+    margin: 0.5rem auto;
+}
+
+.modal.fade .modal-dialog-centered {
+    transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog-centered {
+    transform: none;
 }
 
 /* Estilos para modales */
