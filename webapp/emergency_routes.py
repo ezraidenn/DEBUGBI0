@@ -4,7 +4,7 @@ Rutas API para el sistema de emergencias con soporte de tiempo real.
 from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context
 from flask_login import login_required, current_user
 from webapp.models import db, Zone, Group, GroupMember, EmergencySession, RollCallEntry, ZoneDevice
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import json
 import time
@@ -452,18 +452,80 @@ def activate_emergency():
         db.session.add(emergency)
         db.session.flush()  # Para obtener el ID
         
-        # Crear entradas de pase de lista para todos los miembros de todos los grupos de la zona
+        # Crear entradas de pase de lista SOLO para miembros que hicieron check-in HOY
+        # Usar la MISMA lógica que el dashboard "Usuarios del Día"
         zone = Zone.query.get(zone_id)
+        
+        # Obtener usuarios únicos del día usando la misma lógica del dashboard
+        from webapp.app import get_monitor
+        from src.api.device_monitor import EVENT_CODES
+        
+        monitor = get_monitor()
+        users_checked_in_today = set()
+        
+        if monitor:
+            try:
+                # Obtener todos los dispositivos
+                all_devices = monitor.get_all_devices(refresh=False)
+                
+                logger.info(f"🔍 Obteniendo usuarios del día desde {len(all_devices)} dispositivos...")
+                
+                # Recolectar usuarios únicos con accesos concedidos HOY
+                for device in all_devices:
+                    try:
+                        events = monitor.get_device_events_today(device['id'])
+                        events = monitor._filter_events_by_time(events)
+                        
+                        for event in events:
+                            # Solo accesos concedidos
+                            event_code = event.get('event_type_id', {}).get('code', '')
+                            if event_code not in EVENT_CODES['ACCESS_GRANTED']:
+                                continue
+                            
+                            # Extraer user_id (misma lógica que dashboard)
+                            user_data = event.get('user_id', {})
+                            if isinstance(user_data, dict):
+                                user_id = user_data.get('user_id') or user_data.get('id')
+                            else:
+                                user_id = user_data
+                            
+                            if not user_id or str(user_id) in ['', 'None', 'nan']:
+                                continue
+                            
+                            users_checked_in_today.add(str(user_id))
+                    except Exception as e:
+                        logger.error(f"Error obteniendo eventos del dispositivo {device['id']}: {e}")
+                        continue
+                
+                logger.info(f"✅ {len(users_checked_in_today)} usuarios únicos con check-in hoy")
+            except Exception as e:
+                logger.error(f"❌ Error obteniendo usuarios del día: {e}")
+        else:
+            logger.error(f"❌ Monitor no disponible")
+        
+        # Crear entradas del pase de lista SOLO para usuarios con check-in hoy
+        entries_created = 0
+        entries_skipped = 0
+        
         for group in zone.groups.filter_by(is_active=True):
             for member in group.members:
-                entry = RollCallEntry(
-                    emergency_id=emergency.id,
-                    group_id=group.id,
-                    biostar_user_id=member.biostar_user_id,
-                    user_name=member.user_name,
-                    status='pending'
-                )
-                db.session.add(entry)
+                user_id_str = str(member.biostar_user_id)
+                
+                # SOLO incluir si el usuario hizo check-in hoy
+                if user_id_str in users_checked_in_today:
+                    entry = RollCallEntry(
+                        emergency_id=emergency.id,
+                        group_id=group.id,
+                        biostar_user_id=member.biostar_user_id,
+                        user_name=member.user_name,
+                        status='pending'
+                    )
+                    db.session.add(entry)
+                    entries_created += 1
+                else:
+                    entries_skipped += 1
+        
+        logger.info(f"📋 Pase de lista creado: {entries_created} personas con check-in hoy, {entries_skipped} omitidas (sin check-in)")
         
         db.session.commit()
         
@@ -688,6 +750,63 @@ def mark_attendance(entry_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@emergency_bp.route('/api/emergency/<int:emergency_id>/manual-entry', methods=['POST'])
+@login_required
+def add_manual_entry(emergency_id):
+    """Agregar entrada manual al pase de lista"""
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        area = data.get('area', 'Manual').strip()
+        
+        if not name:
+            return jsonify({'success': False, 'message': 'El nombre es requerido'}), 400
+        
+        # Verificar que la emergencia existe y está activa
+        emergency = EmergencySession.query.get_or_404(emergency_id)
+        if emergency.status != 'active':
+            return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
+        
+        # Buscar o crear grupo "Manual" o usar el área especificada
+        group = Group.query.filter_by(zone_id=emergency.zone_id, name=area).first()
+        if not group:
+            # Crear grupo temporal para entradas manuales
+            group = Group(
+                zone_id=emergency.zone_id,
+                name=area,
+                description=f'Grupo temporal para entradas manuales',
+                color='#6c757d'
+            )
+            db.session.add(group)
+            db.session.flush()
+        
+        # Crear entrada en el pase de lista
+        entry = RollCallEntry(
+            emergency_id=emergency_id,
+            group_id=group.id,
+            biostar_user_id='MANUAL',
+            user_name=name,
+            status='present',  # Marcar como presente automáticamente
+            marked_at=datetime.utcnow(),
+            marked_by=current_user.id,
+            notes='Entrada manual'
+        )
+        db.session.add(entry)
+        db.session.commit()
+        
+        logger.info(f"✅ Entrada manual agregada: {name} en {area}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{name} agregado al pase de lista',
+            'entry_id': entry.id
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error agregando entrada manual: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ============================================
 # SSE - TIEMPO REAL PARA EMERGENCIAS
 # ============================================
@@ -700,23 +819,32 @@ def stream_emergency(emergency_id):
     Detecta cambios en el pase de lista y eventos de BioStar.
     """
     def generate():
-        last_check = datetime.utcnow()
+        # Inicializar con margen de seguridad de 2 segundos atrás para no perder cambios iniciales
+        last_check = datetime.utcnow() - timedelta(seconds=2)
         poll_count = 0
         
         # Enviar mensaje de conexión
         yield f"event: connection\ndata: {json.dumps({'type': 'connected', 'emergency_id': emergency_id})}\n\n"
+        logger.info(f"🔌 SSE conectado para emergencia {emergency_id}")
         
         while True:
             try:
                 poll_count += 1
                 
+                # CRÍTICO: Capturar timestamp ANTES de hacer queries para evitar race conditions
+                current_check = datetime.utcnow()
+                
+                # IMPORTANTE: Refrescar sesión para detectar cambios de otros usuarios
+                db.session.expire_all()
+                
                 # Verificar si la emergencia sigue activa
                 emergency = EmergencySession.query.get(emergency_id)
                 if not emergency or emergency.status != 'active':
+                    logger.info(f"✅ Emergencia {emergency_id} resuelta, cerrando SSE")
                     yield f"event: emergency_resolved\ndata: {json.dumps({'message': 'Emergencia resuelta'})}\n\n"
                     break
                 
-                # Obtener estado actual del pase de lista
+                # Obtener estado actual del pase de lista con sesión fresca
                 entries = RollCallEntry.query.filter_by(emergency_id=emergency_id).all()
                 
                 stats = {
@@ -726,19 +854,25 @@ def stream_emergency(emergency_id):
                     'pending': sum(1 for e in entries if e.status == 'pending')
                 }
                 
-                # Buscar cambios recientes (marcados después de last_check)
+                # Buscar cambios recientes con margen de seguridad de 1 segundo
+                # Esto previene race conditions donde el commit y el polling ocurren casi simultáneamente
+                safety_margin = timedelta(seconds=1)
+                check_threshold = last_check - safety_margin
+                
                 recent_changes = []
                 for entry in entries:
-                    if entry.marked_at and entry.marked_at > last_check:
-                        recent_changes.append({
-                            'id': entry.id,
-                            'user_name': entry.user_name,
-                            'biostar_user_id': entry.biostar_user_id,
-                            'status': entry.status,
-                            'marked_at': entry.marked_at.isoformat(),
-                            'marked_by': entry.marked_by_user.username if entry.marked_by else 'Sistema',
-                            'group_id': entry.group_id
-                        })
+                    if entry.marked_at and entry.marked_at > check_threshold:
+                        # Evitar duplicados: solo incluir si no fue enviado en el último ciclo
+                        if entry.marked_at > last_check or poll_count == 1:
+                            recent_changes.append({
+                                'id': entry.id,
+                                'user_name': entry.user_name,
+                                'biostar_user_id': entry.biostar_user_id,
+                                'status': entry.status,
+                                'marked_at': entry.marked_at.isoformat(),
+                                'marked_by': entry.marked_by_user.username if entry.marked_by else 'Sistema',
+                                'group_id': entry.group_id
+                            })
                 
                 # Auto-detectar presencia basada en eventos de BioStar
                 auto_marked = auto_mark_presence_from_biostar(emergency_id, entries)
@@ -748,13 +882,18 @@ def stream_emergency(emergency_id):
                     'stats': stats,
                     'recent_changes': recent_changes,
                     'auto_marked': auto_marked,
-                    'timestamp': datetime.utcnow().isoformat()
+                    'timestamp': current_check.isoformat()
                 }
+                
+                # Log solo si hay cambios
+                if recent_changes or auto_marked:
+                    logger.info(f"📤 SSE enviando actualización: {len(recent_changes)} cambios, {len(auto_marked)} auto-marcados")
                 
                 yield f"event: update\ndata: {json.dumps(update_data)}\n\n"
                 
-                # Actualizar timestamp
-                last_check = datetime.utcnow()
+                # CRÍTICO: Actualizar last_check con el timestamp capturado ANTES de las queries
+                # Esto asegura que no perdemos cambios que ocurrieron durante el procesamiento
+                last_check = current_check
                 
                 # Heartbeat cada 8 polls (16 segundos)
                 if poll_count % 8 == 0:

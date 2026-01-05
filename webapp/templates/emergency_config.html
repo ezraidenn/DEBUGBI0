@@ -172,7 +172,7 @@
                             <i class="bi bi-search"></i> Buscar
                         </button>
                     </div>
-                    <small class="text-muted">Busca entre los usuarios que han registrado acceso hoy</small>
+                    <small class="text-muted">Busca en la base global de usuarios de BioStar</small>
                 </div>
                 
                 <!-- Resultados de búsqueda -->
@@ -549,13 +549,21 @@ function cargarUsuariosParaBusqueda() {
         return;
     }
     
+    console.log('Cargando usuarios de BioStar...');
     fetch('/emergency/api/users/all')
-        .then(function(res) { return res.json(); })
+        .then(function(res) { 
+            console.log('Response status:', res.status);
+            return res.json(); 
+        })
         .then(function(data) {
+            console.log('Data recibida:', data);
             if (data.success && data.users) {
                 todosLosUsuarios = data.users;
                 usuariosCargados = true;
-                console.log('Usuarios BioStar cargados:', todosLosUsuarios.length);
+                console.log('✓ Usuarios BioStar cargados:', todosLosUsuarios.length);
+                console.log('Primeros 3 usuarios:', todosLosUsuarios.slice(0, 3));
+            } else {
+                console.error('Error en respuesta:', data);
             }
         })
         .catch(function(err) {
@@ -569,6 +577,9 @@ function buscarUsuarios() {
     var container = document.getElementById('searchResults');
     var list = document.getElementById('searchResultsList');
     
+    console.log('Buscando:', query);
+    console.log('Cache de usuarios:', todosLosUsuarios.length);
+    
     if (!query || query.length < 2) {
         alert('Escribe al menos 2 caracteres');
         return;
@@ -580,18 +591,22 @@ function buscarUsuarios() {
     
     // Si tenemos usuarios en cache, filtrar localmente
     if (todosLosUsuarios.length > 0) {
+        console.log('Filtrando localmente...');
         filtrarUsuarios(query);
         return;
     }
     
     // Si no hay cache, mostrar mensaje de espera
+    console.log('No hay cache, esperando carga...');
     list.innerHTML = '<div class="list-group-item text-muted text-center"><div class="spinner-border spinner-border-sm me-2"></div>Cargando usuarios de BioStar...</div>';
     
     // Esperar a que se cargue el cache
     setTimeout(function() {
         if (todosLosUsuarios.length > 0) {
+            console.log('Cache cargado, filtrando...');
             filtrarUsuarios(query);
         } else {
+            console.error('Cache no se cargó después de 2 segundos');
             list.innerHTML = '<div class="list-group-item text-warning text-center">No se pudo cargar la lista de usuarios. Intenta de nuevo.</div>';
         }
     }, 2000);
@@ -600,18 +615,27 @@ function buscarUsuarios() {
 function filtrarUsuarios(query) {
     var list = document.getElementById('searchResultsList');
     
+    console.log('Filtrando con query:', query);
+    console.log('Total usuarios en cache:', todosLosUsuarios.length);
+    
     var resultados = todosLosUsuarios.filter(function(user) {
         var nombre = (user.name || '').toLowerCase();
         var id = String(user.user_id || '').toLowerCase();
-        return nombre.indexOf(query) !== -1 || id.indexOf(query) !== -1;
+        var match = nombre.indexOf(query) !== -1 || id.indexOf(query) !== -1;
+        return match;
     });
+    
+    console.log('Resultados encontrados:', resultados.length);
+    console.log('Primeros 3 resultados:', resultados.slice(0, 3));
     
     // Limitar a 30 resultados
     resultados = resultados.slice(0, 30);
     
     if (resultados.length > 0) {
+        console.log('Renderizando resultados...');
         renderSearchResults(resultados);
     } else {
+        console.log('No se encontraron resultados');
         list.innerHTML = '<div class="list-group-item text-muted text-center">No se encontraron usuarios con "' + query + '"</div>';
     }
 }
@@ -619,6 +643,8 @@ function filtrarUsuarios(query) {
 function renderSearchResults(users) {
     const container = document.getElementById('searchResults');
     const list = document.getElementById('searchResultsList');
+    
+    console.log('renderSearchResults llamado con', users.length, 'usuarios');
     
     list.innerHTML = users.map(user => {
         const userName = escapeHtml(user.name || 'Sin nombre');
@@ -637,7 +663,9 @@ function renderSearchResults(users) {
         `;
     }).join('');
     
+    console.log('HTML generado, mostrando contenedor');
     container.style.display = 'block';
+    console.log('Contenedor display:', container.style.display);
 }
 
 async function addMember(biostarUserId, userName) {
