@@ -96,6 +96,49 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Botón flotante para agregar entrada manual -->
+        <button class="btn btn-primary btn-lg rounded-circle position-fixed" 
+                style="bottom: 30px; right: 30px; width: 60px; height: 60px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000;"
+                onclick="showManualEntryModal()"
+                title="Agregar entrada manual">
+            <i class="bi bi-person-plus-fill" style="font-size: 1.5rem;"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Modal: Entrada Manual -->
+<div class="modal fade" id="manualEntryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill"></i> Agregar Entrada Manual</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manualEntryForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nombre completo <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="manualEntryName" required 
+                               placeholder="Ej: Juan Pérez García">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Área/Grupo <span class="text-muted">(opcional)</span></label>
+                        <input type="text" class="form-control" id="manualEntryArea" 
+                               placeholder="Ej: IT, Administración, etc.">
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Esta entrada se agregará solo a este pase de lista y será marcada como presente.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="addManualEntry()">
+                    <i class="bi bi-plus-circle"></i> Agregar
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -166,6 +209,7 @@
 let selectedZoneId = null;
 let activeEmergencyId = null;
 let emergencyEventSource = null;  // SSE para tiempo real
+let currentUserName = '{{ current_user.username }}';  // Usuario actual para timestamps
 
 document.addEventListener('DOMContentLoaded', () => {
     loadZones();
@@ -434,23 +478,45 @@ async function showRollCall(emergencyId) {
     startEmergencySSE(emergencyId);
 }
 
+async function showEmergencyPanel(emergencyId) {
+    console.log('🚨 Mostrando panel de emergencia:', emergencyId);
+    activeEmergencyId = emergencyId;
+    
+    // Mostrar panel
+    document.getElementById('emergency-panel').style.display = 'block';
+    document.getElementById('emergency-button-section').style.display = 'none';
+    loadRollCall(emergencyId);
+    
+    // Iniciar SSE para tiempo real
+    console.log('🔌 Iniciando SSE desde showEmergencyPanel...');
+    startEmergencySSE(emergencyId);
+}
+
 // ==================== SSE TIEMPO REAL ====================
 
 function startEmergencySSE(emergencyId) {
     if (emergencyEventSource) {
+        console.log('⚠️ Cerrando conexión SSE anterior');
         emergencyEventSource.close();
     }
     
+    const sseUrl = `/emergency/stream/emergency/${emergencyId}`;
     console.log('🚀 Iniciando SSE para emergencia:', emergencyId);
-    emergencyEventSource = new EventSource(`/emergency/stream/emergency/${emergencyId}`);
+    console.log('📡 URL SSE:', sseUrl);
+    
+    emergencyEventSource = new EventSource(sseUrl);
+    console.log('EventSource creado, estado:', emergencyEventSource.readyState);
     
     emergencyEventSource.addEventListener('connection', (e) => {
         console.log('✅ Conectado a SSE de emergencia');
+        console.log('Datos de conexión:', e.data);
     });
     
     emergencyEventSource.addEventListener('update', (e) => {
         const data = JSON.parse(e.data);
         console.log('📥 Actualización recibida:', data);
+        console.log('📊 Stats:', data.stats);
+        console.log('🔄 Cambios recientes:', data.recent_changes);
         
         // Actualizar estadísticas
         if (data.stats) {
@@ -492,10 +558,18 @@ function startEmergencySSE(emergencyId) {
         console.log('💓 Heartbeat');
     });
     
+    emergencyEventSource.onopen = (e) => {
+        console.log('🔓 Conexión SSE abierta');
+        console.log('Estado:', emergencyEventSource.readyState);
+    };
+    
     emergencyEventSource.onerror = (error) => {
         console.error('❌ Error en SSE:', error);
+        console.error('Estado de conexión:', emergencyEventSource.readyState);
+        console.error('0=CONNECTING, 1=OPEN, 2=CLOSED');
+        
         if (emergencyEventSource.readyState === EventSource.CLOSED) {
-            // Reconectar después de 3 segundos
+            console.log('⚠️ Conexión cerrada, reconectando en 3 segundos...');
             setTimeout(() => startEmergencySSE(emergencyId), 3000);
         }
     };
@@ -553,13 +627,13 @@ function updateMemberStatus(change) {
     });
 }
 
-async function loadRollCall(emergencyId) {
+async function loadRollCall(emergencyId, preserveExpandedState = false) {
     try {
         const response = await fetch(`/emergency/api/emergency/${emergencyId}/roll-call`);
         const data = await response.json();
         
         if (data.success) {
-            renderRollCall(data.groups);
+            renderRollCall(data.groups, preserveExpandedState);
             updateStats(data.groups);
         }
     } catch (error) {
@@ -567,53 +641,76 @@ async function loadRollCall(emergencyId) {
     }
 }
 
-function renderRollCall(groups) {
+function renderRollCall(groups, preserveExpandedState = false) {
     const container = document.getElementById('roll-call-groups');
     
-    container.innerHTML = groups.map(group => `
-        <div class="card mb-3" style="border-left: 4px solid ${group.group_color};">
-            <div class="card-header" style="background-color: ${group.group_color}20;">
-                <h6 class="mb-0">
-                    <i class="bi bi-people-fill"></i> ${group.group_name}
-                    <span class="badge bg-secondary float-end">${group.members.length} personas</span>
-                </h6>
+    // Guardar estado de grupos expandidos antes de re-renderizar
+    const expandedGroups = new Set();
+    if (preserveExpandedState) {
+        document.querySelectorAll('.collapse.show').forEach(collapse => {
+            const groupIndex = collapse.id.replace('group-', '');
+            expandedGroups.add(parseInt(groupIndex));
+        });
+    }
+    
+    container.innerHTML = groups.map((group, index) => {
+        const isExpanded = preserveExpandedState && expandedGroups.has(index);
+        return `
+        <div class="card mb-2" style="border-left: 4px solid ${group.group_color};">
+            <div class="card-header p-2" style="background-color: ${group.group_color}20; cursor: pointer;" 
+                 data-bs-toggle="collapse" data-bs-target="#group-${index}" aria-expanded="${isExpanded}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} collapse-icon" id="icon-${index}"></i>
+                        <i class="bi bi-people-fill ms-2"></i> ${group.group_name}
+                    </h6>
+                    <span class="badge bg-secondary">${group.members.length} personas</span>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="list-group">
-                    ${group.members.map(member => `
-                        <div class="list-group-item">
-                            <div class="row align-items-center">
-                                <div class="col-md-5">
-                                    <strong>${member.user_name}</strong>
-                                    <br><small class="text-muted">ID: ${member.biostar_user_id}</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
-                                                onclick="markAttendance(${member.id}, 'present')">
-                                            <i class="bi bi-check-circle"></i> Presente
-                                        </button>
-                                        <button class="btn ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
-                                                onclick="markAttendance(${member.id}, 'absent')">
-                                            <i class="bi bi-x-circle"></i> Ausente
-                                        </button>
+            <div id="group-${index}" class="collapse ${isExpanded ? 'show' : ''}">
+                <div class="card-body p-2">
+                    <div class="list-group list-group-flush">
+                        ${group.members.map(member => `
+                            <div class="list-group-item px-2 py-2" data-entry-id="${member.id}">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                                    <div class="flex-grow-1">
+                                        <strong class="d-block">${member.user_name}</strong>
+                                        <small class="text-muted">ID: ${member.biostar_user_id}</small>
+                                    </div>
+                                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 w-100 w-md-auto">
+                                        <div class="btn-group btn-group-sm w-100 w-md-auto" role="group">
+                                            <button class="btn ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
+                                                    onclick="markAttendance(${member.id}, 'present')">
+                                                <i class="bi bi-check-circle"></i> Presente
+                                            </button>
+                                            <button class="btn ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
+                                                    onclick="markAttendance(${member.id}, 'absent')">
+                                                <i class="bi bi-x-circle"></i> Ausente
+                                            </button>
+                                        </div>
+                                        <small class="text-muted timestamp-info" style="min-width: fit-content;">
+                                            ${member.marked_at ? 
+                                                `${new Date(member.marked_at).toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})} por ${member.marked_by}` 
+                                                : '<span class="text-warning">Sin marcar</span>'}
+                                        </small>
                                     </div>
                                 </div>
-                                <div class="col-md-3 text-end">
-                                    ${member.marked_at ? `
-                                        <small class="text-muted">
-                                            ${new Date(member.marked_at).toLocaleTimeString()}
-                                            <br>por ${member.marked_by}
-                                        </small>
-                                    ` : '<small class="text-warning">Sin marcar</small>'}
-                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         </div>
-    `).join('');
+    `;}).join('');
+    
+    // Agregar listeners para rotar el ícono de chevron
+    document.querySelectorAll('[data-bs-toggle="collapse"]').forEach((el, index) => {
+        el.addEventListener('click', function() {
+            const icon = document.getElementById(`icon-${index}`);
+            icon.classList.toggle('bi-chevron-right');
+            icon.classList.toggle('bi-chevron-down');
+        });
+    });
 }
 
 function updateStats(groups) {
@@ -639,6 +736,9 @@ function updateStats(groups) {
 
 async function markAttendance(entryId, status) {
     try {
+        // Actualización optimista: actualizar UI inmediatamente
+        updateButtonsOptimistic(entryId, status);
+        
         const response = await fetch(`/emergency/api/roll-call/${entryId}/mark`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -648,12 +748,110 @@ async function markAttendance(entryId, status) {
         const data = await response.json();
         
         if (data.success) {
+            // Actualizar timestamp inmediatamente
+            updateTimestampOptimistic(entryId);
+            // Recargar para obtener datos completos del servidor, preservando grupos expandidos
+            loadRollCall(activeEmergencyId, true);
+        } else {
+            alert('Error: ' + data.message);
+            // Revertir cambio optimista si falló
+            loadRollCall(activeEmergencyId, true);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error marcando asistencia');
+        // Revertir cambio optimista si falló
+        loadRollCall(activeEmergencyId);
+    }
+}
+
+function updateButtonsOptimistic(entryId, status) {
+    // Actualizar botones inmediatamente sin esperar respuesta del servidor
+    const entry = document.querySelector(`[data-entry-id="${entryId}"]`);
+    if (!entry) return;
+    
+    const presentBtn = entry.querySelector('.btn-success, .btn-outline-success');
+    const absentBtn = entry.querySelector('.btn-danger, .btn-outline-danger');
+    
+    if (status === 'present') {
+        presentBtn?.classList.remove('btn-outline-success');
+        presentBtn?.classList.add('btn-success');
+        absentBtn?.classList.remove('btn-danger');
+        absentBtn?.classList.add('btn-outline-danger');
+    } else if (status === 'absent') {
+        absentBtn?.classList.remove('btn-outline-danger');
+        absentBtn?.classList.add('btn-danger');
+        presentBtn?.classList.remove('btn-success');
+        presentBtn?.classList.add('btn-outline-success');
+    }
+}
+
+function updateTimestampOptimistic(entryId) {
+    // Actualizar timestamp inmediatamente
+    const entry = document.querySelector(`[data-entry-id="${entryId}"]`);
+    if (!entry) return;
+    
+    const timestamp = entry.querySelector('.timestamp-info');
+    if (timestamp) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'});
+        timestamp.innerHTML = `${timeStr} por ${currentUserName || 'admin'}`;
+    }
+}
+
+function showManualEntryModal() {
+    if (!activeEmergencyId) {
+        alert('No hay emergencia activa');
+        return;
+    }
+    
+    document.getElementById('manualEntryForm').reset();
+    const modal = new bootstrap.Modal(document.getElementById('manualEntryModal'));
+    modal.show();
+}
+
+async function addManualEntry() {
+    const name = document.getElementById('manualEntryName').value.trim();
+    const area = document.getElementById('manualEntryArea').value.trim();
+    
+    if (!name) {
+        alert('El nombre es requerido');
+        return;
+    }
+    
+    if (!activeEmergencyId) {
+        alert('No hay emergencia activa');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${activeEmergencyId}/manual-entry`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                area: area || 'Manual'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('manualEntryModal')).hide();
+            Swal.fire({
+                icon: 'success',
+                title: 'Entrada agregada',
+                text: `${name} ha sido agregado al pase de lista`,
+                timer: 2000,
+                showConfirmButton: false
+            });
             loadRollCall(activeEmergencyId);
         } else {
             alert('Error: ' + data.message);
         }
     } catch (error) {
         console.error('Error:', error);
+        alert('Error agregando entrada manual');
     }
 }
 
@@ -771,6 +969,36 @@ window.addEventListener('beforeunload', () => {
 
 .modal.show .modal-dialog-centered {
     transform: none;
+}
+
+/* Mejoras responsive para móvil */
+@media (max-width: 768px) {
+    .list-group-item {
+        padding: 0.75rem 0.5rem !important;
+    }
+    
+    .btn-group-sm .btn {
+        font-size: 0.875rem;
+        padding: 0.375rem 0.5rem;
+    }
+    
+    .timestamp-info {
+        font-size: 0.75rem;
+        display: block;
+        margin-top: 0.25rem;
+    }
+    
+    /* Botón flotante más pequeño en móvil */
+    .position-fixed.btn-lg {
+        width: 50px !important;
+        height: 50px !important;
+        bottom: 20px !important;
+        right: 20px !important;
+    }
+    
+    .position-fixed.btn-lg i {
+        font-size: 1.2rem !important;
+    }
 }
 </style>
 {% endblock %}
