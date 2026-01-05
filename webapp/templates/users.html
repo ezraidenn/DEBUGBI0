@@ -80,6 +80,8 @@
                         <td>
                             {% if user.is_admin %}
                                 <span class="badge bg-danger">Admin</span>
+                            {% elif user.is_auditor %}
+                                <span class="badge" style="background: #6D4C41;">Auditor</span>
                             {% else %}
                                 <span class="badge bg-secondary">User</span>
                             {% endif %}

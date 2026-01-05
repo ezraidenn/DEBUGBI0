@@ -60,7 +60,17 @@
                                 <label class="form-check-label" for="is_admin">
                                     <i class="bi bi-shield-check"></i> Administrador
                                 </label>
-                                <br><small class="text-muted">Acceso completo</small>
+                                <br><small class="text-muted">Acceso completo a todo el sistema</small>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_auditor" name="is_auditor"
+                                       {% if user and user.is_auditor %}checked{% endif %}>
+                                <label class="form-check-label" for="is_auditor">
+                                    <i class="bi bi-clipboard-check"></i> Auditor
+                                </label>
+                                <br><small class="text-muted">Puede crear/cerrar solo sus propias emergencias</small>
                             </div>
                         </div>
                         

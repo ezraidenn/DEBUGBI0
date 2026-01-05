@@ -1194,6 +1194,7 @@ def user_create():
         password = request.form.get('password', '')
         full_name = sanitize_input(request.form.get('full_name', ''), max_length=100)
         is_admin = request.form.get('is_admin') == 'on'
+        is_auditor = request.form.get('is_auditor') == 'on'
         can_see_all_events = request.form.get('can_see_all_events') == 'on'
         can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
@@ -1218,6 +1219,7 @@ def user_create():
             email=email,
             full_name=full_name,
             is_admin=is_admin,
+            is_auditor=is_auditor,
             can_see_all_events=can_see_all_events,
             can_manage_devices=can_manage_devices
         )
@@ -1281,6 +1283,7 @@ def user_edit(user_id):
         user.email = sanitize_input(request.form.get('email', ''), max_length=120)
         user.full_name = sanitize_input(request.form.get('full_name', ''), max_length=100)
         user.is_admin = request.form.get('is_admin') == 'on'
+        user.is_auditor = request.form.get('is_auditor') == 'on'
         user.is_active = request.form.get('is_active') == 'on'
         user.can_see_all_events = request.form.get('can_see_all_events') == 'on'
         user.can_manage_devices = request.form.get('can_manage_devices') == 'on'
