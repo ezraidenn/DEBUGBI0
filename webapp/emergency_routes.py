@@ -424,7 +424,8 @@ def get_emergency_status():
                 'zone_name': e.zone.name,
                 'emergency_type': e.emergency_type,
                 'started_at': e.started_at.isoformat(),
-                'started_by': e.started_by_user.username
+                'started_by': e.started_by_user.full_name or e.started_by_user.username,
+                'can_close': current_user.can_close_emergency(e)
             } for e in active]
         })
     except Exception as e:
@@ -724,7 +725,7 @@ def get_roll_call(emergency_id):
                 'user_name': entry.user_name,
                 'status': entry.status,
                 'marked_at': entry.marked_at.isoformat() if entry.marked_at else None,
-                'marked_by': entry.marked_by_user.username if entry.marked_by else None,
+                'marked_by': entry.marked_by_user.full_name or entry.marked_by_user.username if entry.marked_by else None,
                 'notes': entry.notes
             })
         
@@ -793,7 +794,7 @@ def export_emergency_excel(emergency_id):
                 'biostar_user_id': entry.biostar_user_id,
                 'user_name': entry.user_name,
                 'status': entry.status,
-                'marked_by': entry.marked_by_user.username if entry.marked_by else None,
+                'marked_by': entry.marked_by_user.full_name or entry.marked_by_user.username if entry.marked_by else None,
                 'marked_at': entry.marked_at.isoformat() if entry.marked_at else None,
                 'notes': entry.notes
             })

@@ -217,7 +217,7 @@
 let selectedZoneId = null;
 let activeEmergencyId = null;
 let emergencyEventSource = null;  // SSE para tiempo real
-let currentUserName = '{{ current_user.username }}';  // Usuario actual para timestamps
+let currentUserName = '{{ current_user.full_name or current_user.username }}';  // Usuario actual para timestamps
 
 document.addEventListener('DOMContentLoaded', () => {
     loadZones();
@@ -303,9 +303,11 @@ function showActiveEmergencies(emergencies) {
                 <button class="btn btn-sm btn-warning me-1" onclick="viewEmergency(${e.id}, ${e.zone_id}, '${e.zone_name}')">
                     <i class="bi bi-eye"></i> Ver
                 </button>
+                ${e.can_close ? `
                 <button class="btn btn-sm btn-success" onclick="quickResolveEmergency(${e.id}, '${e.zone_name}')">
                     <i class="bi bi-check-circle"></i> Resolver
                 </button>
+                ` : ''}
             </div>
         </div>
     `).join('');
@@ -637,6 +639,17 @@ function updateMemberStatus(change) {
 
 async function loadRollCall(emergencyId, preserveExpandedState = false) {
     try {
+        // Verificar permisos para cerrar emergencia
+        const statusResponse = await fetch('/emergency/api/emergency/status');
+        const statusData = await statusResponse.json();
+        const currentEmergency = statusData.emergencies.find(e => e.id === emergencyId);
+        
+        // Mostrar/ocultar botón Resolver según permisos
+        const resolveBtn = document.querySelector('button[onclick="resolveEmergency()"]');
+        if (resolveBtn) {
+            resolveBtn.style.display = (currentEmergency && currentEmergency.can_close) ? 'inline-block' : 'none';
+        }
+        
         // Actualizar botón de exportar Excel
         const exportBtn = document.getElementById('exportExcelBtn');
         if (exportBtn && emergencyId) {
