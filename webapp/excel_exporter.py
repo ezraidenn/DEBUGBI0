@@ -4,20 +4,21 @@ Exportador de pase de lista a Excel con diseño profesional.
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 import io
 
 
 class EmergencyExcelExporter:
     """Exportador profesional de pase de lista a Excel."""
     
-    # Colores corporativos
-    COLOR_HEADER = "4A235A"  # Morado oscuro
-    COLOR_SUBHEADER = "7D3C98"  # Morado medio
-    COLOR_PRESENT = "27AE60"  # Verde
-    COLOR_ABSENT = "E74C3C"  # Rojo
-    COLOR_PENDING = "F39C12"  # Naranja
-    COLOR_ALT_ROW = "F8F9F9"  # Gris claro para filas alternas
+    # Colores corporativos - Paleta café elegante
+    COLOR_HEADER = "3E2723"  # Café oscuro
+    COLOR_SUBHEADER = "5D4037"  # Café medio
+    COLOR_PRESENT = "4CAF50"  # Verde natural
+    COLOR_ABSENT = "8D6E63"  # Café medio (ausentes)
+    COLOR_PENDING = "D7CCC8"  # Beige claro
+    COLOR_ALT_ROW = "F5F5F5"  # Gris muy claro para filas alternas
     
     def __init__(self, emergency, roll_call_data):
         """
@@ -51,16 +52,21 @@ class EmergencyExcelExporter:
         
         # Información de la emergencia
         row = 3
+        # Convertir fechas a zona horaria de México
+        mexico_tz = pytz.timezone('America/Mexico_City')
+        started_at_local = self.emergency.started_at.replace(tzinfo=pytz.UTC).astimezone(mexico_tz)
+        
         info_data = [
             ("Zona:", self.emergency.zone.name),
             ("Tipo:", self.emergency.emergency_type.upper()),
             ("Iniciada por:", self.emergency.started_by_user.full_name or self.emergency.started_by_user.username),
-            ("Fecha de inicio:", self.emergency.started_at.strftime('%d/%m/%Y %H:%M:%S')),
+            ("Fecha de inicio:", started_at_local.strftime('%d/%m/%Y %H:%M:%S')),
             ("Estado:", "RESUELTA" if self.emergency.status == 'resolved' else "ACTIVA"),
         ]
         
         if self.emergency.resolved_at:
-            info_data.append(("Fecha de resolución:", self.emergency.resolved_at.strftime('%d/%m/%Y %H:%M:%S')))
+            resolved_at_local = self.emergency.resolved_at.replace(tzinfo=pytz.UTC).astimezone(mexico_tz)
+            info_data.append(("Fecha de resolución:", resolved_at_local.strftime('%d/%m/%Y %H:%M:%S')))
         
         for label, value in info_data:
             self.ws[f'A{row}'] = label
@@ -161,7 +167,7 @@ class EmergencyExcelExporter:
                 status_color = {
                     'present': self.COLOR_PRESENT,
                     'absent': self.COLOR_ABSENT,
-                    'pending': self.COLOR_PENDING
+                    'pending': '6D4C41'  # Café claro para pendientes
                 }.get(status, '95A5A6')
                 
                 cell = self.ws.cell(row=current_row, column=4, value=status_text)
@@ -178,11 +184,15 @@ class EmergencyExcelExporter:
                 cell.border = self._create_border()
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 
-                # Fecha/Hora
+                # Fecha/Hora (convertir a zona horaria México UTC-6)
                 if member.get('marked_at'):
                     try:
+                        # Parsear timestamp UTC
                         marked_dt = datetime.fromisoformat(member['marked_at'].replace('Z', '+00:00'))
-                        marked_str = marked_dt.strftime('%d/%m/%Y %H:%M')
+                        # Convertir a zona horaria de México (UTC-6)
+                        mexico_tz = pytz.timezone('America/Mexico_City')
+                        marked_dt_local = marked_dt.astimezone(mexico_tz)
+                        marked_str = marked_dt_local.strftime('%d/%m/%Y %H:%M')
                     except:
                         marked_str = member['marked_at']
                 else:
@@ -226,7 +236,10 @@ class EmergencyExcelExporter:
         footer_row = last_row + 2
         self.ws.merge_cells(f'A{footer_row}:G{footer_row}')
         cell = self.ws[f'A{footer_row}']
-        cell.value = f"Documento generado el {datetime.now().strftime('%d/%m/%Y a las %H:%M:%S')}"
+        # Usar zona horaria de México
+        mexico_tz = pytz.timezone('America/Mexico_City')
+        now_local = datetime.now(mexico_tz)
+        cell.value = f"Documento generado el {now_local.strftime('%d/%m/%Y a las %H:%M:%S')}"
         cell.font = Font(name='Arial', size=9, italic=True, color="7F8C8D")
         cell.alignment = Alignment(horizontal='center', vertical='center')
     
