@@ -1,9 +1,10 @@
 """
 Rutas API para el sistema de emergencias con soporte de tiempo real.
 """
-from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context
+from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context, send_file
 from flask_login import login_required, current_user
 from webapp.models import db, Zone, Group, GroupMember, EmergencySession, RollCallEntry, ZoneDevice
+from webapp.excel_exporter import EmergencyExcelExporter
 from datetime import datetime, timedelta
 import logging
 import json
@@ -31,9 +32,18 @@ def config_page():
 @login_required
 def emergency_page():
     """Página de emergencias"""
-    if not current_user.is_admin:
+    if not current_user.can_manage_emergencies():
         return "Acceso denegado", 403
     return render_template('emergency_center.html')
+
+
+@emergency_bp.route('/history')
+@login_required
+def history_page():
+    """Página de historial de emergencias"""
+    if not current_user.can_manage_emergencies():
+        return "Acceso denegado", 403
+    return render_template('emergency_history.html')
 
 
 # ============================================
@@ -426,7 +436,7 @@ def get_emergency_status():
 @login_required
 def activate_emergency():
     """Activar emergencia en una zona - Desbloquea puertas y activa alarmas"""
-    if not current_user.is_admin:
+    if not current_user.can_manage_emergencies():
         return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
     
     try:
@@ -626,11 +636,13 @@ def activate_emergency():
 @login_required
 def resolve_emergency(emergency_id):
     """Resolver emergencia - cierra las puertas que fueron desbloqueadas"""
-    if not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+    emergency = EmergencySession.query.get_or_404(emergency_id)
+    
+    # Verificar permisos: admin puede cerrar cualquiera, auditor solo las suyas
+    if not current_user.can_close_emergency(emergency):
+        return jsonify({'success': False, 'message': 'No tienes permiso para cerrar esta emergencia'}), 403
     
     try:
-        emergency = EmergencySession.query.get_or_404(emergency_id)
         
         # ========== CERRAR PUERTAS DESBLOQUEADAS ==========
         doors_released = []
@@ -729,7 +741,7 @@ def get_roll_call(emergency_id):
 @login_required
 def mark_attendance(entry_id):
     """Marcar asistencia en pase de lista"""
-    if not current_user.is_admin:
+    if not current_user.can_manage_emergencies():
         return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
     
     try:
@@ -747,6 +759,74 @@ def mark_attendance(entry_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error marcando asistencia: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@emergency_bp.route('/api/emergency/<int:emergency_id>/export-excel', methods=['GET'])
+@login_required
+def export_emergency_excel(emergency_id):
+    """Exportar pase de lista a Excel con diseño profesional"""
+    if not current_user.can_manage_emergencies():
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+    
+    try:
+        # Obtener emergencia
+        emergency = EmergencySession.query.get_or_404(emergency_id)
+        
+        # Obtener pase de lista
+        entries = RollCallEntry.query.filter_by(emergency_id=emergency_id).all()
+        
+        # Agrupar por grupo (misma lógica que get_roll_call)
+        grouped = {}
+        for entry in entries:
+            group_name = entry.group.name
+            if group_name not in grouped:
+                grouped[group_name] = {
+                    'group_id': entry.group_id,
+                    'group_name': group_name,
+                    'group_color': entry.group.color,
+                    'members': []
+                }
+            
+            grouped[group_name]['members'].append({
+                'id': entry.id,
+                'biostar_user_id': entry.biostar_user_id,
+                'user_name': entry.user_name,
+                'status': entry.status,
+                'marked_by': entry.marked_by_user.username if entry.marked_by else None,
+                'marked_at': entry.marked_at.isoformat() if entry.marked_at else None,
+                'notes': entry.notes
+            })
+        
+        # Calcular estadísticas
+        stats = {
+            'total': len(entries),
+            'present': sum(1 for e in entries if e.status == 'present'),
+            'absent': sum(1 for e in entries if e.status == 'absent'),
+            'pending': sum(1 for e in entries if e.status == 'pending')
+        }
+        
+        roll_call_data = {
+            'groups': list(grouped.values()),
+            'stats': stats
+        }
+        
+        # Generar Excel
+        excel_file = EmergencyExcelExporter.export_emergency(emergency, roll_call_data)
+        
+        # Nombre del archivo
+        filename = f"Pase_Lista_Emergencia_{emergency.zone.name.replace(' ', '_')}_{emergency.started_at.strftime('%Y%m%d_%H%M')}.xlsx"
+        
+        logger.info(f"📊 Exportando pase de lista de emergencia {emergency_id} a Excel por {current_user.username}")
+        
+        return send_file(
+            excel_file,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Error exportando a Excel: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -1244,3 +1324,93 @@ def auto_mark_presence_from_biostar(emergency_id, entries):
         logger.error(f"Error en auto-marcado: {e}")
     
     return auto_marked
+
+
+# ============================================
+# API - HISTORIAL DE EMERGENCIAS
+# ============================================
+
+@emergency_bp.route('/api/emergencies/history', methods=['GET'])
+@login_required
+def get_emergencies_history():
+    """Obtener historial de emergencias resueltas"""
+    if not current_user.can_manage_emergencies():
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+    
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        query = EmergencySession.query.filter_by(status='resolved')
+        
+        if current_user.is_auditor and not current_user.is_admin:
+            query = query.filter_by(started_by=current_user.id)
+        
+        query = query.order_by(EmergencySession.resolved_at.desc())
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        emergencies = pagination.items
+        
+        result = []
+        for emergency in emergencies:
+            entries = RollCallEntry.query.filter_by(emergency_id=emergency.id).all()
+            stats = {
+                'total': len(entries),
+                'present': sum(1 for e in entries if e.status == 'present'),
+                'absent': sum(1 for e in entries if e.status == 'absent'),
+                'pending': sum(1 for e in entries if e.status == 'pending')
+            }
+            
+            result.append({
+                'id': emergency.id,
+                'zone_name': emergency.zone.name,
+                'zone_color': emergency.zone.color,
+                'emergency_type': emergency.emergency_type,
+                'started_by': emergency.started_by_user.full_name or emergency.started_by_user.username,
+                'started_at': emergency.started_at.isoformat(),
+                'resolved_at': emergency.resolved_at.isoformat() if emergency.resolved_at else None,
+                'duration_minutes': int((emergency.resolved_at - emergency.started_at).total_seconds() / 60) if emergency.resolved_at else None,
+                'notes': emergency.notes,
+                'stats': stats,
+                'can_delete': current_user.is_admin
+            })
+        
+        return jsonify({
+            'success': True,
+            'emergencies': result,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error obteniendo historial: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@emergency_bp.route('/api/emergency/<int:emergency_id>', methods=['DELETE'])
+@login_required
+def delete_emergency(emergency_id):
+    """Borrar emergencia del historial (solo admin)"""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Solo administradores pueden borrar emergencias'}), 403
+    
+    try:
+        emergency = EmergencySession.query.get_or_404(emergency_id)
+        
+        if emergency.status == 'active':
+            return jsonify({'success': False, 'message': 'No se puede borrar una emergencia activa'}), 400
+        
+        db.session.delete(emergency)
+        db.session.commit()
+        
+        logger.info(f"🗑️ Emergencia {emergency_id} borrada por {current_user.username}")
+        
+        return jsonify({'success': True, 'message': 'Emergencia borrada exitosamente'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error borrando emergencia: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
