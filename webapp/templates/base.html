@@ -65,10 +65,11 @@
                         </a>
                     </li>
                     
-                    {% if current_user.is_admin or current_user.can_manage_devices %}
+                    {% if current_user.is_admin or current_user.can_manage_devices or current_user.is_auditor %}
                     <li class="nav-item">
                         <div class="sidebar-heading">ADMINISTRACIÓN</div>
                     </li>
+                    <!-- DEBUG: is_admin={{ current_user.is_admin }}, is_auditor={{ current_user.is_auditor }} -->
                     {% if current_user.is_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}" href="{{ url_for('users_list') }}">
