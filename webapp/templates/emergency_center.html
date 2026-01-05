@@ -57,9 +57,17 @@
                         <h5 class="mb-0">
                             <i class="bi bi-clipboard-check"></i> Pase de Lista en Tiempo Real
                         </h5>
-                        <button class="btn btn-light btn-sm" onclick="resolveEmergency()">
-                            <i class="bi bi-check-circle"></i> Resolver Emergencia
-                        </button>
+                        <div class="btn-group">
+                            <a id="exportExcelBtn" href="#" class="btn btn-success btn-sm" download style="display: none;">
+                                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                            </a>
+                            <a href="/emergency/history" class="btn btn-info btn-sm">
+                                <i class="bi bi-clock-history"></i> Historial
+                            </a>
+                            <button class="btn btn-light btn-sm" onclick="resolveEmergency()">
+                                <i class="bi bi-check-circle"></i> Resolver Emergencia
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <!-- Estadísticas -->
@@ -629,6 +637,13 @@ function updateMemberStatus(change) {
 
 async function loadRollCall(emergencyId, preserveExpandedState = false) {
     try {
+        // Actualizar botón de exportar Excel
+        const exportBtn = document.getElementById('exportExcelBtn');
+        if (exportBtn && emergencyId) {
+            exportBtn.href = `/emergency/api/emergency/${emergencyId}/export-excel`;
+            exportBtn.style.display = 'inline-block';
+        }
+        
         const response = await fetch(`/emergency/api/emergency/${emergencyId}/roll-call`);
         const data = await response.json();
         

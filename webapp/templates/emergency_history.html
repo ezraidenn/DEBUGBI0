@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Emergencias{% endblock %}
+
+{% block extra_css %}
+<style>
+    .emergency-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border-left: 4px solid;
+    }
+    
+    .emergency-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .stat-badge {
+        font-size: 0.9rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+    }
+    
+    .duration-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .filter-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-clock-history"></i> Historial de Emergencias</h2>
+            <p class="text-muted mb-0">Registro de emergencias pasadas y sus pases de lista</p>
+        </div>
+        <a href="/emergency/emergency" class="btn btn-primary">
+            <i class="bi bi-arrow-left"></i> Volver a Emergencias
+        </a>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="filter-section">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Buscar por zona</label>
+                <input type="text" id="searchZone" class="form-control" placeholder="Nombre de zona...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Tipo de emergencia</label>
+                <select id="filterType" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="general">General</option>
+                    <option value="fire">Incendio</option>
+                    <option value="earthquake">Sismo</option>
+                    <option value="security">Seguridad</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Fecha</label>
+                <input type="date" id="filterDate" class="form-control">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-secondary w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lista de emergencias -->
+    <div id="emergenciesList">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="text-muted mt-2">Cargando historial...</p>
+        </div>
+    </div>
+    
+    <!-- Paginación -->
+    <nav id="paginationNav" class="mt-4" style="display: none;">
+        <ul class="pagination justify-content-center" id="pagination"></ul>
+    </nav>
+</div>
+
+<!-- Modal de confirmación de borrado -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Confirmar Borrado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas borrar esta emergencia?</p>
+                <p class="text-danger fw-bold mb-0">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="bi bi-trash"></i> Borrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let emergencyToDelete = null;
+const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+async function loadEmergencies(page = 1) {
+    try {
+        const response = await fetch(`/emergency/api/emergencies/history?page=${page}&per_page=20`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderEmergencies(data.emergencies);
+            renderPagination(data.pagination);
+            currentPage = page;
+        } else {
+            showError('Error cargando historial: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión');
+    }
+}
+
+function renderEmergencies(emergencies) {
+    const container = document.getElementById('emergenciesList');
+    
+    if (emergencies.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 4rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No hay emergencias en el historial</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = emergencies.map(emergency => {
+        const typeIcons = {
+            'general': 'bi-exclamation-triangle',
+            'fire': 'bi-fire',
+            'earthquake': 'bi-broadcast',
+            'security': 'bi-shield-exclamation'
+        };
+        
+        const typeColors = {
+            'general': '#6c757d',
+            'fire': '#dc3545',
+            'earthquake': '#fd7e14',
+            'security': '#ffc107'
+        };
+        
+        const icon = typeIcons[emergency.emergency_type] || 'bi-exclamation-triangle';
+        const typeColor = typeColors[emergency.emergency_type] || '#6c757d';
+        
+        const startDate = new Date(emergency.started_at);
+        const resolvedDate = emergency.resolved_at ? new Date(emergency.resolved_at) : null;
+        
+        return `
+            <div class="card emergency-card mb-3" style="border-left-color: ${emergency.zone_color};">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-circle p-2 me-3" style="background-color: ${typeColor}20;">
+                                    <i class="bi ${icon}" style="font-size: 1.5rem; color: ${typeColor};"></i>
+                                </div>
+                                <div>
+                                    <h5 class="mb-0">${emergency.zone_name}</h5>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person"></i> ${emergency.started_by}
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2 flex-wrap mt-2">
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-calendar"></i> ${startDate.toLocaleDateString('es-MX')}
+                                </span>
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-clock"></i> ${startDate.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
+                                </span>
+                                ${emergency.duration_minutes ? `
+                                    <span class="badge duration-badge">
+                                        <i class="bi bi-hourglass-split"></i> ${emergency.duration_minutes} min
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="d-flex gap-2 justify-content-center">
+                                <div class="text-center">
+                                    <div class="stat-badge bg-light border">
+                                        <strong>${emergency.stats.total}</strong>
+                                        <div class="small text-muted">Total</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge bg-success text-white">
+                                        <strong>${emergency.stats.present}</strong>
+                                        <div class="small">Presentes</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge bg-danger text-white">
+                                        <strong>${emergency.stats.absent}</strong>
+                                        <div class="small">Ausentes</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge bg-warning text-dark">
+                                        <strong>${emergency.stats.pending}</strong>
+                                        <div class="small">Pendientes</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-2 text-end">
+                            <div class="btn-group-vertical w-100" role="group">
+                                <a href="/emergency/api/emergency/${emergency.id}/export-excel" 
+                                   class="btn btn-sm btn-primary" 
+                                   download>
+                                    <i class="bi bi-file-earmark-excel"></i> Exportar
+                                </a>
+                                ${emergency.can_delete ? `
+                                    <button class="btn btn-sm btn-danger" onclick="showDeleteModal(${emergency.id})">
+                                        <i class="bi bi-trash"></i> Borrar
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${emergency.notes ? `
+                        <div class="mt-3 pt-3 border-top">
+                            <small class="text-muted">
+                                <i class="bi bi-sticky"></i> <strong>Notas:</strong> ${emergency.notes}
+                            </small>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderPagination(pagination) {
+    const nav = document.getElementById('paginationNav');
+    const container = document.getElementById('pagination');
+    
+    if (pagination.pages <= 1) {
+        nav.style.display = 'none';
+        return;
+    }
+    
+    nav.style.display = 'block';
+    
+    let html = '';
+    
+    // Botón anterior
+    html += `
+        <li class="page-item ${!pagination.has_prev ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page - 1}); return false;">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = 1; i <= pagination.pages; i++) {
+        if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+            html += `
+                <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="loadEmergencies(${i}); return false;">${i}</a>
+                </li>
+            `;
+        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    // Botón siguiente
+    html += `
+        <li class="page-item ${!pagination.has_next ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page + 1}); return false;">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function showDeleteModal(emergencyId) {
+    emergencyToDelete = emergencyId;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!emergencyToDelete) return;
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${emergencyToDelete}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            deleteModal.hide();
+            loadEmergencies(currentPage);
+            showSuccess('Emergencia borrada exitosamente');
+        } else {
+            showError('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión');
+    }
+    
+    emergencyToDelete = null;
+}
+
+function clearFilters() {
+    document.getElementById('searchZone').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDate').value = '';
+    loadEmergencies(1);
+}
+
+function showError(message) {
+    const container = document.getElementById('emergenciesList');
+    container.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+}
+
+function showSuccess(message) {
+    // Crear toast de éxito
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle"></i> ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    toastContainer.innerHTML = toastHtml;
+    document.body.appendChild(toastContainer);
+    
+    const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
+    toast.show();
+    
+    setTimeout(() => toastContainer.remove(), 5000);
+}
+
+// Cargar al inicio
+loadEmergencies(1);
+
+// Filtros en tiempo real (opcional)
+document.getElementById('searchZone').addEventListener('input', () => {
+    // Implementar filtrado local o recargar con parámetros
+});
+</script>
+{% endblock %}

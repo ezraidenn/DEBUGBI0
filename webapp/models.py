@@ -104,6 +104,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(120))
     is_admin = db.Column(db.Boolean, default=False)
+    is_auditor = db.Column(db.Boolean, default=False)  # Nuevo rol: puede crear/cerrar solo sus emergencias
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
@@ -225,6 +226,18 @@ class User(UserMixin, db.Model):
         if self.is_admin:
             return None  # None significa "todos"
         return [p.device_id for p in self.device_permissions.filter_by(can_view=True).all()]
+    
+    def can_manage_emergencies(self):
+        """Verifica si el usuario puede gestionar emergencias."""
+        return self.is_admin or self.is_auditor
+    
+    def can_close_emergency(self, emergency):
+        """Verifica si el usuario puede cerrar una emergencia específica."""
+        if self.is_admin:
+            return True  # Admin puede cerrar cualquier emergencia
+        if self.is_auditor and emergency.started_by == self.id:
+            return True  # Auditor solo puede cerrar sus propias emergencias
+        return False
     
     def __repr__(self):
         return f'<User {self.username}>'
