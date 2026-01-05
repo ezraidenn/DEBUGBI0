@@ -53,18 +53,18 @@
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                    <div class="card-header text-white d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);">
                         <h5 class="mb-0">
                             <i class="bi bi-clipboard-check"></i> Pase de Lista en Tiempo Real
                         </h5>
                         <div class="btn-group">
-                            <a id="exportExcelBtn" href="#" class="btn btn-success btn-sm" download style="display: none;">
+                            <a id="exportExcelBtn" href="#" class="btn btn-sm" download style="display: none; background: #4CAF50; color: white; border: none;">
                                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
                             </a>
-                            <a href="/emergency/history" class="btn btn-info btn-sm">
+                            <a href="/emergency/history" class="btn btn-sm" style="background: #6D4C41; color: white; border: none;">
                                 <i class="bi bi-clock-history"></i> Historial
                             </a>
-                            <button class="btn btn-light btn-sm" onclick="resolveEmergency()">
+                            <button class="btn btn-sm" onclick="resolveEmergency()" style="background: #D7CCC8; color: #3E2723; border: none;">
                                 <i class="bi bi-check-circle"></i> Resolver Emergencia
                             </button>
                         </div>
@@ -73,33 +73,33 @@
                         <!-- Estadísticas -->
                         <div class="row mb-4">
                             <div class="col-md-3">
-                                <div class="stat-card text-center">
-                                    <h3 id="stat-total">0</h3>
+                                <div class="stat-card text-center" style="border-left-color: #3E2723;">
+                                    <h3 id="stat-total" style="color: #3E2723;">0</h3>
                                     <p class="text-muted mb-0">Total</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="stat-card text-center" style="border-left-color: #28a745;">
-                                    <h3 id="stat-present" class="text-success">0</h3>
+                                <div class="stat-card text-center" style="border-left-color: #4CAF50;">
+                                    <h3 id="stat-present" style="color: #4CAF50;">0</h3>
                                     <p class="text-muted mb-0">Presentes</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="stat-card text-center" style="border-left-color: #dc3545;">
-                                    <h3 id="stat-absent" class="text-danger">0</h3>
+                                <div class="stat-card text-center" style="border-left-color: #8D6E63;">
+                                    <h3 id="stat-absent" style="color: #8D6E63;">0</h3>
                                     <p class="text-muted mb-0">Ausentes</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="stat-card text-center" style="border-left-color: #ffc107;">
-                                    <h3 id="stat-pending" class="text-warning">0</h3>
+                                <div class="stat-card text-center" style="border-left-color: #D7CCC8;">
+                                    <h3 id="stat-pending" style="color: #6D4C41;">0</h3>
                                     <p class="text-muted mb-0">Pendientes</p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Lista agrupada por grupos -->
-                        <div id="roll-call-groups"></div>
+                        <div id="roll-call-groups" style="max-height: 600px; overflow-y: auto;"></div>
                     </div>
                 </div>
             </div>
