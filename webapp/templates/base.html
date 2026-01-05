@@ -82,10 +82,18 @@
                             <span>Zonas y Grupos</span>
                         </a>
                     </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.is_auditor %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'emergency.emergency_page' %}active{% endif %}" href="{{ url_for('emergency.emergency_page') }}">
                             <i class="bi bi-exclamation-triangle-fill"></i>
                             <span>Emergencias</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'emergency.history_page' %}active{% endif %}" href="{{ url_for('emergency.history_page') }}">
+                            <i class="bi bi-clock-history"></i>
+                            <span>Historial</span>
                         </a>
                     </li>
                     {% endif %}
