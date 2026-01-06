@@ -4,71 +4,187 @@
 
 {% block extra_css %}
 <style>
+    /* Paleta de colores café elegante */
+    :root {
+        --cafe-oscuro: #3E2723;
+        --cafe-medio: #5D4037;
+        --cafe-claro: #8D6E63;
+        --beige-claro: #D7CCC8;
+        --beige-muy-claro: #F5F5F5;
+        --verde-natural: #4CAF50;
+        --rojo-suave: #E57373;
+        --amarillo-suave: #FFB74D;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.15);
+    }
+    
     .emergency-card {
         transition: transform 0.2s, box-shadow 0.2s;
-        border-left: 4px solid;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 2px 8px rgba(62, 39, 35, 0.08);
     }
     
     .emergency-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(62, 39, 35, 0.15);
+    }
+    
+    .emergency-card-header {
+        background: linear-gradient(135deg, var(--beige-muy-claro) 0%, white 100%);
+        border-bottom: 3px solid;
+        padding: 1rem;
     }
     
     .stat-badge {
-        font-size: 0.9rem;
-        padding: 0.4rem 0.8rem;
-        border-radius: 20px;
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .duration-badge {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--cafe-medio) 0%, var(--cafe-claro) 100%);
         color: white;
+        font-weight: 600;
     }
     
     .filter-section {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 8px;
+        background: linear-gradient(135deg, var(--beige-muy-claro) 0%, white 100%);
+        padding: 1.25rem;
+        border-radius: 12px;
         margin-bottom: 1.5rem;
+        border: 1px solid var(--beige-claro);
+        box-shadow: 0 2px 8px rgba(62, 39, 35, 0.05);
     }
+    
+    .filter-section label {
+        color: var(--cafe-oscuro);
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid var(--beige-claro);
+        border-radius: 8px;
+        transition: border-color 0.2s;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--cafe-medio);
+        box-shadow: 0 0 0 0.2rem rgba(93, 64, 55, 0.15);
+    }
+    
+    .btn-cafe {
+        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .btn-cafe:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.25);
+        color: white;
+    }
+    
+    .btn-export {
+        background: linear-gradient(135deg, var(--verde-natural) 0%, #45a049 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+    }
+    
+    .btn-export:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.25);
+        color: white;
+    }
+    
+    .btn-delete {
+        background: linear-gradient(135deg, var(--rojo-suave) 0%, #ef5350 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+    }
+    
+    .btn-delete:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(229, 115, 115, 0.25);
+        color: white;
+    }
+    
+    .icon-container {
+        background: linear-gradient(135deg, var(--beige-claro) 0%, var(--beige-muy-claro) 100%);
+        border-radius: 12px;
+        padding: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .badge-custom {
+        font-weight: 600;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+    }
+    
+    .stat-total { background: linear-gradient(135deg, var(--cafe-claro) 0%, var(--cafe-medio) 100%); color: white; }
+    .stat-present { background: linear-gradient(135deg, var(--verde-natural) 0%, #45a049 100%); color: white; }
+    .stat-absent { background: linear-gradient(135deg, var(--rojo-suave) 0%, #ef5350 100%); color: white; }
+    .stat-pending { background: linear-gradient(135deg, var(--amarillo-suave) 0%, #ffa726 100%); color: white; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-        <div>
-            <h2><i class="bi bi-clock-history"></i> <span class="d-none d-md-inline">Historial de Emergencias</span><span class="d-md-none">Historial</span></h2>
-            <p class="text-muted mb-0 small">Registro de emergencias pasadas</p>
+    <div class="page-header">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+            <div>
+                <h2 class="mb-1"><i class="bi bi-clock-history"></i> <span class="d-none d-md-inline">Historial de Emergencias</span><span class="d-md-none">Historial</span></h2>
+                <p class="mb-0 small" style="opacity: 0.9;">Registro de emergencias pasadas y sus pases de lista</p>
+            </div>
+            <a href="/emergency/emergency" class="btn btn-cafe btn-sm">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
         </div>
-        <a href="/emergency/emergency" class="btn btn-primary btn-sm">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
     </div>
     
     <!-- Filtros -->
     <div class="filter-section">
-        <div class="row g-2">
+        <div class="row g-3">
             <div class="col-12 col-md-4">
-                <label class="form-label small fw-bold">Buscar por zona</label>
-                <input type="text" id="searchZone" class="form-control form-control-sm" placeholder="Nombre de zona...">
+                <label class="form-label small"><i class="bi bi-search"></i> Buscar por zona</label>
+                <input type="text" id="searchZone" class="form-control" placeholder="Nombre de zona...">
             </div>
             <div class="col-6 col-md-3">
-                <label class="form-label small fw-bold">Tipo</label>
-                <select id="filterType" class="form-select form-select-sm">
+                <label class="form-label small"><i class="bi bi-funnel"></i> Tipo</label>
+                <select id="filterType" class="form-select">
                     <option value="">Todos</option>
                     <option value="general">General</option>
-                    <option value="fire">Incendio</option>
-                    <option value="earthquake">Sismo</option>
-                    <option value="security">Seguridad</option>
+                    <option value="fire">🔥 Incendio</option>
+                    <option value="earthquake">🌍 Sismo</option>
+                    <option value="security">🛡️ Seguridad</option>
                 </select>
             </div>
             <div class="col-6 col-md-3">
-                <label class="form-label small fw-bold">Fecha</label>
-                <input type="date" id="filterDate" class="form-control form-control-sm">
+                <label class="form-label small"><i class="bi bi-calendar"></i> Fecha</label>
+                <input type="date" id="filterDate" class="form-control">
             </div>
             <div class="col-12 col-md-2 d-flex align-items-end">
-                <button class="btn btn-secondary btn-sm w-100" onclick="clearFilters()">
+                <button class="btn btn-cafe w-100" onclick="clearFilters()">
                     <i class="bi bi-x-circle"></i> Limpiar
                 </button>
             </div>
@@ -179,75 +295,73 @@ function renderEmergencies(emergencies) {
         const resolvedDate = emergency.resolved_at ? new Date(emergency.resolved_at) : null;
         
         return `
-            <div class="card emergency-card mb-3" style="border-left-color: ${emergency.zone_color};">
+            <div class="card emergency-card mb-3">
+                <div class="emergency-card-header" style="border-bottom-color: ${typeColor};">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="icon-container">
+                            <i class="bi ${icon}" style="font-size: 1.5rem; color: ${typeColor};"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-0" style="color: var(--cafe-oscuro); font-weight: 700;">${emergency.zone_name}</h5>
+                            <small class="text-muted">
+                                <i class="bi bi-person-circle"></i> ${emergency.started_by}
+                            </small>
+                        </div>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <span class="badge badge-custom" style="background: var(--cafe-medio); color: white;">
+                                <i class="bi bi-calendar3"></i> ${startDate.toLocaleDateString('es-MX')}
+                            </span>
+                            <span class="badge badge-custom" style="background: var(--cafe-claro); color: white;">
+                                <i class="bi bi-clock"></i> ${startDate.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
+                            </span>
+                            ${emergency.duration_minutes ? `
+                                <span class="badge badge-custom duration-badge">
+                                    <i class="bi bi-hourglass-split"></i> ${emergency.duration_minutes} min
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
                 <div class="card-body">
                     <div class="row align-items-center g-3">
-                        <div class="col-12 col-md-6">
-                            <div class="d-flex align-items-center mb-2">
-                                <div class="rounded-circle p-2 me-2" style="background-color: ${typeColor}20;">
-                                    <i class="bi ${icon}" style="font-size: 1.2rem; color: ${typeColor};"></i>
-                                </div>
-                                <div>
-                                    <h5 class="mb-0" style="font-size: 1rem;">${emergency.zone_name}</h5>
-                                    <small class="text-muted" style="font-size: 0.75rem;">
-                                        <i class="bi bi-person"></i> ${emergency.started_by}
-                                    </small>
-                                </div>
-                            </div>
-                            
-                            <div class="d-flex gap-1 flex-wrap mt-2">
-                                <span class="badge bg-secondary" style="font-size: 0.7rem;">
-                                    <i class="bi bi-calendar"></i> ${startDate.toLocaleDateString('es-MX')}
-                                </span>
-                                <span class="badge bg-secondary" style="font-size: 0.7rem;">
-                                    <i class="bi bi-clock"></i> ${startDate.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
-                                </span>
-                                ${emergency.duration_minutes ? `
-                                    <span class="badge duration-badge" style="font-size: 0.7rem;">
-                                        <i class="bi bi-hourglass-split"></i> ${emergency.duration_minutes} min
-                                    </span>
-                                ` : ''}
-                            </div>
-                        </div>
-                        
-                        <div class="col-12 col-md-4">
-                            <div class="d-flex gap-2 justify-content-center justify-content-md-start">
+                        <div class="col-12 col-md-7">
+                            <div class="d-flex gap-2 flex-wrap">
                                 <div class="text-center">
-                                    <div class="stat-badge bg-light border" style="font-size: 0.75rem; padding: 0.3rem 0.5rem;">
-                                        <strong>${emergency.stats.total}</strong>
-                                        <div class="small text-muted">Total</div>
+                                    <div class="stat-badge stat-total">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.total}</strong>
+                                        <div class="small">Total</div>
                                     </div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="stat-badge bg-success text-white" style="font-size: 0.75rem; padding: 0.3rem 0.5rem;">
-                                        <strong>${emergency.stats.present}</strong>
+                                    <div class="stat-badge stat-present">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.present}</strong>
                                         <div class="small">Presentes</div>
                                     </div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="stat-badge bg-danger text-white" style="font-size: 0.75rem; padding: 0.3rem 0.5rem;">
-                                        <strong>${emergency.stats.absent}</strong>
+                                    <div class="stat-badge stat-absent">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.absent}</strong>
                                         <div class="small">Ausentes</div>
                                     </div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="stat-badge bg-warning text-dark" style="font-size: 0.75rem; padding: 0.3rem 0.5rem;">
-                                        <strong>${emergency.stats.pending}</strong>
+                                    <div class="stat-badge stat-pending">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.pending}</strong>
                                         <div class="small">Pendientes</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="col-12 col-md-2">
-                            <div class="d-flex gap-2 flex-md-column">
+                        <div class="col-12 col-md-5">
+                            <div class="d-flex gap-2 flex-row justify-content-end">
                                 <a href="/emergency/api/emergency/${emergency.id}/export-excel" 
-                                   class="btn btn-sm btn-primary flex-fill" 
+                                   class="btn btn-sm btn-export flex-fill flex-md-grow-0" 
                                    download>
                                     <i class="bi bi-file-earmark-excel"></i> <span class="d-none d-sm-inline">Exportar</span>
                                 </a>
                                 ${emergency.can_delete ? `
-                                    <button class="btn btn-sm btn-danger flex-fill" onclick="showDeleteModal(${emergency.id})">
+                                    <button class="btn btn-sm btn-delete flex-fill flex-md-grow-0" onclick="showDeleteModal(${emergency.id})">
                                         <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Borrar</span>
                                     </button>
                                 ` : ''}
