@@ -218,6 +218,39 @@ def create_group():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@emergency_bp.route('/api/groups/<int:group_id>', methods=['PUT'])
+@login_required
+def update_group(group_id):
+    """Actualizar grupo"""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+    
+    try:
+        data = request.json
+        group = Group.query.get_or_404(group_id)
+        
+        group.name = data.get('name', group.name)
+        group.description = data.get('description', group.description)
+        group.color = data.get('color', group.color)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Grupo actualizado',
+            'group': {
+                'id': group.id,
+                'name': group.name,
+                'description': group.description,
+                'color': group.color
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error actualizando grupo: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @emergency_bp.route('/api/groups/<int:group_id>', methods=['DELETE'])
 @login_required
 def delete_group(group_id):
