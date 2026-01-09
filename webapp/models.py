@@ -411,13 +411,14 @@ class RollCallEntry(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     emergency_id = db.Column(db.Integer, db.ForeignKey('emergency_sessions.id'), nullable=False)
-    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)  # Ahora es opcional
     biostar_user_id = db.Column(db.String(50), nullable=False)
     user_name = db.Column(db.String(200))
     status = db.Column(db.String(20), default='pending')
     marked_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     marked_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    manual_group_name = db.Column(db.String(200))  # Para grupos temporales (solo texto, no FK)
     
     group = db.relationship('Group', backref='roll_call_entries')
     marked_by_user = db.relationship('User', backref='marked_roll_calls')

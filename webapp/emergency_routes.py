@@ -765,15 +765,32 @@ def get_roll_call(emergency_id):
     try:
         entries = RollCallEntry.query.filter_by(emergency_id=emergency_id).all()
         
-        # Agrupar por grupo
+        # Agrupar por grupo (real o temporal)
         grouped = {}
         for entry in entries:
-            group_name = entry.group.name
+            # Usar manual_group_name si existe, sino usar el grupo real
+            if entry.manual_group_name:
+                # Entrada manual con grupo temporal (no en BD)
+                group_name = entry.manual_group_name
+                group_id = None
+                group_color = '#6c757d'  # Color gris para grupos temporales
+            elif entry.group:
+                # Entrada con grupo real de BD
+                group_name = entry.group.name
+                group_id = entry.group_id
+                group_color = entry.group.color
+            else:
+                # Entrada sin grupo (fallback)
+                group_name = 'Sin Grupo'
+                group_id = None
+                group_color = '#6c757d'
+            
             if group_name not in grouped:
                 grouped[group_name] = {
-                    'group_id': entry.group_id,
+                    'group_id': group_id,
                     'group_name': group_name,
-                    'group_color': entry.group.color,
+                    'group_color': group_color,
+                    'is_temporary': bool(entry.manual_group_name),  # Indicar si es temporal
                     'members': []
                 }
             
@@ -892,11 +909,11 @@ def export_emergency_excel(emergency_id):
 @emergency_bp.route('/api/emergency/<int:emergency_id>/manual-entry', methods=['POST'])
 @login_required
 def add_manual_entry(emergency_id):
-    """Agregar entrada manual al pase de lista"""
+    """Agregar entrada manual al pase de lista (SIN crear grupos en BD)"""
     try:
         data = request.json
         name = data.get('name', '').strip()
-        area = data.get('area', 'Sin Grupo').strip()
+        area = data.get('area', '').strip()
         
         if not name:
             return jsonify({'success': False, 'message': 'El nombre es requerido'}), 400
@@ -907,55 +924,43 @@ def add_manual_entry(emergency_id):
             return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
         
         # Buscar grupo existente en la zona (case-insensitive)
-        group = Group.query.filter(
-            Group.zone_id == emergency.zone_id,
-            db.func.lower(Group.name) == area.lower(),
-            Group.is_active == True
-        ).first()
+        group = None
+        group_id = None
+        manual_group_name = None
         
-        # Si no existe el grupo, buscar o crear grupo especial "Entradas Manuales"
-        if not group:
-            logger.warning(f"⚠️ Grupo '{area}' no existe en zona {emergency.zone_id}. Usando grupo 'Entradas Manuales'")
-            
-            # Buscar grupo especial "Entradas Manuales"
-            group = Group.query.filter_by(
-                zone_id=emergency.zone_id,
-                name='Entradas Manuales',
-                is_active=True
+        if area:
+            group = Group.query.filter(
+                Group.zone_id == emergency.zone_id,
+                db.func.lower(Group.name) == area.lower(),
+                Group.is_active == True
             ).first()
             
-            # Si no existe, crearlo (solo una vez por zona)
-            if not group:
-                group = Group(
-                    zone_id=emergency.zone_id,
-                    name='Entradas Manuales',
-                    description='Grupo especial para personas agregadas manualmente sin grupo asignado',
-                    color='#6c757d'
-                )
-                db.session.add(group)
-                db.session.flush()
-                logger.info(f"✓ Grupo especial 'Entradas Manuales' creado para zona {emergency.zone_id}")
+            if group:
+                # Grupo existe en BD - usarlo
+                group_id = group.id
+                logger.info(f"✓ Usando grupo existente: {group.name}")
+            else:
+                # Grupo NO existe - NO crearlo, solo guardar como texto temporal
+                manual_group_name = area
+                logger.info(f"📝 Grupo temporal (no en BD): {area}")
         
         # Crear entrada en el pase de lista
-        # Si el área no coincide con el grupo, guardarla en las notas
-        notes = f'Entrada manual'
-        if group.name == 'Entradas Manuales' and area != 'Sin Grupo':
-            notes += f' - Área indicada: {area}'
-        
         entry = RollCallEntry(
             emergency_id=emergency_id,
-            group_id=group.id,
+            group_id=group_id,  # Puede ser None si es entrada manual sin grupo real
+            manual_group_name=manual_group_name,  # Nombre temporal del grupo (solo texto)
             biostar_user_id='MANUAL',
             user_name=name,
             status='present',  # Marcar como presente automáticamente
             marked_at=datetime.utcnow(),
             marked_by=current_user.id,
-            notes=notes
+            notes='Entrada manual'
         )
         db.session.add(entry)
         db.session.commit()
         
-        logger.info(f"✅ Entrada manual agregada: {name} en grupo '{group.name}'")
+        group_display = group.name if group else (manual_group_name or 'Sin grupo')
+        logger.info(f"✅ Entrada manual agregada: {name} en '{group_display}'")
         
         return jsonify({
             'success': True,
