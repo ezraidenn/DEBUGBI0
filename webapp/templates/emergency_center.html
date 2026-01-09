@@ -135,7 +135,11 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Área/Grupo <span class="text-muted">(opcional)</span></label>
                         <input type="text" class="form-control" id="manualEntryArea" 
-                               placeholder="Ej: IT, Administración, etc.">
+                               placeholder="Ej: IT, Administración, etc."
+                               autocomplete="off"
+                               oninput="searchGroups(this.value)">
+                        <div id="groupSuggestions" class="list-group mt-1" style="display: none; position: absolute; z-index: 1050; max-height: 200px; overflow-y: auto; width: calc(100% - 2rem);"></div>
+                        <small class="text-muted">💡 Escribe para ver sugerencias de grupos existentes, o escribe uno nuevo</small>
                     </div>
                     <div class="alert alert-info mb-0">
                         <i class="bi bi-info-circle"></i> Esta entrada se agregará solo a este pase de lista y será marcada como presente.
@@ -833,6 +837,8 @@ function updateTimestampOptimistic(entryId) {
     }
 }
 
+let groupsCache = [];
+
 function showManualEntryModal() {
     if (!activeEmergencyId) {
         alert('No hay emergencia activa');
@@ -840,13 +846,77 @@ function showManualEntryModal() {
     }
     
     document.getElementById('manualEntryForm').reset();
+    document.getElementById('groupSuggestions').style.display = 'none';
+    
+    // Cargar grupos existentes para autocompletado
+    loadGroupsForAutocomplete();
+    
     const modal = new bootstrap.Modal(document.getElementById('manualEntryModal'));
     modal.show();
 }
 
+async function loadGroupsForAutocomplete() {
+    try {
+        const response = await fetch('/emergency/api/groups/all');
+        const data = await response.json();
+        
+        if (data.success) {
+            groupsCache = data.groups;
+            console.log('✓ Grupos cargados para autocompletado:', groupsCache.length);
+        }
+    } catch (error) {
+        console.error('Error cargando grupos:', error);
+    }
+}
+
+function searchGroups(query) {
+    const suggestionsDiv = document.getElementById('groupSuggestions');
+    
+    if (!query || query.length < 2) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    // Filtrar grupos que coincidan (case insensitive)
+    const matches = groupsCache.filter(group => 
+        group.name.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (matches.length === 0) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    // Renderizar sugerencias
+    suggestionsDiv.innerHTML = matches.slice(0, 5).map(group => `
+        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                onclick="selectGroup('${escapeHtml(group.name)}')" 
+                style="cursor: pointer;">
+            <span>
+                <i class="bi bi-people-fill" style="color: ${group.color};"></i>
+                <strong>${escapeHtml(group.name)}</strong>
+            </span>
+            <span class="badge bg-secondary">${group.zone_name}</span>
+        </button>
+    `).join('');
+    
+    suggestionsDiv.style.display = 'block';
+}
+
+function selectGroup(groupName) {
+    document.getElementById('manualEntryArea').value = groupName;
+    document.getElementById('groupSuggestions').style.display = 'none';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 async function addManualEntry() {
     const name = document.getElementById('manualEntryName').value.trim();
-    const area = document.getElementById('manualEntryArea').value.trim();
+    const area = document.getElementById('manualEntryArea').value.trim() || 'Sin Grupo';
     
     if (!name) {
         alert('El nombre es requerido');
@@ -857,6 +927,9 @@ async function addManualEntry() {
         alert('No hay emergencia activa');
         return;
     }
+    
+    // Ocultar sugerencias
+    document.getElementById('groupSuggestions').style.display = 'none';
     
     try {
         const response = await fetch(`/emergency/api/emergency/${activeEmergencyId}/manual-entry`, {
