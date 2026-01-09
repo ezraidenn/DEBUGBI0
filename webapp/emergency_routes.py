@@ -270,6 +270,31 @@ def delete_group(group_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@emergency_bp.route('/api/groups/all', methods=['GET'])
+@login_required
+def get_all_groups():
+    """Obtener todos los grupos activos de todas las zonas (para autocompletado)"""
+    try:
+        groups = Group.query.filter_by(is_active=True).all()
+        
+        result = {
+            'success': True,
+            'groups': [{
+                'id': g.id,
+                'name': g.name,
+                'description': g.description,
+                'color': g.color,
+                'zone_id': g.zone_id,
+                'zone_name': g.zone.name
+            } for g in groups]
+        }
+        
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error obteniendo grupos: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ============================================
 # API - BÚSQUEDA DE USUARIOS (directo desde BioStar)
 # ============================================
@@ -871,7 +896,7 @@ def add_manual_entry(emergency_id):
     try:
         data = request.json
         name = data.get('name', '').strip()
-        area = data.get('area', 'Manual').strip()
+        area = data.get('area', 'Sin Grupo').strip()
         
         if not name:
             return jsonify({'success': False, 'message': 'El nombre es requerido'}), 400
@@ -881,20 +906,42 @@ def add_manual_entry(emergency_id):
         if emergency.status != 'active':
             return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
         
-        # Buscar o crear grupo "Manual" o usar el área especificada
-        group = Group.query.filter_by(zone_id=emergency.zone_id, name=area).first()
+        # Buscar grupo existente en la zona (case-insensitive)
+        group = Group.query.filter(
+            Group.zone_id == emergency.zone_id,
+            db.func.lower(Group.name) == area.lower(),
+            Group.is_active == True
+        ).first()
+        
+        # Si no existe el grupo, buscar o crear grupo especial "Entradas Manuales"
         if not group:
-            # Crear grupo temporal para entradas manuales
-            group = Group(
+            logger.warning(f"⚠️ Grupo '{area}' no existe en zona {emergency.zone_id}. Usando grupo 'Entradas Manuales'")
+            
+            # Buscar grupo especial "Entradas Manuales"
+            group = Group.query.filter_by(
                 zone_id=emergency.zone_id,
-                name=area,
-                description=f'Grupo temporal para entradas manuales',
-                color='#6c757d'
-            )
-            db.session.add(group)
-            db.session.flush()
+                name='Entradas Manuales',
+                is_active=True
+            ).first()
+            
+            # Si no existe, crearlo (solo una vez por zona)
+            if not group:
+                group = Group(
+                    zone_id=emergency.zone_id,
+                    name='Entradas Manuales',
+                    description='Grupo especial para personas agregadas manualmente sin grupo asignado',
+                    color='#6c757d'
+                )
+                db.session.add(group)
+                db.session.flush()
+                logger.info(f"✓ Grupo especial 'Entradas Manuales' creado para zona {emergency.zone_id}")
         
         # Crear entrada en el pase de lista
+        # Si el área no coincide con el grupo, guardarla en las notas
+        notes = f'Entrada manual'
+        if group.name == 'Entradas Manuales' and area != 'Sin Grupo':
+            notes += f' - Área indicada: {area}'
+        
         entry = RollCallEntry(
             emergency_id=emergency_id,
             group_id=group.id,
@@ -903,12 +950,12 @@ def add_manual_entry(emergency_id):
             status='present',  # Marcar como presente automáticamente
             marked_at=datetime.utcnow(),
             marked_by=current_user.id,
-            notes='Entrada manual'
+            notes=notes
         )
         db.session.add(entry)
         db.session.commit()
         
-        logger.info(f"✅ Entrada manual agregada: {name} en {area}")
+        logger.info(f"✅ Entrada manual agregada: {name} en grupo '{group.name}'")
         
         return jsonify({
             'success': True,
