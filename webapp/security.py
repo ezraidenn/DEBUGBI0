@@ -80,11 +80,11 @@ class SecurityConfig:
     PERMANENT_LOCKOUT_AFTER = get_env_int('PERMANENT_LOCKOUT_AFTER', 3)
     
     # ==================== PASSWORD POLICY ====================
-    PASSWORD_MIN_LENGTH = get_env_int('PASSWORD_MIN_LENGTH', 12)  # Mínimo 12 para gobierno
-    PASSWORD_REQUIRE_UPPER = get_env_bool('PASSWORD_REQUIRE_UPPER', True)
-    PASSWORD_REQUIRE_LOWER = get_env_bool('PASSWORD_REQUIRE_LOWER', True)
-    PASSWORD_REQUIRE_DIGIT = get_env_bool('PASSWORD_REQUIRE_DIGIT', True)
-    PASSWORD_REQUIRE_SPECIAL = get_env_bool('PASSWORD_REQUIRE_SPECIAL', True)
+    PASSWORD_MIN_LENGTH = get_env_int('PASSWORD_MIN_LENGTH', 8)  # Mínimo 8 caracteres
+    PASSWORD_REQUIRE_UPPER = get_env_bool('PASSWORD_REQUIRE_UPPER', False)
+    PASSWORD_REQUIRE_LOWER = get_env_bool('PASSWORD_REQUIRE_LOWER', False)
+    PASSWORD_REQUIRE_DIGIT = get_env_bool('PASSWORD_REQUIRE_DIGIT', False)
+    PASSWORD_REQUIRE_SPECIAL = get_env_bool('PASSWORD_REQUIRE_SPECIAL', False)
     PASSWORD_HISTORY_COUNT = get_env_int('PASSWORD_HISTORY_COUNT', 5)  # No reusar últimas 5
     PASSWORD_MAX_AGE_DAYS = get_env_int('PASSWORD_MAX_AGE_DAYS', 90)  # Forzar cambio cada 90 días
     
@@ -354,42 +354,16 @@ def validate_password(password: str) -> Tuple[bool, str]:
     Valida que la contraseña cumpla con la política de seguridad.
     Returns: (is_valid, error_message)
     """
-    errors = []
-    
-    # Longitud mínima
+    # Solo validar longitud mínima
     if len(password) < SecurityConfig.PASSWORD_MIN_LENGTH:
-        errors.append(f'Mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres')
-    
-    # Mayúsculas
-    if SecurityConfig.PASSWORD_REQUIRE_UPPER and not re.search(r'[A-Z]', password):
-        errors.append('Al menos una mayúscula')
-    
-    # Números
-    if SecurityConfig.PASSWORD_REQUIRE_DIGIT and not re.search(r'\d', password):
-        errors.append('Al menos un número')
-    
-    # Caracteres especiales
-    if SecurityConfig.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
-        errors.append('Al menos un carácter especial (!@#$%^&*...)')
-    
-    if errors:
-        return False, 'La contraseña debe tener: ' + ', '.join(errors)
+        return False, f'La contraseña debe tener mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres'
     
     return True, ''
 
 
 def get_password_policy_text() -> str:
     """Retorna texto descriptivo de la política de contraseñas."""
-    requirements = [f'Mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres']
-    
-    if SecurityConfig.PASSWORD_REQUIRE_UPPER:
-        requirements.append('una mayúscula')
-    if SecurityConfig.PASSWORD_REQUIRE_DIGIT:
-        requirements.append('un número')
-    if SecurityConfig.PASSWORD_REQUIRE_SPECIAL:
-        requirements.append('un carácter especial')
-    
-    return ', '.join(requirements)
+    return f'Requisitos: Mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres'
 
 
 # ============================================
