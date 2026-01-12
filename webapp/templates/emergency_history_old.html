@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Emergencias{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Paleta de colores café elegante */
+    :root {
+        --cafe-oscuro: #3E2723;
+        --cafe-medio: #5D4037;
+        --cafe-claro: #8D6E63;
+        --beige-claro: #D7CCC8;
+        --beige-muy-claro: #F5F5F5;
+        --verde-natural: #4CAF50;
+        --rojo-suave: #E57373;
+        --amarillo-suave: #FFB74D;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.15);
+    }
+    
+    .emergency-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 2px 8px rgba(62, 39, 35, 0.08);
+    }
+    
+    .emergency-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(62, 39, 35, 0.15);
+    }
+    
+    .emergency-card-header {
+        background: linear-gradient(135deg, var(--beige-muy-claro) 0%, white 100%);
+        border-bottom: 3px solid;
+        padding: 1rem;
+    }
+    
+    .stat-badge {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .duration-badge {
+        background: linear-gradient(135deg, var(--cafe-medio) 0%, var(--cafe-claro) 100%);
+        color: white;
+        font-weight: 600;
+    }
+    
+    .filter-section {
+        background: linear-gradient(135deg, var(--beige-muy-claro) 0%, white 100%);
+        padding: 1.25rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--beige-claro);
+        box-shadow: 0 2px 8px rgba(62, 39, 35, 0.05);
+    }
+    
+    .filter-section label {
+        color: var(--cafe-oscuro);
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid var(--beige-claro);
+        border-radius: 8px;
+        transition: border-color 0.2s;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--cafe-medio);
+        box-shadow: 0 0 0 0.2rem rgba(93, 64, 55, 0.15);
+    }
+    
+    .btn-cafe {
+        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .btn-cafe:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.25);
+        color: white;
+    }
+    
+    .btn-export {
+        background: linear-gradient(135deg, var(--verde-natural) 0%, #45a049 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+    }
+    
+    .btn-export:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.25);
+        color: white;
+    }
+    
+    .btn-delete {
+        background: linear-gradient(135deg, var(--rojo-suave) 0%, #ef5350 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+    }
+    
+    .btn-delete:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(229, 115, 115, 0.25);
+        color: white;
+    }
+    
+    .icon-container {
+        background: linear-gradient(135deg, var(--beige-claro) 0%, var(--beige-muy-claro) 100%);
+        border-radius: 12px;
+        padding: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .badge-custom {
+        font-weight: 600;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+    }
+    
+    .stat-total { background: linear-gradient(135deg, var(--cafe-claro) 0%, var(--cafe-medio) 100%); color: white; }
+    .stat-present { background: linear-gradient(135deg, var(--verde-natural) 0%, #45a049 100%); color: white; }
+    .stat-absent { background: linear-gradient(135deg, var(--rojo-suave) 0%, #ef5350 100%); color: white; }
+    .stat-pending { background: linear-gradient(135deg, var(--amarillo-suave) 0%, #ffa726 100%); color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="page-header">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+            <div>
+                <h2 class="mb-1"><i class="bi bi-clock-history"></i> <span class="d-none d-md-inline">Historial de Emergencias</span><span class="d-md-none">Historial</span></h2>
+                <p class="mb-0 small" style="opacity: 0.9;">Registro de emergencias pasadas y sus pases de lista</p>
+            </div>
+            <a href="/emergency/emergency" class="btn btn-cafe btn-sm">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="filter-section">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label small"><i class="bi bi-search"></i> Buscar por zona</label>
+                <input type="text" id="searchZone" class="form-control" placeholder="Nombre de zona...">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small"><i class="bi bi-funnel"></i> Tipo</label>
+                <select id="filterType" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="general">General</option>
+                    <option value="incendio">🔥 Incendio</option>
+                    <option value="sismo">🌍 Sismo</option>
+                    <option value="evacuacion">🚪 Evacuación</option>
+                    <option value="seguridad">🔒 Seguridad</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small"><i class="bi bi-calendar"></i> Fecha</label>
+                <input type="date" id="filterDate" class="form-control">
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end">
+                <button class="btn btn-cafe w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lista de emergencias -->
+    <div id="emergenciesList">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="text-muted mt-2">Cargando historial...</p>
+        </div>
+    </div>
+    
+    <!-- Paginación -->
+    <nav id="paginationNav" class="mt-4" style="display: none;">
+        <ul class="pagination justify-content-center" id="pagination"></ul>
+    </nav>
+</div>
+
+<!-- Modal de confirmación de borrado -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Confirmar Borrado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas borrar esta emergencia?</p>
+                <p class="text-danger fw-bold mb-0">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="bi bi-trash"></i> Borrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let emergencyToDelete = null;
+let deleteModal = null;
+
+// Inicializar modal cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement && typeof bootstrap !== 'undefined') {
+        deleteModal = new bootstrap.Modal(modalElement);
+        
+        // Corregir advertencia ARIA: remover foco cuando el modal se oculta
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            document.activeElement.blur();
+        });
+    }
+});
+
+async function loadEmergencies(page = 1) {
+    try {
+        const response = await fetch(`/emergency/api/emergencies/history?page=${page}&per_page=20`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderEmergencies(data.emergencies);
+            renderPagination(data.pagination);
+            currentPage = page;
+        } else {
+            showError('Error cargando historial: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión');
+    }
+}
+
+function renderEmergencies(emergencies) {
+    const container = document.getElementById('emergenciesList');
+    
+    if (emergencies.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 4rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No hay emergencias en el historial</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = emergencies.map(emergency => {
+        const typeIcons = {
+            'general': 'bi-exclamation-triangle',
+            'incendio': 'bi-fire',
+            'sismo': 'bi-broadcast',
+            'evacuacion': 'bi-door-open',
+            'seguridad': 'bi-shield-exclamation'
+        };
+        
+        const typeColors = {
+            'general': '#6c757d',
+            'incendio': '#dc3545',
+            'sismo': '#fd7e14',
+            'evacuacion': '#17a2b8',
+            'seguridad': '#ffc107'
+        };
+        
+        const icon = typeIcons[emergency.emergency_type] || 'bi-exclamation-triangle';
+        const typeColor = typeColors[emergency.emergency_type] || '#6c757d';
+        
+        const startDate = new Date(emergency.started_at);
+        const resolvedDate = emergency.resolved_at ? new Date(emergency.resolved_at) : null;
+        
+        return `
+            <div class="card emergency-card mb-3">
+                <div class="emergency-card-header" style="border-bottom-color: ${typeColor};">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="icon-container">
+                            <i class="bi ${icon}" style="font-size: 1.5rem; color: ${typeColor};"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-0" style="color: var(--cafe-oscuro); font-weight: 700;">${emergency.zone_name}</h5>
+                            <small class="text-muted">
+                                <i class="bi bi-person-circle"></i> ${emergency.started_by}
+                            </small>
+                        </div>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <span class="badge badge-custom" style="background: var(--cafe-medio); color: white;">
+                                <i class="bi bi-calendar3"></i> ${startDate.toLocaleDateString('es-MX')}
+                            </span>
+                            <span class="badge badge-custom" style="background: var(--cafe-claro); color: white;">
+                                <i class="bi bi-clock"></i> ${startDate.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
+                            </span>
+                            ${emergency.duration_minutes ? `
+                                <span class="badge badge-custom duration-badge">
+                                    <i class="bi bi-hourglass-split"></i> ${emergency.duration_minutes} min
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-7">
+                            <div class="d-flex gap-2 flex-wrap">
+                                <div class="text-center">
+                                    <div class="stat-badge stat-total">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.total}</strong>
+                                        <div class="small">Total</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge stat-present">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.present}</strong>
+                                        <div class="small">Presentes</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge stat-absent">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.absent}</strong>
+                                        <div class="small">Ausentes</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="stat-badge stat-pending">
+                                        <strong style="font-size: 1.25rem;">${emergency.stats.pending}</strong>
+                                        <div class="small">Pendientes</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 col-md-5">
+                            <div class="d-flex gap-2 flex-row justify-content-end">
+                                <a href="/emergency/api/emergency/${emergency.id}/export-excel" 
+                                   class="btn btn-sm btn-export flex-fill flex-md-grow-0" 
+                                   download>
+                                    <i class="bi bi-file-earmark-excel"></i> <span class="d-none d-sm-inline">Exportar</span>
+                                </a>
+                                ${emergency.can_delete ? `
+                                    <button class="btn btn-sm btn-delete flex-fill flex-md-grow-0" onclick="showDeleteModal(${emergency.id})">
+                                        <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Borrar</span>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${emergency.notes ? `
+                        <div class="mt-3 pt-3 border-top">
+                            <small class="text-muted">
+                                <i class="bi bi-sticky"></i> <strong>Notas:</strong> ${emergency.notes}
+                            </small>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderPagination(pagination) {
+    const nav = document.getElementById('paginationNav');
+    const container = document.getElementById('pagination');
+    
+    if (pagination.pages <= 1) {
+        nav.style.display = 'none';
+        return;
+    }
+    
+    nav.style.display = 'block';
+    
+    let html = '';
+    
+    // Botón anterior
+    html += `
+        <li class="page-item ${!pagination.has_prev ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page - 1}); return false;">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = 1; i <= pagination.pages; i++) {
+        if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+            html += `
+                <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="loadEmergencies(${i}); return false;">${i}</a>
+                </li>
+            `;
+        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    // Botón siguiente
+    html += `
+        <li class="page-item ${!pagination.has_next ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page + 1}); return false;">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function showDeleteModal(emergencyId) {
+    emergencyToDelete = emergencyId;
+    if (deleteModal) {
+        deleteModal.show();
+    } else {
+        // Fallback si bootstrap no está disponible
+        const modalElement = document.getElementById('deleteModal');
+        if (modalElement && typeof bootstrap !== 'undefined') {
+            deleteModal = new bootstrap.Modal(modalElement);
+            deleteModal.show();
+        }
+    }
+}
+
+async function confirmDelete() {
+    if (!emergencyToDelete) return;
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${emergencyToDelete}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            if (deleteModal) {
+                deleteModal.hide();
+            }
+            loadEmergencies(currentPage);
+            showSuccess('Emergencia borrada exitosamente');
+        } else {
+            showError('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión');
+    }
+    
+    emergencyToDelete = null;
+}
+
+function clearFilters() {
+    document.getElementById('searchZone').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDate').value = '';
+    loadEmergencies(1);
+}
+
+function showError(message) {
+    const container = document.getElementById('emergenciesList');
+    container.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+}
+
+function showSuccess(message) {
+    // Crear toast de éxito
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle"></i> ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    toastContainer.innerHTML = toastHtml;
+    document.body.appendChild(toastContainer);
+    
+    if (typeof bootstrap !== 'undefined') {
+        const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
+        toast.show();
+    } else {
+        // Fallback: mostrar sin animación
+        toastContainer.querySelector('.toast').classList.add('show');
+    }
+    
+    setTimeout(() => toastContainer.remove(), 5000);
+}
+
+// Cargar al inicio
+loadEmergencies(1);
+
+// Filtros en tiempo real
+let filterTimeout;
+document.getElementById('searchZone').addEventListener('input', () => {
+    clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(() => applyFilters(), 500);
+});
+
+document.getElementById('filterType').addEventListener('change', applyFilters);
+document.getElementById('filterDate').addEventListener('change', applyFilters);
+
+function applyFilters() {
+    const zone = document.getElementById('searchZone').value.trim();
+    const type = document.getElementById('filterType').value;
+    const date = document.getElementById('filterDate').value;
+    
+    let url = '/emergency/api/emergencies/history?page=1&per_page=20';
+    
+    if (zone) url += `&zone=${encodeURIComponent(zone)}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    if (date) url += `&date=${encodeURIComponent(date)}`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderEmergencies(data.emergencies);
+                renderPagination(data.pagination);
+                currentPage = 1;
+            }
+        })
+        .catch(error => {
+            console.error('Error aplicando filtros:', error);
+        });
+}
+</script>
+{% endblock %}

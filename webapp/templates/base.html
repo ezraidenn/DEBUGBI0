@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}BioStar Logs Monitor{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-white.png') }}">
     
     <!-- Preconnect para recursos externos -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,7 +73,6 @@
                     <li class="nav-item">
                         <div class="sidebar-heading">ADMINISTRACIÓN</div>
                     </li>
-                    <!-- DEBUG: is_admin={{ current_user.is_admin }}, is_auditor={{ current_user.is_auditor }} -->
                     {% if current_user.is_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}" href="{{ url_for('users_list') }}">
@@ -86,18 +89,19 @@
                     {% endif %}
                     {% if current_user.is_admin or current_user.is_auditor %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'emergency.emergency_page' %}active{% endif %}" href="{{ url_for('emergency.emergency_page') }}">
+                        <a class="nav-link" href="{{ url_for('emergency.emergency_page') }}">
                             <i class="bi bi-exclamation-triangle-fill"></i>
-                            <span>Emergencias</span>
+                            <span class="nav-text">Emergencias</span>
                         </a>
                     </li>
+                    {% endif %}
+                    
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'emergency.history_page' %}active{% endif %}" href="{{ url_for('emergency.history_page') }}">
                             <i class="bi bi-clock-history"></i>
                             <span>Historial</span>
                         </a>
                     </li>
-                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'config_devices' %}active{% endif %}" href="{{ url_for('config_devices') }}">
                             <i class="bi bi-gear-fill"></i>
@@ -148,6 +152,37 @@
     
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- CSRF Token Global Setup -->
+    <script>
+        // Variable global de debug (false en producción)
+        const DEBUG = {% if config.get('DEBUG', False) %}true{% else %}false{% endif %};
+        
+        // Wrapper para console.log que solo funciona en debug
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            if (DEBUG) {
+                originalConsoleLog.apply(console, args);
+            }
+        };
+        
+        // Configurar CSRF token para todas las peticiones fetch
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        
+        // Wrapper para fetch que incluye CSRF automáticamente
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            if (options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+                options.headers = options.headers || {};
+                if (typeof options.headers === 'object' && !(options.headers instanceof Headers)) {
+                    options.headers['X-CSRF-Token'] = csrfToken;
+                } else if (options.headers instanceof Headers) {
+                    options.headers.append('X-CSRF-Token', csrfToken);
+                }
+            }
+            return originalFetch(url, options);
+        };
+    </script>
     
     <!-- Mobile Menu Script -->
     <script>

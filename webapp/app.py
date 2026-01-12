@@ -154,6 +154,7 @@ from webapp.security import (
     # Configuración base
     configure_flask_security,
     apply_government_security,
+    CSRFProtection,
     SecurityConfig,
     audit_logger,
     
@@ -242,6 +243,7 @@ login_manager.login_message = 'Por favor inicia sesión para acceder a esta pág
 
 # Register helper functions for Jinja templates
 app.jinja_env.globals.update(classify_event=classify_event)
+app.jinja_env.globals.update(csrf_token=CSRFProtection.generate_token)
 
 # Initialize BioStar config
 biostar_config = Config()
@@ -631,75 +633,108 @@ def dashboard():
 @login_required
 def api_dashboard_data():
     """API para cargar datos del dashboard de forma asíncrona."""
-    monitor = get_monitor()
-    if not monitor:
-        return jsonify({'error': 'No se pudo conectar con BioStar'}), 500
-    
-    # Get all devices (usar caché)
-    all_devices = monitor.get_all_devices(refresh=False)
-    
-    # Get device configurations
-    device_configs = {}
-    for config in DeviceConfig.query.all():
-        device_configs[config.device_id] = config
-        device_configs[str(config.device_id)] = config
-    
-    # Filtrar según permisos
-    if current_user.is_admin or current_user.can_see_all_events:
-        devices = all_devices
-    else:
-        allowed_ids = current_user.get_allowed_device_ids()
-        if allowed_ids is not None:
-            allowed_ids_str = set(str(d) for d in allowed_ids)
-            devices = [d for d in all_devices if str(d['id']) in allowed_ids_str]
-        else:
-            devices = all_devices
-    
-    # Carga paralela de resúmenes
-    def fetch_device_summary(device):
+    try:
+        monitor = get_monitor()
+        if not monitor:
+            logger.warning("BioStar no disponible - retornando dashboard vacío")
+            return jsonify({
+                'success': True,
+                'devices': [],
+                'total_granted': 0,
+                'total_users': 0,
+                'total_devices': 0,
+                'warning': 'BioStar no disponible. Verifica la conexión al servidor.'
+            })
+        
+        # Get all devices (usar caché)
+        all_devices = monitor.get_all_devices(refresh=False)
+        
+        if not all_devices:
+            return jsonify({
+                'success': True,
+                'devices': [],
+                'total_granted': 0,
+                'total_users': 0,
+                'total_devices': 0
+            })
+        
+        # Get device configurations
+        device_configs = {}
         try:
-            summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
-            summary['total_events'] = summary['access_granted']
-            return device['id'], summary, user_ids
-        except Exception:
-            return device['id'], {'access_granted': 0, 'unique_users': 0, 'total_events': 0}, set()
-    
-    devices_by_type = {}
-    total_granted = 0
-    all_user_ids = set()
-    device_summaries = {}
-    
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(fetch_device_summary, d): d for d in devices}
-        for future in as_completed(futures):
-            device_id, summary, user_ids = future.result()
-            device_summaries[device_id] = (summary, user_ids)
-    
-    # Procesar resultados
-    devices_data = []
-    for device in devices:
-        summary, user_ids = device_summaries.get(device['id'], ({}, set()))
-        total_granted += summary.get('access_granted', 0)
-        all_user_ids.update(user_ids)
+            for config in DeviceConfig.query.all():
+                device_configs[config.device_id] = config
+                device_configs[str(config.device_id)] = config
+        except Exception as e:
+            logger.error(f"Error cargando configuraciones de dispositivos: {e}")
         
-        config = device_configs.get(device['id']) or device_configs.get(str(device['id']))
-        device_type = config.device_type if config else 'checador'
+        # Filtrar según permisos
+        if current_user.is_admin or current_user.can_see_all_events:
+            devices = all_devices
+        else:
+            allowed_ids = current_user.get_allowed_device_ids()
+            if allowed_ids is not None:
+                allowed_ids_str = set(str(d) for d in allowed_ids)
+                devices = [d for d in all_devices if str(d.get('id', '')) in allowed_ids_str]
+            else:
+                devices = all_devices
         
-        devices_data.append({
-            'id': device['id'],
-            'name': device.get('name', ''),
-            'alias': config.alias if config else None,
-            'device_type': device_type,
-            'summary': summary
+        # Carga paralela de resúmenes
+        def fetch_device_summary(device):
+            try:
+                summary, user_ids = monitor.get_debug_summary_with_users(device['id'])
+                summary['total_events'] = summary.get('access_granted', 0)
+                return device['id'], summary, user_ids
+            except Exception as e:
+                logger.error(f"Error obteniendo resumen del dispositivo {device.get('id')}: {e}")
+                return device.get('id'), {'access_granted': 0, 'unique_users': 0, 'total_events': 0}, set()
+        
+        total_granted = 0
+        all_user_ids = set()
+        device_summaries = {}
+        
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(fetch_device_summary, d): d for d in devices}
+            for future in as_completed(futures):
+                try:
+                    device_id, summary, user_ids = future.result()
+                    device_summaries[device_id] = (summary, user_ids)
+                except Exception as e:
+                    logger.error(f"Error procesando future: {e}")
+                    continue
+        
+        # Procesar resultados
+        devices_data = []
+        for device in devices:
+            try:
+                summary, user_ids = device_summaries.get(device.get('id'), ({}, set()))
+                total_granted += summary.get('access_granted', 0)
+                all_user_ids.update(user_ids)
+                
+                config = device_configs.get(device.get('id')) or device_configs.get(str(device.get('id')))
+                device_type = config.device_type if config else 'checador'
+                
+                devices_data.append({
+                    'id': device.get('id'),
+                    'name': device.get('name', 'Sin nombre'),
+                    'alias': config.alias if config else None,
+                    'device_type': device_type,
+                    'summary': summary
+                })
+            except Exception as e:
+                logger.error(f"Error procesando dispositivo {device.get('id')}: {e}")
+                continue
+        
+        return jsonify({
+            'success': True,
+            'devices': devices_data,
+            'total_granted': total_granted,
+            'total_users': len(all_user_ids),
+            'total_devices': len(devices)
         })
     
-    return jsonify({
-        'success': True,
-        'devices': devices_data,
-        'total_granted': total_granted,
-        'total_users': len(all_user_ids),
-        'total_devices': len(devices)
-    })
+    except Exception as e:
+        logger.error(f"Error crítico en api_dashboard_data: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Error interno del servidor: {str(e)}'}), 500
 
 
 @app.route('/debug/general')

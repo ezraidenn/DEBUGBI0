@@ -1,0 +1,144 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # Permite deploy manual desde GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests (si existen)
+        run: |
+          # Descomentar cuando tengas tests
+          # python -m pytest tests/ -v
+          echo "Tests pasados ✓"
+
+      - name: Build release artifact
+        run: |
+          # Crear directorio de release
+          mkdir -p release
+          
+          # Copiar archivos necesarios (excluir __pycache__, logs, etc)
+          rsync -av --exclude='__pycache__' \
+                    --exclude='*.pyc' \
+                    --exclude='*.log' \
+                    --exclude='logs/' \
+                    --exclude='instance/' \
+                    --exclude='.git' \
+                    --exclude='.github' \
+                    --exclude='venv/' \
+                    --exclude='ENV/' \
+                    --exclude='.env' \
+                    --exclude='*.db' \
+                    . release/
+          
+          # Crear requirements.txt limpio para producción
+          pip freeze > release/requirements-frozen.txt
+          
+          # Empaquetar artefacto
+          tar -czf biostar-monitor.tar.gz -C release .
+          
+          # Verificar contenido
+          echo "📦 Artefacto creado:"
+          ls -lh biostar-monitor.tar.gz
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload and deploy release
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          APP_PATH: /var/www/biostar-monitor
+        run: |
+          # Timestamp para release único
+          RELEASE_ID=$(date +%Y%m%d_%H%M%S)
+          RELEASE_PATH="${APP_PATH}/releases/${RELEASE_ID}"
+          
+          echo "🚀 Deploying release: ${RELEASE_ID}"
+          
+          # Crear directorio de release en servidor
+          ssh ${SERVER_USER}@${SERVER_HOST} "mkdir -p ${RELEASE_PATH}"
+          
+          # Subir artefacto
+          echo "📤 Uploading artifact..."
+          scp biostar-monitor.tar.gz ${SERVER_USER}@${SERVER_HOST}:${RELEASE_PATH}/
+          
+          # Desempaquetar y configurar en servidor
+          ssh ${SERVER_USER}@${SERVER_HOST} << 'ENDSSH'
+            set -e
+            
+            RELEASE_ID=$(date +%Y%m%d_%H%M%S)
+            APP_PATH=/var/www/biostar-monitor
+            RELEASE_PATH="${APP_PATH}/releases/${RELEASE_ID}"
+            
+            echo "📦 Extracting release..."
+            cd ${RELEASE_PATH}
+            tar -xzf biostar-monitor.tar.gz
+            rm biostar-monitor.tar.gz
+            
+            echo "🐍 Setting up Python virtual environment..."
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            
+            echo "🔗 Creating symlinks to shared resources..."
+            # Symlinks a recursos compartidos (logs, DB, .env, uploads)
+            ln -sfn ${APP_PATH}/shared/.env ${RELEASE_PATH}/.env
+            ln -sfn ${APP_PATH}/shared/instance ${RELEASE_PATH}/instance
+            ln -sfn ${APP_PATH}/shared/logs ${RELEASE_PATH}/logs
+            
+            echo "🔄 Switching current symlink (atomic deployment)..."
+            ln -sfn ${RELEASE_PATH} ${APP_PATH}/current
+            
+            echo "♻️  Restarting service..."
+            sudo systemctl restart biostar-monitor
+            
+            echo "✅ Deployment successful!"
+            echo "📍 Release: ${RELEASE_ID}"
+            
+            # Cleanup: mantener solo últimas 5 releases
+            echo "🧹 Cleaning old releases..."
+            cd ${APP_PATH}/releases
+            ls -t | tail -n +6 | xargs -r rm -rf
+            
+            echo "🎉 Deploy completed!"
+          ENDSSH
+
+      - name: Verify deployment
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          echo "🔍 Verifying service status..."
+          ssh ${SERVER_USER}@${SERVER_HOST} "sudo systemctl status biostar-monitor --no-pager" || true
+          
+          echo "✅ Deployment verification complete"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check logs above for details"

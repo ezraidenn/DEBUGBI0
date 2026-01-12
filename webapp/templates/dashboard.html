@@ -230,6 +230,21 @@ function loadDashboardData() {
         })
         .then(data => {
             if (data.success) {
+                // Mostrar advertencia si BioStar no está disponible
+                if (data.warning) {
+                    document.getElementById('devicesContainer').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>Advertencia:</strong> ${data.warning}
+                            <br><small>El servidor BioStar 2 no responde. Verifica que esté encendido y accesible en la red.</small>
+                        </div>
+                    `;
+                    document.getElementById('statDevices').textContent = '0';
+                    document.getElementById('statAccesos').textContent = '0';
+                    document.getElementById('statUsuarios').textContent = '0';
+                    return;
+                }
+                
                 // Actualizar estadísticas
                 document.getElementById('statDevices').textContent = data.total_devices;
                 document.getElementById('statAccesos').textContent = data.total_granted;

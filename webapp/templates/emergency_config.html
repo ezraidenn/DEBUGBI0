@@ -11,9 +11,6 @@
                     <h2><i class="bi bi-gear-fill"></i> Configuración de Emergencias</h2>
                     <p class="text-muted mb-0">Gestiona zonas, grupos, usuarios y dispositivos</p>
                 </div>
-                <span class="badge bg-success" id="realtimeStatus">
-                    <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Tiempo Real
-                </span>
             </div>
         </div>
     </div>
@@ -151,10 +148,10 @@
     </div>
 </div>
 
-<!-- Modal: Miembros del Grupo - CENTRADO CON ESTILOS INLINE -->
-<div class="modal fade" id="membersModal" tabindex="-1" style="display: none;">
-    <div class="modal-dialog modal-lg" style="display: flex; align-items: center; min-height: calc(100% - 1rem); margin: 0.5rem auto;">
-        <div class="modal-content" style="margin: auto;">
+<!-- Modal: Miembros del Grupo -->
+<div class="modal fade" id="membersModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
             <div class="modal-header" style="background: #3E2723; color: white;">
                 <h5 class="modal-title">
                     <i class="bi bi-people"></i> Miembros de <span id="group-name"></span>
@@ -454,7 +451,7 @@ function showCreateZoneModal() {
 
 function showCreateGroupModal() {
     if (!selectedZoneId) {
-        alert('Selecciona una zona primero');
+        Swal.fire('Atención', 'Selecciona una zona primero', 'warning');
         return;
     }
     const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
@@ -626,7 +623,7 @@ function buscarUsuarios() {
     console.log('Cache de usuarios:', todosLosUsuarios.length);
     
     if (!query || query.length < 2) {
-        alert('Escribe al menos 2 caracteres');
+        Swal.fire('Atención', 'Escribe al menos 2 caracteres', 'info');
         return;
     }
     
@@ -730,13 +727,20 @@ async function addMember(biostarUserId, userName) {
             document.getElementById('searchResults').style.display = 'none';
             document.getElementById('userSearch').value = '';
             loadMembers(selectedGroupId);
-            alert('Usuario agregado al grupo');
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Usuario agregado al grupo',
+                showConfirmButton: false,
+                timer: 2000
+            });
         } else {
-            alert('Error: ' + data.message);
+            Swal.fire('Error', data.message, 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error agregando usuario');
+        Swal.fire('Error', 'Error agregando usuario', 'error');
     }
 }
 

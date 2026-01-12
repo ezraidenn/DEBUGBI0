@@ -9,10 +9,17 @@ from datetime import datetime, timedelta
 import logging
 import json
 import time
+import pytz
 
 logger = logging.getLogger(__name__)
 
 emergency_bp = Blueprint('emergency', __name__, url_prefix='/emergency')
+
+MEXICO_TZ = pytz.timezone('America/Mexico_City')
+
+def now_cdmx():
+    """Retorna datetime actual en zona horaria CDMX"""
+    return datetime.now(MEXICO_TZ)
 
 
 # ============================================
@@ -66,7 +73,7 @@ def get_zones():
                 'description': z.description,
                 'color': z.color,
                 'icon': z.icon,
-                'groups_count': z.groups.count()
+                'groups_count': z.groups.filter_by(is_active=True).count()
             } for z in zones]
         }
         
@@ -89,10 +96,16 @@ def create_zone():
         data = request.json
         logger.info(f"Creando zona: {data}")
         
+        # Validar color hex para prevenir XSS
+        import re
+        color = data.get('color', '#6c757d')
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            color = '#6c757d'
+        
         zone = Zone(
             name=data['name'],
             description=data.get('description', ''),
-            color=data.get('color', '#6c757d'),
+            color=color,
             icon=data.get('icon', 'bi-building')
         )
         db.session.add(zone)
@@ -194,11 +207,18 @@ def create_group():
     
     try:
         data = request.json
+        
+        # Validar color hex para prevenir XSS
+        import re
+        color = data.get('color', '#007bff')
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            color = '#007bff'
+        
         group = Group(
             name=data['name'],
             description=data.get('description', ''),
             zone_id=data['zone_id'],
-            color=data.get('color', '#007bff')
+            color=color
         )
         db.session.add(group)
         db.session.commit()
@@ -229,9 +249,15 @@ def update_group(group_id):
         data = request.json
         group = Group.query.get_or_404(group_id)
         
+        # Validar color hex para prevenir XSS
+        import re
+        color = data.get('color', group.color)
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            color = group.color
+        
         group.name = data.get('name', group.name)
         group.description = data.get('description', group.description)
-        group.color = data.get('color', group.color)
+        group.color = color
         
         db.session.commit()
         
@@ -736,7 +762,7 @@ def resolve_emergency(emergency_id):
         
         # Marcar emergencia como resuelta
         emergency.status = 'resolved'
-        emergency.resolved_at = datetime.utcnow()
+        emergency.resolved_at = now_cdmx()
         db.session.commit()
         
         return jsonify({
@@ -826,7 +852,7 @@ def mark_attendance(entry_id):
         
         entry.status = data['status']  # present, absent
         entry.marked_by = current_user.id
-        entry.marked_at = datetime.utcnow()
+        entry.marked_at = now_cdmx()
         entry.notes = data.get('notes', '')
         
         db.session.commit()
@@ -952,7 +978,7 @@ def add_manual_entry(emergency_id):
             biostar_user_id='MANUAL',
             user_name=name,
             status='present',  # Marcar como presente automáticamente
-            marked_at=datetime.utcnow(),
+            marked_at=now_cdmx(),
             marked_by=current_user.id,
             notes='Entrada manual'
         )
@@ -986,7 +1012,7 @@ def stream_emergency(emergency_id):
     """
     def generate():
         # Inicializar con margen de seguridad de 2 segundos atrás para no perder cambios iniciales
-        last_check = datetime.utcnow() - timedelta(seconds=2)
+        last_check = now_cdmx() - timedelta(seconds=2)
         poll_count = 0
         
         # Enviar mensaje de conexión
@@ -998,7 +1024,7 @@ def stream_emergency(emergency_id):
                 poll_count += 1
                 
                 # CRÍTICO: Capturar timestamp ANTES de hacer queries para evitar race conditions
-                current_check = datetime.utcnow()
+                current_check = now_cdmx()
                 
                 # IMPORTANTE: Refrescar sesión para detectar cambios de otros usuarios
                 db.session.expire_all()
@@ -1201,7 +1227,7 @@ def stream_zone_presence(zone_id):
     Detecta eventos de BioStar en los dispositivos asignados a la zona.
     """
     def generate():
-        last_check = datetime.utcnow()
+        last_check = now_cdmx()
         poll_count = 0
         
         # Obtener dispositivos de la zona
@@ -1237,13 +1263,13 @@ def stream_zone_presence(zone_id):
                 presence_updates = check_zone_presence(device_ids, all_members, last_check)
                 
                 if presence_updates:
-                    yield f"event: presence\ndata: {json.dumps({'updates': presence_updates, 'timestamp': datetime.utcnow().isoformat()})}\n\n"
+                    yield f"event: presence\ndata: {json.dumps({'updates': presence_updates, 'timestamp': now_cdmx().isoformat()})}\n\n"
                 
                 # Heartbeat cada 8 polls
                 if poll_count % 8 == 0:
                     yield f"event: heartbeat\ndata: {json.dumps({'status': 'alive'})}\n\n"
                 
-                last_check = datetime.utcnow()
+                last_check = now_cdmx()
                 time.sleep(2)
                 
             except Exception as e:
@@ -1385,7 +1411,7 @@ def auto_mark_presence_from_biostar(emergency_id, entries):
                         
                         # Auto-marcar como presente
                         entry.status = 'present'
-                        entry.marked_at = datetime.utcnow()
+                        entry.marked_at = now_cdmx()
                         entry.notes = f"Auto-detectado en {device.get('name', 'dispositivo')} a las {event.get('datetime', 'N/A')}"
                         
                         db.session.commit()
@@ -1419,18 +1445,34 @@ def auto_mark_presence_from_biostar(emergency_id, entries):
 @emergency_bp.route('/api/emergencies/history', methods=['GET'])
 @login_required
 def get_emergencies_history():
-    """Obtener historial de emergencias resueltas"""
+    """Obtener historial de emergencias resueltas con filtros"""
     if not current_user.can_manage_emergencies():
         return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
     
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        zone_filter = request.args.get('zone', '').strip()
+        type_filter = request.args.get('type', '').strip()
+        date_filter = request.args.get('date', '').strip()
         
         query = EmergencySession.query.filter_by(status='resolved')
         
         if current_user.is_auditor and not current_user.is_admin:
             query = query.filter_by(started_by=current_user.id)
+        
+        if zone_filter:
+            query = query.join(Zone).filter(Zone.name.ilike(f'%{zone_filter}%'))
+        
+        if type_filter:
+            query = query.filter_by(emergency_type=type_filter)
+        
+        if date_filter:
+            try:
+                filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
+                query = query.filter(db.func.date(EmergencySession.started_at) == filter_date)
+            except ValueError:
+                pass
         
         query = query.order_by(EmergencySession.resolved_at.desc())
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -1438,6 +1480,7 @@ def get_emergencies_history():
         
         result = []
         for emergency in emergencies:
+            # Calcular estadísticas
             entries = RollCallEntry.query.filter_by(emergency_id=emergency.id).all()
             stats = {
                 'total': len(entries),
@@ -1446,16 +1489,30 @@ def get_emergencies_history():
                 'pending': sum(1 for e in entries if e.status == 'pending')
             }
             
+            # Calcular duración
+            duration = 'N/A'
+            if emergency.resolved_at and emergency.started_at:
+                delta = emergency.resolved_at - emergency.started_at
+                hours = delta.seconds // 3600
+                minutes = (delta.seconds % 3600) // 60
+                if hours > 0:
+                    duration = f"{hours}h {minutes}min"
+                else:
+                    duration = f"{minutes}min"
+            
+            # Obtener nombre del usuario que inició
+            started_by_name = 'Desconocido'
+            if emergency.started_by_user:
+                started_by_name = emergency.started_by_user.full_name or emergency.started_by_user.username
+            
             result.append({
                 'id': emergency.id,
                 'zone_name': emergency.zone.name,
-                'zone_color': emergency.zone.color,
                 'emergency_type': emergency.emergency_type,
-                'started_by': emergency.started_by_user.full_name or emergency.started_by_user.username,
-                'started_at': emergency.started_at.isoformat(),
-                'resolved_at': emergency.resolved_at.isoformat() if emergency.resolved_at else None,
-                'duration_minutes': int((emergency.resolved_at - emergency.started_at).total_seconds() / 60) if emergency.resolved_at else None,
-                'notes': emergency.notes,
+                'started_at': emergency.started_at.strftime('%d/%m/%Y %H:%M'),
+                'resolved_at': emergency.resolved_at.strftime('%d/%m/%Y %H:%M') if emergency.resolved_at else None,
+                'duration': duration,
+                'started_by_name': started_by_name,
                 'stats': stats,
                 'can_delete': current_user.is_admin
             })
