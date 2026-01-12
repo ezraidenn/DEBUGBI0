@@ -1,0 +1,73 @@
+# ============================================
+# COMANDO PARA EJECUTAR EN EL SERVIDOR
+# ============================================
+
+Copia y pega este comando COMPLETO en el servidor Linux (10.0.2.64):
+
+cd /tmp && rm -rf DEBUGBI0 && git clone https://github.com/ezraidenn/DEBUGBI0.git && cd DEBUGBI0 && chmod +x deployment/install_complete.sh && sudo ./deployment/install_complete.sh
+
+# ============================================
+# PASOS DETALLADOS (si prefieres paso a paso)
+# ============================================
+
+# 1. Conectarse al servidor
+ssh tu_usuario@10.0.2.64
+
+# 2. Ir a directorio temporal
+cd /tmp
+
+# 3. Limpiar instalacion anterior (si existe)
+rm -rf DEBUGBI0
+
+# 4. Clonar repositorio actualizado
+git clone https://github.com/ezraidenn/DEBUGBI0.git
+
+# 5. Entrar al directorio
+cd DEBUGBI0
+
+# 6. Dar permisos de ejecucion
+chmod +x deployment/install_complete.sh
+
+# 7. Ejecutar instalacion completa
+sudo ./deployment/install_complete.sh
+
+# ============================================
+# DESPUES DE LA INSTALACION
+# ============================================
+
+El script mostrara una CLAVE SSH PRIVADA al final.
+
+COPIA ESA CLAVE COMPLETA (desde -----BEGIN hasta -----END)
+
+Luego ve a:
+https://github.com/ezraidenn/DEBUGBI0/settings/secrets/actions
+
+Y crea estos 3 secrets:
+
+1. SSH_PRIVATE_KEY = (pega la clave completa)
+2. SERVER_HOST = 10.0.2.64
+3. SERVER_USER = deploy
+
+# ============================================
+# ACTIVAR AUTO-DEPLOY
+# ============================================
+
+Despues de configurar los secrets, haz cualquier cambio y push:
+
+git add .
+git commit -m "test: Activar auto-deploy"
+git push origin main
+
+Monitorea en:
+https://github.com/ezraidenn/DEBUGBI0/actions
+
+Verifica en:
+http://10.0.2.64
+
+Login: admin / admin123
+
+# ============================================
+# LISTO!
+# ============================================
+
+Cada push a main desplegara automaticamente.
