@@ -22,11 +22,11 @@ Write-Host ""
 # Paso 1: Verificar Python
 Write-Host "Verificando Python..." -ForegroundColor Yellow
 try {
-    $pythonVersion = python --version
-    Write-Host "✓ Python instalado: $pythonVersion" -ForegroundColor Green
+    $pythonVersion = python --version 2>&1
+    Write-Host "Python instalado: $pythonVersion" -ForegroundColor Green
 }
 catch {
-    Write-Host "✗ Python no encontrado" -ForegroundColor Red
+    Write-Host "Python no encontrado" -ForegroundColor Red
     Write-Host "Instala Python desde: https://www.python.org/downloads/" -ForegroundColor Yellow
     exit 1
 }
@@ -48,19 +48,19 @@ Write-Host "Activando entorno virtual..." -ForegroundColor Yellow
 Write-Host "Instalando/actualizando dependencias..." -ForegroundColor Yellow
 pip install -r requirements.txt --quiet
 
-Write-Host "✓ Dependencias instaladas" -ForegroundColor Green
+Write-Host "Dependencias instaladas" -ForegroundColor Green
 Write-Host ""
 
 # Paso 3: Verificar .env
 Write-Host "Verificando configuracion (.env)..." -ForegroundColor Yellow
 if (Test-Path ".env") {
-    Write-Host "✓ Archivo .env encontrado" -ForegroundColor Green
+    Write-Host "Archivo .env encontrado" -ForegroundColor Green
 }
 else {
     Write-Host "⚠ Archivo .env no encontrado" -ForegroundColor Yellow
     Write-Host "Copiando desde .env.example..." -ForegroundColor Yellow
     Copy-Item ".env.example" ".env"
-    Write-Host "✓ Archivo .env creado" -ForegroundColor Green
+    Write-Host "Archivo .env creado" -ForegroundColor Green
     Write-Host ""
     Write-Host "IMPORTANTE: Edita el archivo .env con tus credenciales" -ForegroundColor Red
 }
@@ -72,7 +72,7 @@ Write-Host "Creando directorio de logs..." -ForegroundColor Yellow
 if (-not (Test-Path "logs")) {
     New-Item -ItemType Directory -Path "logs" -Force | Out-Null
 }
-Write-Host "✓ Directorio de logs creado" -ForegroundColor Green
+Write-Host "Directorio de logs creado" -ForegroundColor Green
 Write-Host ""
 
 # Paso 5: Configurar firewall
@@ -83,14 +83,14 @@ $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction Silently
 if (-not $existingRule) {
     try {
         New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow | Out-Null
-        Write-Host "✓ Regla de firewall creada" -ForegroundColor Green
+        Write-Host "Regla de firewall creada" -ForegroundColor Green
     }
     catch {
         Write-Host "⚠ No se pudo crear regla de firewall (requiere permisos de administrador)" -ForegroundColor Yellow
     }
 }
 else {
-    Write-Host "✓ Regla de firewall ya existe" -ForegroundColor Green
+    Write-Host "Regla de firewall ya existe" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -101,7 +101,7 @@ Write-Host "Instalando servicio de auto-deploy..." -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  ✓ INSTALACION COMPLETADA" -ForegroundColor Green
+Write-Host "  INSTALACION COMPLETADA" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
@@ -137,12 +137,12 @@ if ($start -eq "S" -or $start -eq "s") {
     Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$REPO_PATH\auto_deploy_windows.ps1`" -Start"
     Start-Sleep -Seconds 2
     Write-Host ""
-    Write-Host "✓ Auto-deploy iniciado en segundo plano" -ForegroundColor Green
+    Write-Host "Auto-deploy iniciado en segundo plano" -ForegroundColor Green
     Write-Host ""
     Write-Host "Ver estado:" -ForegroundColor Yellow
     Write-Host "  .\auto_deploy_windows.ps1 -Status" -ForegroundColor White
     Write-Host ""
 }
 
-Write-Host "Instalacion completa. El auto-deploy se iniciara automaticamente al arrancar Windows." -ForegroundColor Green
+Write-Host "Instalacion completa. El auto-deploy se iniciara automaticamente al arrancar Windows" -ForegroundColor Green
 Write-Host ""
