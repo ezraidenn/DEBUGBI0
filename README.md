@@ -88,8 +88,8 @@ biostar-debug-monitor/
 
 1. **Clonar el repositorio**
 ```bash
-git clone https://github.com/tu-usuario/biostar-debug-monitor.git
-cd biostar-debug-monitor
+git clone https://github.com/ezraidenn/DEBUGBI0.git
+cd DEBUGBI0
 ```
 
 2. **Crear entorno virtual (recomendado)**
