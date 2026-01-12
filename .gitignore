@@ -1,5 +1,8 @@
 # Environment variables
 .env
+.env.local
+.env.production
+config.ini
 
 # Python
 __pycache__/
@@ -25,6 +28,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Data outputs
 data/outputs/*
@@ -35,6 +40,7 @@ data/outputs/*
 *.sqlite
 *.sqlite3
 webapp/*.db
+instance/*.db
 
 # IDE
 .vscode/
@@ -42,15 +48,33 @@ webapp/*.db
 *.swp
 *.swo
 *~
+.project
+.pydevproject
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
 logs/
+*.log.*
 
 # Flask
 instance/
 .webassets-cache
+.flask_session/
+
+# Deployment
+releases/
+current
+shared/
+
+# Secrets y configuración sensible
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa*
+known_hosts

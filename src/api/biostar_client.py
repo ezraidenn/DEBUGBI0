@@ -53,30 +53,61 @@ class BioStarAPIClient:
             "Content-Type": "application/json"
         }
         
-        try:
-            logger.info(f"Autenticando en BioStar 2: {self.host}")
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
-            
-            if response.status_code == 200:
-                # Extraer token del header
-                self.token = response.headers.get('bs-session-id')
-                
-                if self.token:
-                    # Agregar el token como cookie
-                    self.session.cookies.set('bs-session-id', self.token, 
-                                            domain=self.host.replace('https://', '').replace('http://', ''))
-                    logger.info(f"✓ Autenticación exitosa. Token: {self.token[:20]}...")
-                    return True
+        # Reintentar hasta 3 veces en caso de error de conexión
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    logger.info(f"Reintentando autenticación (intento {attempt + 1}/{max_retries})...")
+                    import time
+                    time.sleep(retry_delay)
                 else:
-                    logger.error("Token no encontrado en la respuesta")
-                    return False
-            else:
-                logger.error(f"Error de autenticación: {response.status_code} - {response.text}")
-                return False
+                    logger.info(f"Autenticando en BioStar 2: {self.host}")
                 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error de conexión al autenticar: {str(e)}")
-            return False
+                # Recrear sesión en cada intento para evitar conexiones corruptas
+                if attempt > 0:
+                    self.session.close()
+                    self.session = requests.Session()
+                    self.session.verify = False
+                
+                response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+                
+                if response.status_code == 200:
+                    # Extraer token del header
+                    self.token = response.headers.get('bs-session-id')
+                    
+                    if self.token:
+                        # Agregar el token como cookie
+                        self.session.cookies.set('bs-session-id', self.token, 
+                                                domain=self.host.replace('https://', '').replace('http://', ''))
+                        logger.info(f"✓ Autenticación exitosa. Token: {self.token[:20]}...")
+                        return True
+                    else:
+                        logger.error("Token no encontrado en la respuesta")
+                        if attempt < max_retries - 1:
+                            continue
+                        return False
+                else:
+                    logger.error(f"Error de autenticación: {response.status_code} - {response.text}")
+                    if attempt < max_retries - 1:
+                        continue
+                    return False
+                    
+            except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+                logger.warning(f"Error de conexión (intento {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt < max_retries - 1:
+                    continue
+                logger.error(f"Error de conexión al autenticar después de {max_retries} intentos: {str(e)}")
+                return False
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error de conexión al autenticar: {str(e)}")
+                if attempt < max_retries - 1:
+                    continue
+                return False
+        
+        return False
     
     def get_event_types(self) -> List[Dict]:
         """
