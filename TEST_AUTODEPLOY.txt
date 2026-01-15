@@ -27,3 +27,20 @@ Si ves este mensaje, el auto-deploy está funcionando!
 Timestamp: 15/01/2026 09:39:00 AM
 Commit anterior: 818b367
 Esperando nuevo commit...
+
+========================================
+PRUEBA #3 - 09:42 AM - MODO DEBUG
+========================================
+
+Auto-deploy con logs detallados activado!
+Intervalo: 20 segundos
+Log file: logs/autodeploy_debug.log
+
+Este commit debería ser detectado y mostrar:
+- Timestamp de cada verificación
+- Output del git fetch
+- Commits local vs remoto
+- Proceso de detención
+- Proceso de reinicio
+
+¡OBSERVA LA VENTANA DE DEBUG!
