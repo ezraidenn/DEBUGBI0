@@ -16,3 +16,14 @@ Cambios esperados:
 5. Deploy completado
 
 Estado: PRUEBA INICIAL
+
+========================================
+PRUEBA #2 - 09:39 AM
+========================================
+
+Este es el segundo test del auto-deploy.
+Si ves este mensaje, el auto-deploy está funcionando!
+
+Timestamp: 15/01/2026 09:39:00 AM
+Commit anterior: 818b367
+Esperando nuevo commit...
