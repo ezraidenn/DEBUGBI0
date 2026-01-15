@@ -224,6 +224,7 @@ let selectedZoneId = null;
 let activeEmergencyId = null;
 let emergencyEventSource = null;  // SSE para tiempo real
 let currentUserName = '{{ current_user.full_name or current_user.username }}';  // Usuario actual para timestamps
+window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};  // Verificar si usuario es admin
 
 document.addEventListener('DOMContentLoaded', () => {
     loadZones();
@@ -725,12 +726,17 @@ function renderRollCall(groups, preserveExpandedState = false) {
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="col-12 col-md-3 mt-2 mt-md-0">
-                                        <small class="text-muted timestamp-info d-block text-md-end" style="font-size: 0.75rem;">
+                                    <div class="col-12 col-md-3 mt-2 mt-md-0 d-flex justify-content-between align-items-center">
+                                        <small class="text-muted timestamp-info" style="font-size: 0.75rem;">
                                             ${member.marked_at ? 
                                                 `${new Date(member.marked_at).toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})} por ${member.marked_by}` 
                                                 : '<span class="text-warning">Sin marcar</span>'}
                                         </small>
+                                        ${(member.biostar_user_id === 'MANUAL' || window.isAdmin) ? 
+                                            `<button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteEntry(${member.id}, '${member.user_name}')" title="Eliminar entrada">
+                                                <i class="bi bi-trash"></i>
+                                            </button>` 
+                                            : ''}
                                     </div>
                                 </div>
                             </div>
@@ -912,6 +918,39 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+async function deleteEntry(entryId, userName) {
+    if (!confirm(`¿Eliminar a "${userName}" del pase de lista?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/emergency/api/emergency/${activeEmergencyId}/entry/${entryId}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Recargar pase de lista preservando estado
+            loadRollCall(activeEmergencyId, true);
+            
+            // Mostrar notificación
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `<i class="bi bi-check-circle"></i> ${data.message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error eliminando entrada:', error);
+        alert('Error eliminando entrada');
+    }
 }
 
 async function addManualEntry() {

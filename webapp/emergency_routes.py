@@ -999,6 +999,52 @@ def add_manual_entry(emergency_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@emergency_bp.route('/api/emergency/<int:emergency_id>/entry/<int:entry_id>', methods=['DELETE'])
+@login_required
+def delete_roll_call_entry(emergency_id, entry_id):
+    """Eliminar entrada del pase de lista (solo entradas manuales o por administradores)"""
+    try:
+        # Verificar que la emergencia existe y está activa
+        emergency = EmergencySession.query.get_or_404(emergency_id)
+        if emergency.status != 'active':
+            return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
+        
+        # Obtener entrada
+        entry = RollCallEntry.query.get_or_404(entry_id)
+        
+        # Verificar que la entrada pertenece a esta emergencia
+        if entry.emergency_id != emergency_id:
+            return jsonify({'success': False, 'message': 'Entrada no pertenece a esta emergencia'}), 400
+        
+        # Solo permitir eliminar:
+        # 1. Entradas manuales (biostar_user_id == 'MANUAL')
+        # 2. Si el usuario es admin
+        if entry.biostar_user_id != 'MANUAL' and not current_user.is_admin:
+            return jsonify({
+                'success': False, 
+                'message': 'Solo se pueden eliminar entradas manuales. Los administradores pueden eliminar cualquier entrada.'
+            }), 403
+        
+        # Guardar info para log
+        user_name = entry.user_name
+        
+        # Eliminar entrada
+        db.session.delete(entry)
+        db.session.commit()
+        
+        logger.info(f"🗑️ Entrada eliminada: {user_name} por {current_user.username}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Entrada "{user_name}" eliminada correctamente'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error eliminando entrada: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ============================================
 # SSE - TIEMPO REAL PARA EMERGENCIAS
 # ============================================
@@ -1385,7 +1431,7 @@ def auto_mark_presence_from_biostar(emergency_id, entries):
         
         # Buscar eventos recientes (últimos 30 minutos)
         from datetime import timedelta
-        now = datetime.now()
+        now = now_cdmx()
         start_time = now - timedelta(minutes=30)
         
         for device in devices[:5]:  # Limitar a 5 dispositivos para no sobrecargar
