@@ -1,0 +1,18 @@
+========================================
+  TEST AUTO-DEPLOY
+========================================
+
+Fecha: 15/01/2026 09:27 AM
+Prueba #1: Verificando que el auto-deploy funciona correctamente
+
+Este archivo es solo para probar el sistema de auto-deploy.
+Si ves este archivo actualizado, significa que el auto-deploy funcionó!
+
+Cambios esperados:
+1. Auto-deploy detecta nuevo commit
+2. Descarga cambios (git pull)
+3. Detiene aplicación Python
+4. Reinicia aplicación
+5. Deploy completado
+
+Estado: PRUEBA INICIAL
