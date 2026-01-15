@@ -1,0 +1,49 @@
+╔════════════════════════════════════════════════════════════════╗
+║          TEST DE AUTO-DEPLOY - CI/CD GitHub Actions           ║
+╚════════════════════════════════════════════════════════════════╝
+
+📅 Fecha/Hora: 2026-01-15 10:01 AM (Hora México)
+🔄 Test #: 2
+🎯 Objetivo: Verificar deployment automático funcionando
+
+════════════════════════════════════════════════════════════════
+
+🚀 FLUJO ESPERADO:
+
+1. [GitHub] Push detectado en rama 'main'
+2. [GitHub Actions] Workflow iniciado automáticamente
+3. [CI] Checkout del código
+4. [CI] Setup Python 3.11
+5. [CI] Instalación de dependencias
+6. [CI] Build del artefacto .tar.gz
+7. [CI] Upload al servidor vía SSH
+8. [Servidor] Extracción en /var/www/biostar-monitor/releases/TIMESTAMP/
+9. [Servidor] Instalación de virtualenv
+10. [Servidor] Symlink atómico: current → nuevo release
+11. [Servidor] Restart de systemd service
+12. [Servidor] Cleanup de releases antiguos
+
+════════════════════════════════════════════════════════════════
+
+✅ VERIFICACIÓN:
+
+En el servidor, ejecutar:
+  ls -la /var/www/biostar-monitor/current/TEST_DEPLOY_20260115_1001.txt
+
+Si este archivo existe, el auto-deploy funcionó correctamente.
+
+Logs:
+  sudo journalctl -u biostar-monitor -n 100
+
+Release activo:
+  readlink /var/www/biostar-monitor/current
+
+════════════════════════════════════════════════════════════════
+
+🔗 Links:
+  GitHub Actions: https://github.com/ezraidenn/DEBUGBI0/actions
+  Repositorio: https://github.com/ezraidenn/DEBUGBI0
+
+════════════════════════════════════════════════════════════════
+
+🎉 ¡Auto-deploy configurado y funcionando!
