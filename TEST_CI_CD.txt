@@ -1,0 +1,22 @@
+TEST DE CI/CD - GitHub Actions
+================================
+
+Fecha: 2026-01-15 09:47 AM
+Propósito: Probar deployment automático desde GitHub
+
+Este commit de prueba debería activar:
+1. GitHub Actions workflow (.github/workflows/deploy.yml)
+2. Build del artefacto Python
+3. Upload al servidor vía SSH
+4. Deployment atómico con symlink
+5. Restart del servicio systemd
+
+Si ves este archivo en el servidor en /var/www/biostar-monitor/current/,
+significa que el auto-deploy funcionó correctamente.
+
+Verificar en:
+- GitHub Actions: https://github.com/ezraidenn/DEBUGBI0/actions
+- Servidor: ls -la /var/www/biostar-monitor/current/TEST_CI_CD.txt
+- Logs: sudo journalctl -u biostar-monitor -n 50
+
+¡Auto-deploy funcionando! 🚀
