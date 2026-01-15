@@ -43,11 +43,20 @@ while ($true) {
             
             # Detener procesos Python existentes
             Write-Host "Deteniendo aplicacion..." -ForegroundColor Cyan
-            Get-Process python -ErrorAction SilentlyContinue | Where-Object {
-                $_.Path -like "*$REPO_PATH*"
-            } | Stop-Process -Force
+            try {
+                $pythonProcesses = Get-Process python -ErrorAction SilentlyContinue
+                if ($pythonProcesses) {
+                    $pythonProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+                    Write-Host "  Procesos Python detenidos" -ForegroundColor Gray
+                } else {
+                    Write-Host "  No hay procesos Python corriendo" -ForegroundColor Gray
+                }
+            }
+            catch {
+                Write-Host "  Error al detener procesos: $_" -ForegroundColor Yellow
+            }
             
-            Start-Sleep -Seconds 2
+            Start-Sleep -Seconds 3
             
             # Reiniciar aplicacion
             Write-Host "Reiniciando aplicacion..." -ForegroundColor Cyan
