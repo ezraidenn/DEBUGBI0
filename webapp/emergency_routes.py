@@ -881,12 +881,28 @@ def export_emergency_excel(emergency_id):
         # Agrupar por grupo (misma lógica que get_roll_call)
         grouped = {}
         for entry in entries:
-            group_name = entry.group.name
+            # Usar manual_group_name si existe, sino usar el grupo real
+            if entry.manual_group_name:
+                # Entrada manual con grupo temporal (no en BD)
+                group_name = entry.manual_group_name
+                group_id = None
+                group_color = '#6c757d'  # Color gris para grupos temporales
+            elif entry.group:
+                # Entrada con grupo real de BD
+                group_name = entry.group.name
+                group_id = entry.group_id
+                group_color = entry.group.color
+            else:
+                # Entrada sin grupo (fallback)
+                group_name = 'Sin Grupo'
+                group_id = None
+                group_color = '#6c757d'
+            
             if group_name not in grouped:
                 grouped[group_name] = {
-                    'group_id': entry.group_id,
+                    'group_id': group_id,
                     'group_name': group_name,
-                    'group_color': entry.group.color,
+                    'group_color': group_color,
                     'members': []
                 }
             

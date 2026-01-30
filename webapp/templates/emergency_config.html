@@ -54,7 +54,9 @@
                     <div class="card-body">
                         <div class="alert alert-info small mb-3">
                             <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                            <strong>Control de Emergencias:</strong> Los dispositivos asignados emitirán <strong>sonido de alarma</strong> y <strong>desbloquearán puertas</strong> automáticamente cuando se active una emergencia en esta zona.
+                            <strong>Control de Emergencias:</strong> Los dispositivos asignados emitirán <strong>sonido
+                                de alarma</strong> y <strong>desbloquearán puertas</strong> automáticamente cuando se
+                            active una emergencia en esta zona.
                         </div>
                         <div id="devices-container" class="row"></div>
                     </div>
@@ -88,7 +90,7 @@
 <div class="modal fade" id="createZoneModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header modal-header-premium">
                 <h5 class="modal-title">Nueva Zona</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -120,7 +122,7 @@
 <div class="modal fade" id="createGroupModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header modal-header-premium">
                 <h5 class="modal-title">Nuevo Grupo</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -152,7 +154,7 @@
 <div class="modal fade" id="membersModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header" style="background: #3E2723; color: white;">
+            <div class="modal-header modal-header-premium">
                 <h5 class="modal-title">
                     <i class="bi bi-people"></i> Miembros de <span id="group-name"></span>
                 </h5>
@@ -163,23 +165,23 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Buscar usuario para agregar</label>
                     <div class="input-group">
-                        <input type="text" class="form-control" id="userSearch" 
-                               placeholder="Escribe nombre o ID (mínimo 2 caracteres)...">
+                        <input type="text" class="form-control" id="userSearch"
+                            placeholder="Escribe nombre o ID (mínimo 2 caracteres)...">
                         <button type="button" class="btn btn-primary" onclick="buscarUsuarios()">
                             <i class="bi bi-search"></i> Buscar
                         </button>
                     </div>
                     <small class="text-muted">Busca en la base global de usuarios de BioStar</small>
                 </div>
-                
+
                 <!-- Resultados de búsqueda -->
                 <div id="searchResults" class="mb-3" style="display: none;">
                     <label class="form-label fw-bold text-success">Resultados:</label>
                     <div class="list-group" id="searchResultsList" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
-                
+
                 <hr>
-                
+
                 <!-- Lista de miembros actuales -->
                 <h6 class="fw-bold">Miembros actuales: <span class="badge bg-primary" id="members-count">0</span></h6>
                 <div id="members-list">
@@ -197,7 +199,7 @@
 <div class="modal fade" id="addDeviceModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-warning bg-opacity-10">
+            <div class="modal-header modal-header-premium">
                 <h5 class="modal-title">
                     <i class="bi bi-hdd-network"></i> Agregar Dispositivo a Zona
                 </h5>
@@ -211,7 +213,8 @@
                     </select>
                 </div>
                 <div class="alert alert-warning small">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Al activar una emergencia, este dispositivo emitirá sonido de alarma y desbloqueará puertas automáticamente.
+                    <i class="bi bi-exclamation-triangle-fill"></i> Al activar una emergencia, este dispositivo emitirá
+                    sonido de alarma y desbloqueará puertas automáticamente.
                 </div>
             </div>
             <div class="modal-footer">
@@ -299,43 +302,43 @@
 
 {% block extra_js %}
 <script>
-let selectedZoneId = null;
-let selectedGroupId = null;
+    let selectedZoneId = null;
+    let selectedGroupId = null;
 
-// Cargar zonas al iniciar
-document.addEventListener('DOMContentLoaded', () => {
-    loadZones();
-    loadAvailableDevices();
-});
+    // Cargar zonas al iniciar
+    document.addEventListener('DOMContentLoaded', () => {
+        loadZones();
+        loadAvailableDevices();
+    });
 
-async function loadZones() {
-    try {
-        console.log('Cargando zonas...');
-        const response = await fetch('/emergency/api/zones');
-        console.log('Response status:', response.status);
-        const data = await response.json();
-        console.log('Zonas recibidas:', data);
-        
-        if (data.success) {
-            console.log('Total de zonas:', data.zones.length);
-            renderZones(data.zones);
-        } else {
-            console.error('Error en respuesta:', data.message);
+    async function loadZones() {
+        try {
+            console.log('Cargando zonas...');
+            const response = await fetch('/emergency/api/zones');
+            console.log('Response status:', response.status);
+            const data = await response.json();
+            console.log('Zonas recibidas:', data);
+
+            if (data.success) {
+                console.log('Total de zonas:', data.zones.length);
+                renderZones(data.zones);
+            } else {
+                console.error('Error en respuesta:', data.message);
+            }
+        } catch (error) {
+            console.error('Error cargando zonas:', error);
         }
-    } catch (error) {
-        console.error('Error cargando zonas:', error);
     }
-}
 
-function renderZones(zones) {
-    const container = document.getElementById('zones-container');
-    
-    if (zones.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay zonas. Crea una nueva.</p></div>';
-        return;
-    }
-    
-    container.innerHTML = zones.map(zone => `
+    function renderZones(zones) {
+        const container = document.getElementById('zones-container');
+
+        if (zones.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay zonas. Crea una nueva.</p></div>';
+            return;
+        }
+
+        container.innerHTML = zones.map(zone => `
         <div class="col-md-4 mb-3">
             <div class="card h-100 zone-card ${selectedZoneId === zone.id ? 'border-primary' : ''}" 
                  style="border-left: 4px solid ${zone.color}; cursor: pointer;">
@@ -354,67 +357,67 @@ function renderZones(zones) {
             </div>
         </div>
     `).join('');
-}
+    }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-function selectZone(zoneId, zoneName) {
-    selectedZoneId = zoneId;
-    
-    // Actualizar todos los elementos con clase selected-zone-name
-    document.querySelectorAll('.selected-zone-name').forEach(el => {
-        el.textContent = zoneName;
-    });
-    
-    // Mostrar sección de detalles
-    document.getElementById('zone-details-section').style.display = 'block';
-    
-    // Cargar datos
-    loadGroups(zoneId);
-    loadZoneDevices(zoneId);
-    
-    // Resaltar zona seleccionada
-    loadZones();
-    
-    // Scroll suave a la sección
-    document.getElementById('zone-details-section').scrollIntoView({ behavior: 'smooth' });
-}
+    function selectZone(zoneId, zoneName) {
+        selectedZoneId = zoneId;
 
-async function loadGroups(zoneId) {
-    try {
-        console.log('Cargando grupos para zona:', zoneId);
-        const response = await fetch(`/emergency/api/zones/${zoneId}/groups`);
-        const data = await response.json();
-        
-        console.log('Respuesta de grupos:', data);
-        
-        if (data.success) {
-            console.log('Grupos encontrados:', data.groups.length);
-            renderGroups(data.groups);
-        } else {
-            console.error('Error en respuesta:', data.message);
+        // Actualizar todos los elementos con clase selected-zone-name
+        document.querySelectorAll('.selected-zone-name').forEach(el => {
+            el.textContent = zoneName;
+        });
+
+        // Mostrar sección de detalles
+        document.getElementById('zone-details-section').style.display = 'block';
+
+        // Cargar datos
+        loadGroups(zoneId);
+        loadZoneDevices(zoneId);
+
+        // Resaltar zona seleccionada
+        loadZones();
+
+        // Scroll suave a la sección
+        document.getElementById('zone-details-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function loadGroups(zoneId) {
+        try {
+            console.log('Cargando grupos para zona:', zoneId);
+            const response = await fetch(`/emergency/api/zones/${zoneId}/groups`);
+            const data = await response.json();
+
+            console.log('Respuesta de grupos:', data);
+
+            if (data.success) {
+                console.log('Grupos encontrados:', data.groups.length);
+                renderGroups(data.groups);
+            } else {
+                console.error('Error en respuesta:', data.message);
+            }
+        } catch (error) {
+            console.error('Error cargando grupos:', error);
         }
-    } catch (error) {
-        console.error('Error cargando grupos:', error);
     }
-}
 
-function renderGroups(groups) {
-    const container = document.getElementById('groups-container');
-    
-    console.log('Renderizando grupos:', groups);
-    
-    if (!groups || groups.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay grupos. Crea uno nuevo.</p></div>';
-        return;
-    }
-    
-    container.innerHTML = groups.map(group => `
+    function renderGroups(groups) {
+        const container = document.getElementById('groups-container');
+
+        console.log('Renderizando grupos:', groups);
+
+        if (!groups || groups.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center py-4"><p class="text-muted">No hay grupos. Crea uno nuevo.</p></div>';
+            return;
+        }
+
+        container.innerHTML = groups.map(group => `
         <div class="col-md-4 mb-3">
             <div class="card h-100" style="border-left: 4px solid ${group.color};">
                 <div class="card-body">
@@ -440,132 +443,132 @@ function renderGroups(groups) {
             </div>
         </div>
     `).join('');
-}
-
-// Modales
-function showCreateZoneModal() {
-    const modal = new bootstrap.Modal(document.getElementById('createZoneModal'));
-    document.getElementById('createZoneForm').reset();
-    modal.show();
-}
-
-function showCreateGroupModal() {
-    if (!selectedZoneId) {
-        Swal.fire('Atención', 'Selecciona una zona primero', 'warning');
-        return;
     }
-    const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
-    document.getElementById('createGroupForm').reset();
-    modal.show();
-}
 
-async function createZone() {
-    const form = document.getElementById('createZoneForm');
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
-    
-    console.log('Creando zona con datos:', data);
-    
-    try {
-        const response = await fetch('/emergency/api/zones', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Response data:', result);
-        
-        if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('createZoneModal')).hide();
-            console.log('Zona creada, recargando lista...');
-            await loadZones();
-            Swal.fire('Éxito', 'Zona creada exitosamente', 'success');
-        } else {
-            console.error('Error en respuesta:', result.message);
-            Swal.fire('Error', result.message, 'error');
+    // Modales
+    function showCreateZoneModal() {
+        const modal = new bootstrap.Modal(document.getElementById('createZoneModal'));
+        document.getElementById('createZoneForm').reset();
+        modal.show();
+    }
+
+    function showCreateGroupModal() {
+        if (!selectedZoneId) {
+            Swal.fire('Atención', 'Selecciona una zona primero', 'warning');
+            return;
         }
-    } catch (error) {
-        console.error('Error creando zona:', error);
-        Swal.fire('Error', 'Error creando zona: ' + error.message, 'error');
+        const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+        document.getElementById('createGroupForm').reset();
+        modal.show();
     }
-}
 
-async function createGroup() {
-    const form = document.getElementById('createGroupForm');
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
-    data.zone_id = selectedZoneId;
-    
-    console.log('Creando grupo con datos:', data);
-    
-    try {
-        const response = await fetch('/emergency/api/groups', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Response data:', result);
-        
-        if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
-            console.log('Grupo creado, recargando lista...');
-            await loadGroups(selectedZoneId);
-            Swal.fire('Éxito', 'Grupo creado exitosamente', 'success');
-        } else {
-            console.error('Error en respuesta:', result.message);
-            Swal.fire('Error', result.message, 'error');
+    async function createZone() {
+        const form = document.getElementById('createZoneForm');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+
+        console.log('Creando zona con datos:', data);
+
+        try {
+            const response = await fetch('/emergency/api/zones', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            console.log('Response status:', response.status);
+            const result = await response.json();
+            console.log('Response data:', result);
+
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('createZoneModal')).hide();
+                console.log('Zona creada, recargando lista...');
+                await loadZones();
+                Swal.fire('Éxito', 'Zona creada exitosamente', 'success');
+            } else {
+                console.error('Error en respuesta:', result.message);
+                Swal.fire('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error creando zona:', error);
+            Swal.fire('Error', 'Error creando zona: ' + error.message, 'error');
         }
-    } catch (error) {
-        console.error('Error creando grupo:', error);
-        Swal.fire('Error', 'Error creando grupo: ' + error.message, 'error');
     }
-}
 
-async function showMembersModal(groupId, groupName) {
-    selectedGroupId = groupId;
-    document.getElementById('group-name').textContent = groupName;
-    
-    // Limpiar búsqueda anterior
-    document.getElementById('userSearch').value = '';
-    document.getElementById('searchResults').style.display = 'none';
-    
-    const modal = new bootstrap.Modal(document.getElementById('membersModal'));
-    modal.show();
-    
-    loadMembers(groupId);
-    
-    // Pre-cargar usuarios para búsqueda
-    cargarUsuariosParaBusqueda();
-}
+    async function createGroup() {
+        const form = document.getElementById('createGroupForm');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+        data.zone_id = selectedZoneId;
 
-async function loadMembers(groupId) {
-    try {
-        const response = await fetch(`/emergency/api/groups/${groupId}/members`);
-        const data = await response.json();
-        
-        if (data.success) {
-            renderMembers(data.members);
+        console.log('Creando grupo con datos:', data);
+
+        try {
+            const response = await fetch('/emergency/api/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            console.log('Response status:', response.status);
+            const result = await response.json();
+            console.log('Response data:', result);
+
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+                console.log('Grupo creado, recargando lista...');
+                await loadGroups(selectedZoneId);
+                Swal.fire('Éxito', 'Grupo creado exitosamente', 'success');
+            } else {
+                console.error('Error en respuesta:', result.message);
+                Swal.fire('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error creando grupo:', error);
+            Swal.fire('Error', 'Error creando grupo: ' + error.message, 'error');
         }
-    } catch (error) {
-        console.error('Error cargando miembros:', error);
     }
-}
 
-function renderMembers(members) {
-    const container = document.getElementById('members-list');
-    document.getElementById('members-count').textContent = members.length;
-    
-    if (members.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">No hay miembros. Busca usuarios para agregar.</p>';
-        return;
+    async function showMembersModal(groupId, groupName) {
+        selectedGroupId = groupId;
+        document.getElementById('group-name').textContent = groupName;
+
+        // Limpiar búsqueda anterior
+        document.getElementById('userSearch').value = '';
+        document.getElementById('searchResults').style.display = 'none';
+
+        const modal = new bootstrap.Modal(document.getElementById('membersModal'));
+        modal.show();
+
+        loadMembers(groupId);
+
+        // Pre-cargar usuarios para búsqueda
+        cargarUsuariosParaBusqueda();
     }
-    
-    container.innerHTML = `
+
+    async function loadMembers(groupId) {
+        try {
+            const response = await fetch(`/emergency/api/groups/${groupId}/members`);
+            const data = await response.json();
+
+            if (data.success) {
+                renderMembers(data.members);
+            }
+        } catch (error) {
+            console.error('Error cargando miembros:', error);
+        }
+    }
+
+    function renderMembers(members) {
+        const container = document.getElementById('members-list');
+        document.getElementById('members-count').textContent = members.length;
+
+        if (members.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center">No hay miembros. Busca usuarios para agregar.</p>';
+            return;
+        }
+
+        container.innerHTML = `
         <div class="list-group" style="max-height: 400px; overflow-y: auto;">
             ${members.map(member => `
                 <div class="list-group-item d-flex justify-content-between align-items-center">
@@ -580,118 +583,118 @@ function renderMembers(members) {
             `).join('')}
         </div>
     `;
-}
+    }
 
-// Cache de usuarios para búsqueda
-var todosLosUsuarios = [];
-var usuariosCargados = false;
-function cargarUsuariosParaBusqueda() {
-    if (usuariosCargados && todosLosUsuarios.length > 0) {
-        console.log('Usuarios ya cargados:', todosLosUsuarios.length);
-        return;
-    }
-    
-    console.log('Cargando usuarios de BioStar...');
-    fetch('/emergency/api/users/all')
-        .then(function(res) { 
-            console.log('Response status:', res.status);
-            return res.json(); 
-        })
-        .then(function(data) {
-            console.log('Data recibida:', data);
-            if (data.success && data.users) {
-                todosLosUsuarios = data.users;
-                usuariosCargados = true;
-                console.log('✓ Usuarios BioStar cargados:', todosLosUsuarios.length);
-                console.log('Primeros 3 usuarios:', todosLosUsuarios.slice(0, 3));
-            } else {
-                console.error('Error en respuesta:', data);
-            }
-        })
-        .catch(function(err) {
-            console.error('Error cargando usuarios:', err);
-        });
-}
-
-// Función de búsqueda - busca en BioStar si no hay cache, o filtra localmente
-function buscarUsuarios() {
-    var query = document.getElementById('userSearch').value.trim().toLowerCase();
-    var container = document.getElementById('searchResults');
-    var list = document.getElementById('searchResultsList');
-    
-    console.log('Buscando:', query);
-    console.log('Cache de usuarios:', todosLosUsuarios.length);
-    
-    if (!query || query.length < 2) {
-        Swal.fire('Atención', 'Escribe al menos 2 caracteres', 'info');
-        return;
-    }
-    
-    // Mostrar loading
-    container.style.display = 'block';
-    list.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Buscando...</div>';
-    
-    // Si tenemos usuarios en cache, filtrar localmente
-    if (todosLosUsuarios.length > 0) {
-        console.log('Filtrando localmente...');
-        filtrarUsuarios(query);
-        return;
-    }
-    
-    // Si no hay cache, mostrar mensaje de espera
-    console.log('No hay cache, esperando carga...');
-    list.innerHTML = '<div class="list-group-item text-muted text-center"><div class="spinner-border spinner-border-sm me-2"></div>Cargando usuarios de BioStar...</div>';
-    
-    // Esperar a que se cargue el cache
-    setTimeout(function() {
-        if (todosLosUsuarios.length > 0) {
-            console.log('Cache cargado, filtrando...');
-            filtrarUsuarios(query);
-        } else {
-            console.error('Cache no se cargó después de 2 segundos');
-            list.innerHTML = '<div class="list-group-item text-warning text-center">No se pudo cargar la lista de usuarios. Intenta de nuevo.</div>';
+    // Cache de usuarios para búsqueda
+    var todosLosUsuarios = [];
+    var usuariosCargados = false;
+    function cargarUsuariosParaBusqueda() {
+        if (usuariosCargados && todosLosUsuarios.length > 0) {
+            console.log('Usuarios ya cargados:', todosLosUsuarios.length);
+            return;
         }
-    }, 2000);
-}
 
-function filtrarUsuarios(query) {
-    var list = document.getElementById('searchResultsList');
-    
-    console.log('Filtrando con query:', query);
-    console.log('Total usuarios en cache:', todosLosUsuarios.length);
-    
-    var resultados = todosLosUsuarios.filter(function(user) {
-        var nombre = (user.name || '').toLowerCase();
-        var id = String(user.user_id || '').toLowerCase();
-        var match = nombre.indexOf(query) !== -1 || id.indexOf(query) !== -1;
-        return match;
-    });
-    
-    console.log('Resultados encontrados:', resultados.length);
-    console.log('Primeros 3 resultados:', resultados.slice(0, 3));
-    
-    // Limitar a 30 resultados
-    resultados = resultados.slice(0, 30);
-    
-    if (resultados.length > 0) {
-        console.log('Renderizando resultados...');
-        renderSearchResults(resultados);
-    } else {
-        console.log('No se encontraron resultados');
-        list.innerHTML = '<div class="list-group-item text-muted text-center">No se encontraron usuarios con "' + query + '"</div>';
+        console.log('Cargando usuarios de BioStar...');
+        fetch('/emergency/api/users/all')
+            .then(function (res) {
+                console.log('Response status:', res.status);
+                return res.json();
+            })
+            .then(function (data) {
+                console.log('Data recibida:', data);
+                if (data.success && data.users) {
+                    todosLosUsuarios = data.users;
+                    usuariosCargados = true;
+                    console.log('✓ Usuarios BioStar cargados:', todosLosUsuarios.length);
+                    console.log('Primeros 3 usuarios:', todosLosUsuarios.slice(0, 3));
+                } else {
+                    console.error('Error en respuesta:', data);
+                }
+            })
+            .catch(function (err) {
+                console.error('Error cargando usuarios:', err);
+            });
     }
-}
 
-function renderSearchResults(users) {
-    const container = document.getElementById('searchResults');
-    const list = document.getElementById('searchResultsList');
-    
-    console.log('renderSearchResults llamado con', users.length, 'usuarios');
-    
-    list.innerHTML = users.map(user => {
-        const userName = escapeHtml(user.name || 'Sin nombre');
-        const userId = user.user_id || user.id || 'N/A';
-        return `
+    // Función de búsqueda - busca en BioStar si no hay cache, o filtra localmente
+    function buscarUsuarios() {
+        var query = document.getElementById('userSearch').value.trim().toLowerCase();
+        var container = document.getElementById('searchResults');
+        var list = document.getElementById('searchResultsList');
+
+        console.log('Buscando:', query);
+        console.log('Cache de usuarios:', todosLosUsuarios.length);
+
+        if (!query || query.length < 2) {
+            Swal.fire('Atención', 'Escribe al menos 2 caracteres', 'info');
+            return;
+        }
+
+        // Mostrar loading
+        container.style.display = 'block';
+        list.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Buscando...</div>';
+
+        // Si tenemos usuarios en cache, filtrar localmente
+        if (todosLosUsuarios.length > 0) {
+            console.log('Filtrando localmente...');
+            filtrarUsuarios(query);
+            return;
+        }
+
+        // Si no hay cache, mostrar mensaje de espera
+        console.log('No hay cache, esperando carga...');
+        list.innerHTML = '<div class="list-group-item text-muted text-center"><div class="spinner-border spinner-border-sm me-2"></div>Cargando usuarios de BioStar...</div>';
+
+        // Esperar a que se cargue el cache
+        setTimeout(function () {
+            if (todosLosUsuarios.length > 0) {
+                console.log('Cache cargado, filtrando...');
+                filtrarUsuarios(query);
+            } else {
+                console.error('Cache no se cargó después de 2 segundos');
+                list.innerHTML = '<div class="list-group-item text-warning text-center">No se pudo cargar la lista de usuarios. Intenta de nuevo.</div>';
+            }
+        }, 2000);
+    }
+
+    function filtrarUsuarios(query) {
+        var list = document.getElementById('searchResultsList');
+
+        console.log('Filtrando con query:', query);
+        console.log('Total usuarios en cache:', todosLosUsuarios.length);
+
+        var resultados = todosLosUsuarios.filter(function (user) {
+            var nombre = (user.name || '').toLowerCase();
+            var id = String(user.user_id || '').toLowerCase();
+            var match = nombre.indexOf(query) !== -1 || id.indexOf(query) !== -1;
+            return match;
+        });
+
+        console.log('Resultados encontrados:', resultados.length);
+        console.log('Primeros 3 resultados:', resultados.slice(0, 3));
+
+        // Limitar a 30 resultados
+        resultados = resultados.slice(0, 30);
+
+        if (resultados.length > 0) {
+            console.log('Renderizando resultados...');
+            renderSearchResults(resultados);
+        } else {
+            console.log('No se encontraron resultados');
+            list.innerHTML = '<div class="list-group-item text-muted text-center">No se encontraron usuarios con "' + query + '"</div>';
+        }
+    }
+
+    function renderSearchResults(users) {
+        const container = document.getElementById('searchResults');
+        const list = document.getElementById('searchResultsList');
+
+        console.log('renderSearchResults llamado con', users.length, 'usuarios');
+
+        list.innerHTML = users.map(user => {
+            const userName = escapeHtml(user.name || 'Sin nombre');
+            const userId = user.user_id || user.id || 'N/A';
+            return `
             <div class="list-group-item list-group-item-action" onclick="addMember('${userId}', '${userName.replace(/'/g, "\\'")}')"
                  style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-center">
@@ -703,138 +706,138 @@ function renderSearchResults(users) {
                 </div>
             </div>
         `;
-    }).join('');
-    
-    console.log('HTML generado, mostrando contenedor');
-    container.style.display = 'block';
-    console.log('Contenedor display:', container.style.display);
-}
+        }).join('');
 
-async function addMember(biostarUserId, userName) {
-    try {
-        const response = await fetch(`/emergency/api/groups/${selectedGroupId}/members`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                biostar_user_id: biostarUserId,
-                user_name: userName
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            document.getElementById('searchResults').style.display = 'none';
-            document.getElementById('userSearch').value = '';
-            loadMembers(selectedGroupId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Usuario agregado al grupo',
-                showConfirmButton: false,
-                timer: 2000
+        console.log('HTML generado, mostrando contenedor');
+        container.style.display = 'block';
+        console.log('Contenedor display:', container.style.display);
+    }
+
+    async function addMember(biostarUserId, userName) {
+        try {
+            const response = await fetch(`/emergency/api/groups/${selectedGroupId}/members`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    biostar_user_id: biostarUserId,
+                    user_name: userName
+                })
             });
-        } else {
-            Swal.fire('Error', data.message, 'error');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error agregando usuario', 'error');
-    }
-}
 
-async function removeMember(memberId) {
-    const result = await Swal.fire({
-        title: '¿Remover usuario?',
-        text: 'El usuario será removido del grupo',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, remover',
-        cancelButtonText: 'Cancelar'
-    });
-    
-    if (!result.isConfirmed) return;
-    
-    try {
-        const response = await fetch(`/emergency/api/groups/${selectedGroupId}/members/${memberId}`, {
-            method: 'DELETE'
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('userSearch').value = '';
+                loadMembers(selectedGroupId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Usuario agregado al grupo',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error agregando usuario', 'error');
+        }
+    }
+
+    async function removeMember(memberId) {
+        const result = await Swal.fire({
+            title: '¿Remover usuario?',
+            text: 'El usuario será removido del grupo',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, remover',
+            cancelButtonText: 'Cancelar'
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            loadMembers(selectedGroupId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Usuario removido',
-                showConfirmButton: false,
-                timer: 2000
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const response = await fetch(`/emergency/api/groups/${selectedGroupId}/members/${memberId}`, {
+                method: 'DELETE'
             });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+
+            const data = await response.json();
+
+            if (data.success) {
+                loadMembers(selectedGroupId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Usuario removido',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error removiendo usuario', 'error');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error removiendo usuario', 'error');
     }
-}
 
-// ==================== DISPOSITIVOS POR ZONA ====================
+    // ==================== DISPOSITIVOS POR ZONA ====================
 
-let availableDevices = [];
+    let availableDevices = [];
 
-async function loadAvailableDevices() {
-    try {
-        const response = await fetch('/emergency/api/devices/available');
-        const data = await response.json();
-        
-        if (data.success) {
-            availableDevices = data.devices;
-            updateDeviceSelect();
+    async function loadAvailableDevices() {
+        try {
+            const response = await fetch('/emergency/api/devices/available');
+            const data = await response.json();
+
+            if (data.success) {
+                availableDevices = data.devices;
+                updateDeviceSelect();
+            }
+        } catch (error) {
+            console.error('Error cargando dispositivos:', error);
         }
-    } catch (error) {
-        console.error('Error cargando dispositivos:', error);
     }
-}
 
-function updateDeviceSelect() {
-    const select = document.getElementById('deviceSelect');
-    if (availableDevices.length === 0) {
-        select.innerHTML = '<option value="">No hay dispositivos disponibles</option>';
-        return;
-    }
-    
-    select.innerHTML = '<option value="">Selecciona un dispositivo...</option>' +
-        availableDevices.map(d => `<option value="${d.id}" data-name="${escapeHtml(d.name)}">${escapeHtml(d.name)} (ID: ${d.id})</option>`).join('');
-}
-
-async function loadZoneDevices(zoneId) {
-    try {
-        const response = await fetch(`/emergency/api/zones/${zoneId}/devices`);
-        const data = await response.json();
-        
-        if (data.success) {
-            renderZoneDevices(data.devices);
+    function updateDeviceSelect() {
+        const select = document.getElementById('deviceSelect');
+        if (availableDevices.length === 0) {
+            select.innerHTML = '<option value="">No hay dispositivos disponibles</option>';
+            return;
         }
-    } catch (error) {
-        console.error('Error cargando dispositivos de zona:', error);
-    }
-}
 
-function renderZoneDevices(devices) {
-    const container = document.getElementById('devices-container');
-    
-    if (devices.length === 0) {
-        container.innerHTML = '<div class="col-12"><p class="text-muted text-center">No hay checadores asignados. Agrega uno para habilitar detección automática.</p></div>';
-        return;
+        select.innerHTML = '<option value="">Selecciona un dispositivo...</option>' +
+            availableDevices.map(d => `<option value="${d.id}" data-name="${escapeHtml(d.name)}">${escapeHtml(d.name)} (ID: ${d.id})</option>`).join('');
     }
-    
-    container.innerHTML = devices.map(device => `
+
+    async function loadZoneDevices(zoneId) {
+        try {
+            const response = await fetch(`/emergency/api/zones/${zoneId}/devices`);
+            const data = await response.json();
+
+            if (data.success) {
+                renderZoneDevices(data.devices);
+            }
+        } catch (error) {
+            console.error('Error cargando dispositivos de zona:', error);
+        }
+    }
+
+    function renderZoneDevices(devices) {
+        const container = document.getElementById('devices-container');
+
+        if (devices.length === 0) {
+            container.innerHTML = '<div class="col-12"><p class="text-muted text-center">No hay checadores asignados. Agrega uno para habilitar detección automática.</p></div>';
+            return;
+        }
+
+        container.innerHTML = devices.map(device => `
         <div class="col-md-4 mb-2">
             <div class="card">
                 <div class="card-body py-2 d-flex justify-content-between align-items-center">
@@ -850,330 +853,330 @@ function renderZoneDevices(devices) {
             </div>
         </div>
     `).join('');
-}
-
-function showAddDeviceModal() {
-    if (!selectedZoneId) {
-        Swal.fire('Error', 'Selecciona una zona primero', 'warning');
-        return;
     }
-    const modal = new bootstrap.Modal(document.getElementById('addDeviceModal'));
-    modal.show();
-}
 
-async function addDeviceToZone() {
-    const select = document.getElementById('deviceSelect');
-    const deviceId = select.value;
-    const deviceName = select.options[select.selectedIndex]?.dataset?.name || `Dispositivo ${deviceId}`;
-    
-    if (!deviceId) {
-        Swal.fire('Error', 'Selecciona un dispositivo', 'warning');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/emergency/api/zones/${selectedZoneId}/devices`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                device_id: parseInt(deviceId),
-                device_name: deviceName
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
-            loadZoneDevices(selectedZoneId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Checador asignado',
-                showConfirmButton: false,
-                timer: 2000
-            });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+    function showAddDeviceModal() {
+        if (!selectedZoneId) {
+            Swal.fire('Error', 'Selecciona una zona primero', 'warning');
+            return;
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error asignando checador', 'error');
+        const modal = new bootstrap.Modal(document.getElementById('addDeviceModal'));
+        modal.show();
     }
-}
 
-async function removeDeviceFromZone(deviceId) {
-    const result = await Swal.fire({
-        title: '¿Remover checador?',
-        text: 'El checador ya no detectará presencia en esta zona',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, remover',
-        cancelButtonText: 'Cancelar'
-    });
-    
-    if (!result.isConfirmed) return;
-    
-    try {
-        const response = await fetch(`/emergency/api/zones/${selectedZoneId}/devices/${deviceId}`, {
-            method: 'DELETE'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            loadZoneDevices(selectedZoneId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Checador removido',
-                showConfirmButton: false,
-                timer: 2000
-            });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+    async function addDeviceToZone() {
+        const select = document.getElementById('deviceSelect');
+        const deviceId = select.value;
+        const deviceName = select.options[select.selectedIndex]?.dataset?.name || `Dispositivo ${deviceId}`;
+
+        if (!deviceId) {
+            Swal.fire('Error', 'Selecciona un dispositivo', 'warning');
+            return;
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error removiendo checador', 'error');
-    }
-}
 
-// ==================== EDITAR ZONA ====================
-
-function showEditZoneModal(zoneId, name, description, color) {
-    document.getElementById('editZoneId').value = zoneId;
-    document.getElementById('editZoneName').value = name;
-    document.getElementById('editZoneDescription').value = description;
-    document.getElementById('editZoneColor').value = color;
-    
-    const modal = new bootstrap.Modal(document.getElementById('editZoneModal'));
-    modal.show();
-}
-
-async function updateZone() {
-    const zoneId = document.getElementById('editZoneId').value;
-    const form = document.getElementById('editZoneForm');
-    const formData = new FormData(form);
-    
-    try {
-        const response = await fetch(`/emergency/api/zones/${zoneId}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(Object.fromEntries(formData))
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
-            loadZones();
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Zona actualizada',
-                showConfirmButton: false,
-                timer: 2000
+        try {
+            const response = await fetch(`/emergency/api/zones/${selectedZoneId}/devices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    device_id: parseInt(deviceId),
+                    device_name: deviceName
+                })
             });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
+                loadZoneDevices(selectedZoneId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Checador asignado',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error asignando checador', 'error');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error actualizando zona', 'error');
     }
-}
 
-// ==================== EDITAR GRUPO ====================
-
-function showEditGroupModal(groupId, name, description, color) {
-    document.getElementById('editGroupId').value = groupId;
-    document.getElementById('editGroupName').value = name;
-    document.getElementById('editGroupDescription').value = description;
-    document.getElementById('editGroupColor').value = color;
-    
-    const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
-    modal.show();
-}
-
-async function updateGroup() {
-    const groupId = document.getElementById('editGroupId').value;
-    const form = document.getElementById('editGroupForm');
-    const formData = new FormData(form);
-    
-    const data = {
-        name: formData.get('name'),
-        description: formData.get('description'),
-        color: formData.get('color')
-    };
-    
-    try {
-        const response = await fetch(`/emergency/api/groups/${groupId}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+    async function removeDeviceFromZone(deviceId) {
+        const result = await Swal.fire({
+            title: '¿Remover checador?',
+            text: 'El checador ya no detectará presencia en esta zona',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, remover',
+            cancelButtonText: 'Cancelar'
         });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
-            loadGroups(selectedZoneId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Grupo actualizado',
-                showConfirmButton: false,
-                timer: 2000
-            });
-        } else {
-            Swal.fire('Error', result.message, 'error');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error actualizando grupo', 'error');
-    }
-}
 
-async function deleteGroup(groupId, groupName) {
-    const result = await Swal.fire({
-        title: '¿Eliminar grupo?',
-        html: `Se eliminará el grupo <strong>${groupName}</strong> y todos sus miembros.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3535',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-    
-    if (!result.isConfirmed) return;
-    
-    try {
-        const response = await fetch(`/emergency/api/groups/${groupId}`, {
-            method: 'DELETE'
+        if (!result.isConfirmed) return;
+
+        try {
+            const response = await fetch(`/emergency/api/zones/${selectedZoneId}/devices/${deviceId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                loadZoneDevices(selectedZoneId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Checador removido',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error removiendo checador', 'error');
+        }
+    }
+
+    // ==================== EDITAR ZONA ====================
+
+    function showEditZoneModal(zoneId, name, description, color) {
+        document.getElementById('editZoneId').value = zoneId;
+        document.getElementById('editZoneName').value = name;
+        document.getElementById('editZoneDescription').value = description;
+        document.getElementById('editZoneColor').value = color;
+
+        const modal = new bootstrap.Modal(document.getElementById('editZoneModal'));
+        modal.show();
+    }
+
+    async function updateZone() {
+        const zoneId = document.getElementById('editZoneId').value;
+        const form = document.getElementById('editZoneForm');
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch(`/emergency/api/zones/${zoneId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.fromEntries(formData))
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
+                loadZones();
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Zona actualizada',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error actualizando zona', 'error');
+        }
+    }
+
+    // ==================== EDITAR GRUPO ====================
+
+    function showEditGroupModal(groupId, name, description, color) {
+        document.getElementById('editGroupId').value = groupId;
+        document.getElementById('editGroupName').value = name;
+        document.getElementById('editGroupDescription').value = description;
+        document.getElementById('editGroupColor').value = color;
+
+        const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+        modal.show();
+    }
+
+    async function updateGroup() {
+        const groupId = document.getElementById('editGroupId').value;
+        const form = document.getElementById('editGroupForm');
+        const formData = new FormData(form);
+
+        const data = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            color: formData.get('color')
+        };
+
+        try {
+            const response = await fetch(`/emergency/api/groups/${groupId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+                loadGroups(selectedZoneId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Grupo actualizado',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error actualizando grupo', 'error');
+        }
+    }
+
+    async function deleteGroup(groupId, groupName) {
+        const result = await Swal.fire({
+            title: '¿Eliminar grupo?',
+            html: `Se eliminará el grupo <strong>${groupName}</strong> y todos sus miembros.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3535',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            loadGroups(selectedZoneId);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Grupo eliminado',
-                showConfirmButton: false,
-                timer: 2000
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const response = await fetch(`/emergency/api/groups/${groupId}`, {
+                method: 'DELETE'
             });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+
+            const data = await response.json();
+
+            if (data.success) {
+                loadGroups(selectedZoneId);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Grupo eliminado',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error eliminando grupo', 'error');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error eliminando grupo', 'error');
     }
-}
 
-// ==================== ELIMINAR ZONA ====================
+    // ==================== ELIMINAR ZONA ====================
 
-async function deleteZone() {
-    const zoneId = document.getElementById('editZoneId').value;
-    
-    const result = await Swal.fire({
-        title: '¿Eliminar zona?',
-        text: 'Se eliminarán todos los grupos y miembros asociados',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-    
-    if (!result.isConfirmed) return;
-    
-    try {
-        const response = await fetch(`/emergency/api/zones/${zoneId}`, {
-            method: 'DELETE'
+    async function deleteZone() {
+        const zoneId = document.getElementById('editZoneId').value;
+
+        const result = await Swal.fire({
+            title: '¿Eliminar zona?',
+            text: 'Se eliminarán todos los grupos y miembros asociados',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
-            selectedZoneId = null;
-            document.getElementById('zone-details-section').style.display = 'none';
-            loadZones();
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Zona eliminada',
-                showConfirmButton: false,
-                timer: 2000
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const response = await fetch(`/emergency/api/zones/${zoneId}`, {
+                method: 'DELETE'
             });
-        } else {
-            Swal.fire('Error', data.message, 'error');
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editZoneModal')).hide();
+                selectedZoneId = null;
+                document.getElementById('zone-details-section').style.display = 'none';
+                loadZones();
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Zona eliminada',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire('Error', 'Error eliminando zona', 'error');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        Swal.fire('Error', 'Error eliminando zona', 'error');
     }
-}
 
 </script>
 
 <style>
-.zone-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    transition: all 0.2s;
-}
+    .zone-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s;
+    }
 
-/* Centrado total de modales (vertical + horizontal) */
-.modal-dialog-centered {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 1rem);
-    margin: 0.5rem auto;
-}
+    /* Centrado total de modales (vertical + horizontal) */
+    .modal-dialog-centered {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 1rem);
+        margin: 0.5rem auto;
+    }
 
-.modal.fade .modal-dialog-centered {
-    transform: translate(0, -50px);
-}
+    .modal.fade .modal-dialog-centered {
+        transform: translate(0, -50px);
+    }
 
-.modal.show .modal-dialog-centered {
-    transform: none;
-}
+    .modal.show .modal-dialog-centered {
+        transform: none;
+    }
 
-/* Estilos para modales */
-#membersModal .modal-content,
-#addDeviceModal .modal-content,
-#editZoneModal .modal-content {
-    max-height: 85vh;
-}
+    /* Estilos para modales */
+    #membersModal .modal-content,
+    #addDeviceModal .modal-content,
+    #editZoneModal .modal-content {
+        max-height: 85vh;
+    }
 
-#membersModal .modal-body {
-    overflow-y: auto;
-    max-height: 65vh;
-}
+    #membersModal .modal-body {
+        overflow-y: auto;
+        max-height: 65vh;
+    }
 
-#searchResultsList .list-group-item {
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
+    #searchResultsList .list-group-item {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
 
-#searchResultsList .list-group-item:hover {
-    background-color: #e8f4e8;
-    border-left: 3px solid #28a745;
-}
+    #searchResultsList .list-group-item:hover {
+        background-color: #e8f4e8;
+        border-left: 3px solid #28a745;
+    }
 </style>
 {% endblock %}
