@@ -10,54 +10,54 @@
     --medium-brown: #5D4037;
     --light-brown: #8D6E63;
     --accent-brown: #6D4C41;
-    
+
     /* Colores complementarios (tonos tierra y cálidos) */
     --accent-gold: #D4A574;
     --accent-copper: #B87333;
     --accent-cream: #F5E6D3;
-    
+
     /* Colores de acción (derivados del café) */
     --action-primary: #6D4C41;
     --action-success: #7CB342;
     --action-warning: #FB8C00;
     --action-danger: #E53935;
     --action-info: #5D4037;
-    
+
     /* Colores de fondo */
     --bg-light: #FAF8F5;
     --bg-white: #FFFFFF;
     --bg-card: #FFFFFF;
     --bg-cream: #FFF8F0;
-    
+
     /* Colores de texto */
     --text-primary: #3E2723;
     --text-secondary: #6D4C41;
     --text-light: #A1887F;
     --text-muted: #BCAAA4;
-    
+
     /* Sombras suaves */
     --shadow-sm: 0 2px 8px rgba(62, 39, 35, 0.08);
     --shadow-md: 0 4px 16px rgba(62, 39, 35, 0.12);
     --shadow-lg: 0 8px 24px rgba(62, 39, 35, 0.16);
-    
+
     /* Transiciones */
     --transition-fast: 0.2s ease;
     --transition-normal: 0.3s ease;
     --transition-slow: 0.5s ease;
-    
+
     /* Espaciado responsivo */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 16px;
     --spacing-lg: 24px;
     --spacing-xl: 32px;
-    
+
     /* Border radius */
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
-    
+
     /* Safe area para notch en iPhones */
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -92,16 +92,17 @@ body {
 }
 
 /* Mejorar touch targets en móvil */
-button, 
-a, 
-input, 
-select, 
+button,
+a,
+input,
+select,
 textarea {
     touch-action: manipulation;
 }
 
 /* Evitar zoom en inputs en iOS */
 @media screen and (max-width: 768px) {
+
     input[type="text"],
     input[type="email"],
     input[type="password"],
@@ -141,7 +142,7 @@ textarea {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 999;
     opacity: 0;
     transition: opacity var(--transition-normal);
@@ -157,7 +158,7 @@ textarea {
 .sidebar-header {
     padding: 24px 20px;
     text-align: center;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
 }
 
@@ -187,7 +188,7 @@ textarea {
 }
 
 .sidebar .nav-link {
-    color: rgba(255,255,255,0.85);
+    color: rgba(255, 255, 255, 0.85);
     padding: 14px 20px;
     margin: 4px 12px;
     border-radius: var(--radius-md);
@@ -197,23 +198,24 @@ textarea {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 48px; /* Touch target mínimo */
+    min-height: 48px;
+    /* Touch target mínimo */
 }
 
 .sidebar .nav-link span {
-    color: rgba(255,255,255,0.85);
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .sidebar .nav-link i {
     font-size: 18px;
     width: 22px;
     text-align: center;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255, 255, 255, 0.7);
     flex-shrink: 0;
 }
 
 .sidebar .nav-link:hover {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     color: #FFFFFF;
 }
 
@@ -222,7 +224,7 @@ textarea {
 }
 
 .sidebar .nav-link.active {
-    background: rgba(255,255,255,0.15);
+    background: rgba(255, 255, 255, 0.15);
     color: #FFFFFF !important;
 }
 
@@ -232,7 +234,7 @@ textarea {
 }
 
 .sidebar-heading {
-    color: rgba(255,255,255,0.5);
+    color: rgba(255, 255, 255, 0.5);
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -244,12 +246,12 @@ textarea {
 .sidebar-user {
     flex-shrink: 0;
     padding: 16px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    background: rgba(0,0,0,0.25);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.25);
 }
 
 .sidebar-user-info {
-    color: rgba(255,255,255,0.9);
+    color: rgba(255, 255, 255, 0.9);
     font-size: 13px;
     font-weight: 500;
     margin-bottom: 10px;
@@ -262,7 +264,7 @@ textarea {
 .sidebar-user-info small {
     display: block;
     width: 100%;
-    color: rgba(255,255,255,0.6);
+    color: rgba(255, 255, 255, 0.6);
     font-size: 11px;
     margin-top: 2px;
     overflow: hidden;
@@ -279,38 +281,47 @@ textarea {
    SIDEBAR - TABLET Y MOBILE
    ============================================ */
 
-@media (max-width: 991px) {
+/* Tablet grande (992px - 1199px): sidebar más angosto */
+@media (max-width: 1199px) {
     .sidebar {
-        width: 280px;
+        width: 240px;
     }
 }
 
-@media (max-width: 768px) {
+/* Tablet (768px - 991px): sidebar aún más angosto */
+@media (max-width: 991px) {
+    .sidebar {
+        width: 220px;
+    }
+}
+
+/* Mobile (menos de 768px): sidebar oculto */
+@media (max-width: 767.98px) {
     .sidebar {
         transform: translateX(-100%);
         width: 85%;
         max-width: 320px;
         padding-top: var(--safe-area-top);
     }
-    
+
     .sidebar.show {
         transform: translateX(0);
     }
-    
+
     .sidebar-header {
         padding: 20px 16px;
     }
-    
+
     .sidebar-header h4 {
         font-size: 20px;
     }
-    
+
     .sidebar .nav-link {
         padding: 12px 16px;
         margin: 3px 10px;
         font-size: 14px;
     }
-    
+
     .sidebar-user {
         padding: 14px;
         padding-bottom: calc(14px + var(--safe-area-bottom));
@@ -330,51 +341,60 @@ textarea {
 }
 
 /* Container interno */
-.main-content > .py-4 {
+.main-content>.py-4 {
     max-width: 1600px;
     margin: 0 auto;
 }
 
-/* Tablet */
-@media (max-width: 991px) {
+/* Tablet grande (992px - 1199px) */
+@media (max-width: 1199px) {
     .main-content {
-        margin-left: 280px;
+        margin-left: 240px;
         padding: var(--spacing-md);
     }
 }
 
-/* Mobile */
-@media (max-width: 768px) {
+/* Tablet (768px - 991px) */
+@media (max-width: 991px) {
+    .main-content {
+        margin-left: 220px;
+        padding: var(--spacing-md);
+    }
+}
+
+/* Mobile (menos de 768px) */
+@media (max-width: 767.98px) {
     .main-content {
         margin-left: 0;
         padding: var(--spacing-sm);
-        padding-top: 60px; /* Espacio para botón hamburguesa */
+        padding-top: 60px;
+        /* Espacio para botón hamburguesa */
         padding-bottom: calc(var(--spacing-md) + var(--safe-area-bottom));
     }
-    
-    .main-content > .py-4 {
+
+    .main-content>.py-4 {
         padding: var(--spacing-xs) !important;
     }
-    
+
     /* Margen entre filas más compacto */
     .row {
         margin-left: calc(var(--spacing-xs) * -1);
         margin-right: calc(var(--spacing-xs) * -1);
     }
-    
+
     /* Espaciado de columnas optimizado */
-    .row > [class*='col-'] {
+    .row>[class*='col-'] {
         padding-left: var(--spacing-xs);
         padding-right: var(--spacing-xs);
         margin-bottom: var(--spacing-sm);
     }
-    
+
     /* Cards con mejor espaciado */
     .card {
         margin-bottom: var(--spacing-sm);
         border-radius: var(--radius-md);
     }
-    
+
     /* Alerts más compactos */
     .alert {
         padding: var(--spacing-sm) var(--spacing-md);
@@ -443,7 +463,7 @@ textarea {
         padding: var(--spacing-md);
         margin-bottom: var(--spacing-md);
     }
-    
+
     .page-header h2 {
         font-size: 22px;
     }
@@ -456,27 +476,27 @@ textarea {
         margin-bottom: var(--spacing-md);
         border-radius: var(--radius-md);
     }
-    
+
     .page-header h2 {
         font-size: 18px;
         width: 100%;
     }
-    
+
     .page-header h2 i {
         font-size: 22px;
     }
-    
+
     .page-header h2 .badge {
         font-size: 10px;
         padding: 4px 8px;
         margin-left: auto;
     }
-    
+
     .page-header-actions {
         width: 100%;
         gap: var(--spacing-xs);
     }
-    
+
     .page-header-actions .btn {
         flex: 1;
         min-width: calc(50% - 4px);
@@ -491,7 +511,7 @@ textarea {
     .page-header h2 {
         font-size: 16px;
     }
-    
+
     .page-header-actions .btn {
         min-width: 100%;
         font-size: 13px;
@@ -539,15 +559,15 @@ textarea {
     .card {
         border-radius: var(--radius-md);
     }
-    
+
     .card-header {
         padding: var(--spacing-sm) var(--spacing-md);
     }
-    
+
     .card-header h5 {
         font-size: 14px;
     }
-    
+
     .card-body {
         padding: var(--spacing-md);
     }
@@ -647,11 +667,11 @@ textarea {
         transform: translateY(-4px);
         box-shadow: var(--shadow-lg);
     }
-    
+
     .stat-card-clickable:hover {
         transform: translateY(-6px);
     }
-    
+
     .stat-card-clickable:hover small i {
         transform: translateX(4px);
     }
@@ -662,7 +682,7 @@ textarea {
     .stat-card {
         padding: var(--spacing-md);
     }
-    
+
     .stat-card h2 {
         font-size: 28px;
     }
@@ -670,41 +690,42 @@ textarea {
 
 /* Mobile: 2 columnas */
 @media (max-width: 768px) {
+
     /* Grid de 2 columnas para stat cards */
-    .row > .col-md-3 {
+    .row>.col-md-3 {
         flex: 0 0 50%;
         max-width: 50%;
         padding-left: var(--spacing-xs);
         padding-right: var(--spacing-xs);
         margin-bottom: var(--spacing-sm);
     }
-    
+
     .stat-card {
         padding: var(--spacing-sm) var(--spacing-md);
         border-radius: var(--radius-md);
         border-left-width: 3px;
         min-height: auto;
     }
-    
+
     .stat-card::before {
         width: 60px;
         height: 60px;
     }
-    
+
     .stat-card h6 {
         font-size: 10px;
         margin-bottom: 4px;
         letter-spacing: 0.2px;
     }
-    
+
     .stat-card h2 {
         font-size: 24px;
     }
-    
+
     .stat-card small {
         font-size: 10px;
     }
-    
+
     .stat-card small i {
         font-size: 10px;
     }
@@ -715,11 +736,11 @@ textarea {
     .stat-card {
         padding: var(--spacing-sm);
     }
-    
+
     .stat-card h6 {
         font-size: 9px;
     }
-    
+
     .stat-card h2 {
         font-size: 20px;
     }
@@ -761,7 +782,7 @@ textarea {
         transform: translateY(-6px);
         box-shadow: var(--shadow-lg);
     }
-    
+
     .device-card:hover::after {
         transform: scaleX(1);
     }
@@ -779,9 +800,10 @@ textarea {
     margin-bottom: var(--spacing-md);
 }
 
-.device-card-header > div:first-child {
+.device-card-header>div:first-child {
     flex: 1;
-    min-width: 0; /* Para que text-overflow funcione */
+    min-width: 0;
+    /* Para que text-overflow funcione */
 }
 
 .device-card h5 {
@@ -843,11 +865,11 @@ textarea {
 
 /* Tablet: 2 columnas */
 @media (max-width: 991px) {
-    .row > .col-md-4 {
+    .row>.col-md-4 {
         flex: 0 0 50%;
         max-width: 50%;
     }
-    
+
     .device-card {
         padding: var(--spacing-md);
     }
@@ -855,37 +877,37 @@ textarea {
 
 /* Mobile: 1 columna */
 @media (max-width: 768px) {
-    .row > .col-md-4 {
+    .row>.col-md-4 {
         flex: 0 0 100%;
         max-width: 100%;
         padding-left: var(--spacing-xs);
         padding-right: var(--spacing-xs);
         margin-bottom: var(--spacing-sm);
     }
-    
+
     .device-card {
         padding: var(--spacing-md);
         border-radius: var(--radius-md);
     }
-    
+
     .device-card h5 {
         font-size: 15px;
     }
-    
+
     .device-card .badge {
         font-size: 9px;
         padding: 4px 8px;
     }
-    
+
     .device-stats {
         padding: var(--spacing-sm) 0;
         margin: var(--spacing-sm) 0;
     }
-    
+
     .device-stat strong {
         font-size: 16px;
     }
-    
+
     .device-stat small {
         font-size: 10px;
     }
@@ -907,7 +929,8 @@ textarea {
     justify-content: center;
     gap: 8px;
     box-shadow: var(--shadow-sm);
-    min-height: 44px; /* Touch target mínimo */
+    min-height: 44px;
+    /* Touch target mínimo */
     white-space: nowrap;
     text-decoration: none;
 }
@@ -972,7 +995,7 @@ textarea {
 }
 
 .btn-outline-light {
-    border-color: rgba(255,255,255,0.5);
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
 .btn-sm {
@@ -988,13 +1011,13 @@ textarea {
         font-size: 13px;
         min-height: 42px;
     }
-    
+
     .btn-sm {
         padding: 6px 10px;
         font-size: 11px;
         min-height: 34px;
     }
-    
+
     .btn i {
         font-size: 14px;
     }
@@ -1061,7 +1084,7 @@ textarea {
         font-size: 11px;
         padding: 12px 10px;
     }
-    
+
     .table tbody td {
         padding: 10px;
         font-size: 12px;
@@ -1075,33 +1098,34 @@ textarea {
         margin: 0 calc(var(--spacing-sm) * -1);
         padding: 0;
     }
-    
+
     .table {
-        min-width: 600px; /* Forzar scroll horizontal */
+        min-width: 600px;
+        /* Forzar scroll horizontal */
     }
-    
+
     .table thead th {
         font-size: 10px;
         padding: 10px 8px;
         letter-spacing: 0.2px;
     }
-    
+
     .table tbody td {
         padding: 10px 8px;
         font-size: 12px;
     }
-    
+
     .table tbody td code {
         font-size: 10px;
     }
-    
+
     /* Ocultar columnas en móvil */
     .table .hide-mobile,
     .table th.hide-mobile,
     .table td.hide-mobile {
         display: none !important;
     }
-    
+
     /* Badges en tabla más pequeños */
     .table .badge {
         font-size: 10px;
@@ -1118,16 +1142,16 @@ textarea {
         right: 0;
         bottom: 0;
         width: 30px;
-        background: linear-gradient(to right, transparent, rgba(255,255,255,0.9));
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.9));
         pointer-events: none;
         opacity: 1;
         transition: opacity var(--transition-fast);
     }
-    
+
     .table-responsive:not([data-scrolled="true"])::after {
         opacity: 1;
     }
-    
+
     .table-responsive[data-scrolled="true"]::after {
         opacity: 0;
     }
@@ -1198,7 +1222,7 @@ textarea {
 .device-icon {
     width: 60px;
     height: 60px;
-    background: rgba(255,255,255,0.15);
+    background: rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
@@ -1249,7 +1273,7 @@ textarea {
     .device-header-card {
         padding: var(--spacing-md);
     }
-    
+
     .device-title {
         font-size: 20px;
     }
@@ -1261,32 +1285,32 @@ textarea {
         padding: var(--spacing-md);
         border-radius: var(--radius-md);
     }
-    
+
     .device-header-info {
         gap: var(--spacing-sm);
     }
-    
+
     .device-icon {
         width: 48px;
         height: 48px;
         font-size: 24px;
         border-radius: var(--radius-sm);
     }
-    
+
     .device-title {
         font-size: 16px;
         margin-bottom: 4px;
     }
-    
+
     .device-meta {
         gap: var(--spacing-sm);
     }
-    
+
     .device-id,
     .device-location {
         font-size: 11px;
     }
-    
+
     .device-id i,
     .device-location i {
         font-size: 12px;
@@ -1298,13 +1322,13 @@ textarea {
     .device-header-card {
         padding: var(--spacing-sm);
     }
-    
+
     .device-icon {
         width: 40px;
         height: 40px;
         font-size: 20px;
     }
-    
+
     .device-title {
         font-size: 15px;
     }
@@ -1425,35 +1449,35 @@ textarea {
         margin: var(--spacing-sm);
         max-width: calc(100% - 16px);
     }
-    
+
     .modal-dialog-lg,
     .modal-lg {
         max-width: calc(100% - 16px);
     }
-    
+
     .modal-content {
         border-radius: var(--radius-md);
     }
-    
+
     .modal-header {
         padding: var(--spacing-sm) var(--spacing-md);
     }
-    
+
     .modal-title {
         font-size: 16px;
     }
-    
+
     .modal-body {
         padding: var(--spacing-md);
         max-height: 50vh;
     }
-    
+
     .modal-footer {
         padding: var(--spacing-sm) var(--spacing-md);
         flex-wrap: wrap;
         gap: var(--spacing-xs);
     }
-    
+
     .modal-footer .btn {
         flex: 1;
         min-width: 100px;
@@ -1513,17 +1537,18 @@ textarea {
     .form-label {
         font-size: 13px;
     }
-    
+
     .form-control {
         padding: 10px 12px;
-        font-size: 16px; /* Prevenir zoom en iOS */
+        font-size: 16px;
+        /* Prevenir zoom en iOS */
     }
-    
+
     .mb-3 {
         margin-bottom: 12px !important;
     }
-    
-    .row > .col-md-6 {
+
+    .row>.col-md-6 {
         margin-bottom: 12px;
     }
 }
@@ -1552,15 +1577,15 @@ textarea {
     .login-card .card-body {
         padding: var(--spacing-lg);
     }
-    
+
     .login-card .bi-fingerprint {
         font-size: 3rem;
     }
-    
+
     .login-card h3 {
         font-size: 1.25rem;
     }
-    
+
     .login-card p.text-muted {
         font-size: 13px;
     }
@@ -1570,11 +1595,11 @@ textarea {
     .login-card .card-body {
         padding: var(--spacing-md);
     }
-    
+
     .login-card .bi-fingerprint {
         font-size: 2.5rem;
     }
-    
+
     .login-card h3 {
         font-size: 1.1rem;
     }
@@ -1592,25 +1617,26 @@ textarea {
 }
 
 @media (max-width: 768px) {
+
     /* Tabla de usuarios más compacta */
     .users-table th,
     .users-table td {
         padding: 8px 6px;
         font-size: 12px;
     }
-    
+
     .btn-edit,
     .btn-delete {
         padding: 6px 8px;
         font-size: 11px;
         min-height: 32px;
     }
-    
+
     .btn-edit i,
     .btn-delete i {
         margin-right: 0;
     }
-    
+
     .btn-edit span,
     .btn-delete span {
         display: none;
@@ -1654,11 +1680,11 @@ textarea {
     .flex-column-mobile {
         flex-direction: column !important;
     }
-    
+
     .gap-sm-mobile {
         gap: var(--spacing-sm) !important;
     }
-    
+
     .w-100-mobile {
         width: 100% !important;
     }
@@ -1673,6 +1699,7 @@ textarea {
         opacity: 0;
         transform: translateY(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1680,8 +1707,13 @@ textarea {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes scaleIn {
@@ -1689,6 +1721,7 @@ textarea {
         opacity: 0;
         transform: scale(0.95);
     }
+
     to {
         opacity: 1;
         transform: scale(1);
@@ -1700,6 +1733,7 @@ textarea {
         opacity: 0;
         transform: translateX(100%);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -1707,26 +1741,44 @@ textarea {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes highlightFade {
     0% {
         background-color: rgba(124, 179, 66, 0.3);
     }
+
     100% {
         background-color: transparent;
     }
 }
 
-.animate-slide-down { animation: slideDown 0.4s ease; }
-.animate-fade-in { animation: fadeIn 0.5s ease; }
-.animate-scale-in { animation: scaleIn 0.3s ease; }
+.animate-slide-down {
+    animation: slideDown 0.4s ease;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease;
+}
+
+.animate-scale-in {
+    animation: scaleIn 0.3s ease;
+}
 
 /* ============================================
    NEW EVENT HIGHLIGHT
@@ -1809,8 +1861,8 @@ textarea {
    ============================================ */
 
 /* Botón volver y badge de tiempo real en línea */
-.mb-3 > .badge + a,
-.mb-3 > a + .badge {
+.mb-3>.badge+a,
+.mb-3>a+.badge {
     margin-left: var(--spacing-sm);
 }
 
@@ -1961,7 +2013,7 @@ textarea {
 }
 
 .device-summary-card.total-card .device-summary-header {
-    border-bottom-color: rgba(255,255,255,0.2);
+    border-bottom-color: rgba(255, 255, 255, 0.2);
 }
 
 .device-summary-name {
@@ -2157,7 +2209,7 @@ textarea {
         align-items: flex-start;
         gap: var(--spacing-xs);
     }
-    
+
     .pending-time {
         font-size: 12px;
         padding-left: 26px;
@@ -2169,6 +2221,7 @@ textarea {
    ============================================ */
 
 @media print {
+
     .sidebar,
     .mobile-menu-btn,
     .sidebar-overlay,
@@ -2176,12 +2229,12 @@ textarea {
     .notification-toast {
         display: none !important;
     }
-    
+
     .main-content {
         margin-left: 0 !important;
         padding: 0 !important;
     }
-    
+
     .card {
         box-shadow: none !important;
         border: 1px solid #ddd !important;
@@ -2234,7 +2287,7 @@ textarea {
         min-height: calc(100% - 3.5rem);
         margin: 1.75rem auto;
     }
-    
+
     #usersModal .modal-content {
         max-height: 85vh;
     }
@@ -2252,13 +2305,14 @@ textarea {
 }
 
 @keyframes fadeIn {
-    from { 
-        opacity: 0; 
-        transform: translateY(10px); 
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-    to { 
-        opacity: 1; 
-        transform: translateY(0); 
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
@@ -2268,7 +2322,7 @@ textarea {
     border-color: var(--medium-brown);
 }
 
-#userSearchInput:focus + .input-group-text {
+#userSearchInput:focus+.input-group-text {
     border-color: var(--medium-brown);
 }
 
@@ -2279,15 +2333,16 @@ textarea {
 
 /* Sidebar - forzar colores correctos */
 .sidebar .sidebar-heading {
-    color: rgba(255,255,255,0.5) !important;
+    color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .sidebar-user i {
-    color: rgba(255,255,255,0.8) !important;
+    color: rgba(255, 255, 255, 0.8) !important;
 }
 
 /* Botones premium móvil */
 @media (max-width: 768px) {
+
     /* Botón primario estilo "Ver Debug" */
     .btn-primary {
         background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%) !important;
@@ -2300,12 +2355,12 @@ textarea {
         box-shadow: 0 4px 15px rgba(62, 39, 35, 0.3) !important;
         transition: all 0.3s ease !important;
     }
-    
+
     .btn-primary:active {
         transform: scale(0.98) !important;
         box-shadow: 0 2px 8px rgba(62, 39, 35, 0.4) !important;
     }
-    
+
     /* Botón secundario */
     .btn-secondary {
         background: transparent !important;
@@ -2314,7 +2369,7 @@ textarea {
         border-radius: 10px !important;
         font-weight: 600 !important;
     }
-    
+
     /* Cards móvil premium */
     .card {
         border-radius: 16px !important;
@@ -2322,37 +2377,37 @@ textarea {
         box-shadow: 0 2px 12px rgba(62, 39, 35, 0.08) !important;
         overflow: hidden;
     }
-    
+
     .card-header {
         background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%) !important;
         color: white !important;
         padding: 16px 20px !important;
         border: none !important;
     }
-    
+
     .card-header h5,
     .card-header .h5,
     .card-header i {
         color: white !important;
         font-weight: 600 !important;
     }
-    
+
     .card-header .form-select {
-        background: rgba(255,255,255,0.15) !important;
-        border: 1px solid rgba(255,255,255,0.3) !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
         color: white !important;
         border-radius: 8px !important;
     }
-    
+
     .card-header .form-select option {
         background: #3E2723;
         color: white;
     }
-    
+
     .card-body {
         padding: 16px !important;
     }
-    
+
     /* Page header móvil */
     .page-header {
         background: linear-gradient(135deg, #3E2723 0%, #4E342E 100%);
@@ -2362,7 +2417,7 @@ textarea {
         border-radius: 0 0 20px 20px;
         box-shadow: 0 4px 20px rgba(62, 39, 35, 0.2);
     }
-    
+
     .page-header h2,
     .page-header h1 {
         color: white !important;
@@ -2370,16 +2425,16 @@ textarea {
         font-weight: 700 !important;
         margin: 0 !important;
     }
-    
+
     .page-header i {
-        color: rgba(255,255,255,0.9) !important;
+        color: rgba(255, 255, 255, 0.9) !important;
     }
-    
+
     .page-header .btn {
         padding: 8px 16px !important;
         font-size: 0.85rem !important;
     }
-    
+
     /* Stat cards móvil premium */
     .stat-card {
         border-radius: 16px !important;
@@ -2388,7 +2443,7 @@ textarea {
         border-top: 4px solid #3E2723 !important;
         box-shadow: 0 4px 15px rgba(62, 39, 35, 0.1) !important;
     }
-    
+
     .stat-card h6 {
         font-size: 0.75rem !important;
         text-transform: uppercase !important;
@@ -2396,17 +2451,17 @@ textarea {
         color: #6D4C41 !important;
         font-weight: 600 !important;
     }
-    
+
     .stat-card h2 {
         font-size: 2.2rem !important;
         font-weight: 800 !important;
         color: #3E2723 !important;
     }
-    
+
     .stat-card.success {
         border-top-color: #43A047 !important;
     }
-    
+
     /* Device cards móvil */
     .device-card {
         border-radius: 14px !important;
@@ -2415,24 +2470,24 @@ textarea {
         box-shadow: 0 2px 10px rgba(62, 39, 35, 0.06) !important;
         transition: all 0.3s ease !important;
     }
-    
+
     .device-card:active {
         transform: scale(0.98);
         box-shadow: 0 1px 5px rgba(62, 39, 35, 0.1) !important;
     }
-    
+
     .device-card h5 {
         font-size: 1rem !important;
         font-weight: 700 !important;
         color: #3E2723 !important;
     }
-    
+
     .device-card .btn {
         border-radius: 10px !important;
         padding: 12px !important;
         font-weight: 600 !important;
     }
-    
+
     /* Badges premium */
     .badge {
         padding: 6px 12px !important;
@@ -2440,25 +2495,25 @@ textarea {
         font-weight: 600 !important;
         font-size: 0.7rem !important;
     }
-    
+
     .badge.bg-success {
         background: linear-gradient(135deg, #43A047, #66BB6A) !important;
     }
-    
+
     .badge.bg-primary,
     .badge.bg-info {
         background: linear-gradient(135deg, #3E2723, #5D4037) !important;
     }
-    
+
     .badge.bg-warning {
         background: linear-gradient(135deg, #FB8C00, #FFA726) !important;
         color: white !important;
     }
-    
+
     .badge.bg-secondary {
         background: linear-gradient(135deg, #6D4C41, #8D6E63) !important;
     }
-    
+
     /* Formularios móvil */
     .form-control,
     .form-select {
@@ -2468,37 +2523,37 @@ textarea {
         font-size: 1rem !important;
         transition: all 0.3s ease !important;
     }
-    
+
     .form-control:focus,
     .form-select:focus {
         border-color: #3E2723 !important;
         box-shadow: 0 0 0 3px rgba(62, 39, 35, 0.1) !important;
     }
-    
+
     .form-label {
         font-weight: 600 !important;
         color: #3E2723 !important;
         font-size: 0.9rem !important;
         margin-bottom: 8px !important;
     }
-    
+
     /* Alertas móvil */
     .alert {
         border-radius: 14px !important;
         border: none !important;
         padding: 16px !important;
     }
-    
+
     .alert-info {
         background: linear-gradient(135deg, #E3F2FD, #BBDEFB) !important;
         color: #1565C0 !important;
     }
-    
+
     .alert-success {
         background: linear-gradient(135deg, #E8F5E9, #C8E6C9) !important;
         color: #2E7D32 !important;
     }
-    
+
     /* Lista de usuarios/items móvil */
     .list-group-item {
         border: none !important;
@@ -2506,11 +2561,11 @@ textarea {
         padding: 14px 16px !important;
         transition: background 0.2s ease !important;
     }
-    
+
     .list-group-item:active {
         background: #FFF8F0 !important;
     }
-    
+
     /* Eventos del día móvil */
     .event-item,
     .pending-item {
@@ -2521,7 +2576,7 @@ textarea {
         box-shadow: 0 2px 8px rgba(62, 39, 35, 0.06) !important;
         border-left: 4px solid #3E2723 !important;
     }
-    
+
     .event-item .badge,
     .pending-item .badge {
         font-size: 0.65rem !important;
@@ -2534,13 +2589,14 @@ textarea {
 
 /* Móvil: FORZAR pantalla completa */
 @media (max-width: 575.98px) {
+
     /* Quitar padding del modal base */
     #usersModal.modal {
         padding: 0 !important;
         padding-right: 0 !important;
         padding-left: 0 !important;
     }
-    
+
     #usersModal .modal-dialog {
         position: fixed !important;
         top: 0 !important;
@@ -2552,7 +2608,7 @@ textarea {
         margin: 0 !important;
         transform: none !important;
     }
-    
+
     #usersModal .modal-content {
         position: fixed !important;
         top: 0 !important;
@@ -2566,17 +2622,17 @@ textarea {
         border-radius: 0 !important;
         box-shadow: none !important;
     }
-    
+
     #usersModal .modal-header {
         flex: 0 0 auto !important;
         border-radius: 0 !important;
     }
-    
+
     /* Buscador */
-    #usersModal .modal-content > div:nth-child(2) {
+    #usersModal .modal-content>div:nth-child(2) {
         flex: 0 0 auto !important;
     }
-    
+
     /* Lista - modal-body - DEBE CRECER para llenar todo */
     #usersModal .modal-body {
         flex: 1 !important;
@@ -2589,7 +2645,7 @@ textarea {
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
     }
-    
+
     /* Footer - tamaño fijo, NO crece */
     #usersModal .modal-footer {
         flex: 0 0 auto !important;
@@ -2598,7 +2654,7 @@ textarea {
         padding: 8px 12px !important;
         background: white !important;
     }
-    
+
     #usersModal .modal-footer .btn {
         width: 100% !important;
         padding: 12px !important;
@@ -2613,6 +2669,7 @@ textarea {
    ============================================ */
 
 @media (max-width: 768px) {
+
     /* Cards de dispositivos en configuración */
     .config-device-card,
     .device-config-card {
@@ -2623,7 +2680,7 @@ textarea {
         box-shadow: 0 4px 15px rgba(62, 39, 35, 0.08) !important;
         border: none !important;
     }
-    
+
     .config-device-card h5,
     .device-config-card h5 {
         font-size: 1.1rem !important;
@@ -2631,12 +2688,12 @@ textarea {
         color: #3E2723 !important;
         margin-bottom: 4px !important;
     }
-    
+
     .config-device-card .text-muted,
     .device-config-card .text-muted {
         font-size: 0.85rem !important;
     }
-    
+
     .config-device-card .btn,
     .device-config-card .btn {
         width: 100% !important;
@@ -2655,6 +2712,7 @@ textarea {
    ============================================ */
 
 @media (max-width: 768px) {
+
     /* Cards de usuarios */
     .user-card,
     .user-list-item {
@@ -2665,18 +2723,18 @@ textarea {
         box-shadow: 0 4px 15px rgba(62, 39, 35, 0.08) !important;
         border: none !important;
     }
-    
+
     .user-card h5,
     .user-list-item h5 {
         font-size: 1.2rem !important;
         font-weight: 700 !important;
         color: #3E2723 !important;
     }
-    
+
     .user-card .badge {
         margin-left: 8px !important;
     }
-    
+
     .user-card .btn {
         width: 100% !important;
         margin-top: 16px !important;
@@ -2687,11 +2745,11 @@ textarea {
         padding: 14px !important;
         font-weight: 600 !important;
     }
-    
+
     /* Botón crear usuario */
     .btn-create-user,
     a[href*="user/create"] .btn,
-    .page-header + .btn {
+    .page-header+.btn {
         background: linear-gradient(135deg, #3E2723, #4E342E) !important;
         color: white !important;
         border: none !important;
@@ -2708,6 +2766,7 @@ textarea {
    ============================================ */
 
 @media (max-width: 768px) {
+
     /* Header del dispositivo */
     .device-header,
     .debug-header {
@@ -2717,7 +2776,7 @@ textarea {
         margin: -15px -15px 20px -15px !important;
         border-radius: 0 0 24px 24px !important;
     }
-    
+
     .device-header h1,
     .device-header h2,
     .debug-header h1,
@@ -2726,12 +2785,12 @@ textarea {
         font-size: 1.3rem !important;
         font-weight: 700 !important;
     }
-    
+
     .device-header .badge {
-        background: rgba(255,255,255,0.2) !important;
+        background: rgba(255, 255, 255, 0.2) !important;
         color: white !important;
     }
-    
+
     /* Stats grid móvil */
     .stats-grid,
     .debug-stats {
@@ -2740,7 +2799,7 @@ textarea {
         gap: 12px !important;
         margin-bottom: 20px !important;
     }
-    
+
     .stats-grid .stat-box,
     .debug-stats .stat-card {
         background: white !important;
@@ -2750,7 +2809,7 @@ textarea {
         box-shadow: 0 2px 10px rgba(62, 39, 35, 0.08) !important;
         border-top: 3px solid #3E2723 !important;
     }
-    
+
     .stats-grid .stat-box h3,
     .debug-stats .stat-card h3 {
         font-size: 1.8rem !important;
@@ -2758,7 +2817,7 @@ textarea {
         color: #3E2723 !important;
         margin-bottom: 4px !important;
     }
-    
+
     .stats-grid .stat-box small,
     .debug-stats .stat-card small {
         font-size: 0.75rem !important;
@@ -2766,7 +2825,7 @@ textarea {
         text-transform: uppercase !important;
         letter-spacing: 0.5px !important;
     }
-    
+
     /* Eventos lista móvil */
     .events-list .event-row,
     .event-item {
@@ -2777,29 +2836,29 @@ textarea {
         box-shadow: 0 2px 10px rgba(62, 39, 35, 0.06) !important;
         border-left: 4px solid #43A047 !important;
     }
-    
+
     .events-list .event-row.denied,
     .event-item.denied {
         border-left-color: #E53935 !important;
     }
-    
+
     .event-time {
         font-size: 1.1rem !important;
         font-weight: 700 !important;
         color: #3E2723 !important;
     }
-    
+
     .event-user {
         font-weight: 600 !important;
         color: #3E2723 !important;
     }
-    
+
     .event-badge {
         font-size: 0.7rem !important;
         padding: 4px 10px !important;
         border-radius: 20px !important;
     }
-    
+
     /* Botón volver */
     .btn-back,
     a[href*="dashboard"] {
@@ -2817,31 +2876,32 @@ textarea {
    ============================================ */
 
 @media (max-width: 768px) {
+
     /* Espaciado general */
     .main-content {
         padding: 15px !important;
     }
-    
+
     .row {
         margin-left: -8px !important;
         margin-right: -8px !important;
     }
-    
-    .row > [class*="col-"] {
+
+    .row>[class*="col-"] {
         padding-left: 8px !important;
         padding-right: 8px !important;
     }
-    
+
     /* Tablas responsive */
     .table-responsive {
         border-radius: 14px !important;
         box-shadow: 0 2px 10px rgba(62, 39, 35, 0.08) !important;
     }
-    
+
     .table {
         margin-bottom: 0 !important;
     }
-    
+
     .table th {
         background: #3E2723 !important;
         color: white !important;
@@ -2851,12 +2911,12 @@ textarea {
         letter-spacing: 0.5px !important;
         padding: 14px 12px !important;
     }
-    
+
     .table td {
         padding: 14px 12px !important;
         vertical-align: middle !important;
     }
-    
+
     /* Dropdown menus */
     .dropdown-menu {
         border-radius: 14px !important;
@@ -2864,34 +2924,34 @@ textarea {
         border: none !important;
         padding: 8px !important;
     }
-    
+
     .dropdown-item {
         border-radius: 10px !important;
         padding: 12px 16px !important;
         font-weight: 500 !important;
     }
-    
+
     .dropdown-item:active {
         background: #3E2723 !important;
         color: white !important;
     }
-    
+
     /* Scrollbar personalizado */
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
     }
-    
+
     ::-webkit-scrollbar-track {
         background: #F5F0ED;
         border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb {
         background: #8D6E63;
         border-radius: 3px;
     }
-    
+
     /* Animación suave para elementos */
     .card,
     .stat-card,
@@ -2921,4 +2981,315 @@ a[href*="user_create"].btn:hover,
     background-image: none !important;
     border-color: #4E342E !important;
     color: #ffffff !important;
+}
+
+/* ============================================
+   MODAL HEADER PREMIUM - UNIFICADO
+   ============================================ */
+
+.modal-header-premium {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);
+    color: white;
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+.modal-header-premium .modal-title {
+    color: white;
+    font-weight: 600;
+}
+
+.modal-header-premium .btn-close {
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
+}
+
+.modal-header-premium .btn-close:hover {
+    opacity: 1;
+}
+
+/* ============================================
+   BOTONES BRAND - UNIFICADOS
+   ============================================ */
+
+.btn-brand {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-brand:hover {
+    background: linear-gradient(135deg, #5D4037 0%, #6D4C41 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(62, 39, 35, 0.3);
+}
+
+.btn-brand-outline {
+    background: transparent;
+    border: 2px solid #3E2723;
+    color: #3E2723;
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-brand-outline:hover {
+    background: #3E2723;
+    color: white;
+}
+
+/* ============================================
+   PANIC BUTTON - ESTILOS
+   ============================================ */
+
+@keyframes pulse-red {
+
+    0%,
+    100% {
+        background-color: #dc3545;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+
+    50% {
+        background-color: #ff4757;
+        box-shadow: 0 0 0 20px rgba(220, 53, 69, 0);
+    }
+}
+
+.panic-container {
+    max-width: 600px;
+    margin: 50px auto;
+    text-align: center;
+}
+
+.panic-button {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.panic-button:not(.active) {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+
+.panic-button:not(.active):hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+}
+
+.panic-button.active {
+    animation: pulse-red 1.5s infinite;
+}
+
+.device-selector {
+    margin-bottom: 30px;
+}
+
+.device-selector select {
+    font-size: 1.1rem;
+    padding: 12px;
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    min-width: 300px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+    .panic-button {
+        width: 200px;
+        height: 200px;
+        font-size: 1.2rem;
+    }
+
+    .device-selector select {
+        min-width: 100%;
+    }
+}
+
+/* ============================================
+   EMERGENCY HISTORY - PREMIUM STYLES
+   ============================================ */
+
+.premium-header {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+}
+
+.premium-header h2 {
+    color: white;
+    margin: 0;
+}
+
+.premium-header .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.3s ease;
+}
+
+.premium-header .back-button:hover {
+    color: white;
+}
+
+.filters-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+}
+
+.emergency-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.emergency-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.emergency-card-header {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);
+    color: white;
+    padding: 1.25rem 1.5rem;
+}
+
+.emergency-card-header h5 {
+    color: white;
+    margin: 0;
+    font-weight: 600;
+}
+
+.emergency-card-body {
+    padding: 1.5rem;
+}
+
+.emergency-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.emergency-stat {
+    text-align: center;
+    padding: 1rem;
+    background: #FAF8F5;
+    border-radius: 10px;
+}
+
+.emergency-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #3E2723;
+}
+
+.emergency-stat-label {
+    font-size: 0.75rem;
+    color: #8D6E63;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.emergency-stat.stat-present .emergency-stat-value {
+    color: #28a745;
+}
+
+.emergency-stat.stat-absent .emergency-stat-value {
+    color: #dc3545;
+}
+
+.emergency-card-footer {
+    background: #FAF8F5;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #f0f0f0;
+}
+
+/* Pagination Premium */
+.pagination-premium {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 0;
+    margin: 2rem 0;
+    list-style: none;
+}
+
+.pagination-premium li a,
+.pagination-premium li span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 500;
+    color: #5D4037;
+    background: white;
+    border: 1px solid #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.pagination-premium li a:hover {
+    background: #FAF8F5;
+    border-color: #5D4037;
+}
+
+.pagination-premium li.active span {
+    background: linear-gradient(135deg, #3E2723 0%, #5D4037 100%);
+    color: white;
+    border-color: transparent;
+}
+
+.pagination-premium li.disabled span {
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .premium-header {
+        padding: 1.5rem;
+        border-radius: 12px;
+    }
+
+    .emergency-card-body {
+        padding: 1rem;
+    }
+
+    .emergency-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }

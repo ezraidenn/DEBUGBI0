@@ -1,849 +1,643 @@
 {% extends "base.html" %}
-
-{% block title %}Historial de Emergencias{% endblock %}
+{% block title %}Historial{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* ============================================
-       DISEÑO PREMIUM - PALETA CAFÉ PROFESIONAL
-       ============================================ */
-    :root {
-        --cafe-oscuro: #3E2723;
-        --cafe-medio: #5D4037;
-        --cafe-claro: #8D6E63;
-        --beige-claro: #D7CCC8;
-        --beige-muy-claro: #F5F5F5;
-        --bg-light: #FAF8F5;
-        --card-bg: #ffffff;
-        --text-dark: #3E2723;
-        --text-muted: #6c757d;
-        --success: #4CAF50;
-        --warning: #FFB74D;
-        --danger: #E57373;
-        --info: #64B5F6;
-    }
-    
-    body {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    /* EMERGENCY HISTORY V5 - PREMIUM PROFESSIONAL */
+    /* Inspired by Linear, Stripe, Notion */
+
+    .eh {
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
         min-height: 100vh;
     }
-    
-    /* ============================================
-       HEADER PREMIUM
-       ============================================ */
-    .premium-header {
-        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 16px;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(62, 39, 35, 0.2);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .premium-header::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(circle, rgba(141, 110, 99, 0.2) 0%, transparent 70%);
-        border-radius: 50%;
-    }
-    
-    .premium-header h2 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin: 0;
-        position: relative;
-        z-index: 1;
-    }
-    
-    .premium-header p {
-        margin: 0.5rem 0 0 0;
-        opacity: 0.9;
-        font-size: 1rem;
-        position: relative;
-        z-index: 1;
-    }
-    
-    .back-button {
-        background: rgba(255, 255, 255, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        color: white;
-        padding: 0.5rem 1.25rem;
-        border-radius: 10px;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        transition: all 0.3s ease;
-        backdrop-filter: blur(10px);
-    }
-    
-    .back-button:hover {
-        background: rgba(255, 255, 255, 0.25);
-        transform: translateX(-5px);
-        color: white;
-    }
-    
-    /* ============================================
-       FILTROS PREMIUM
-       ============================================ */
-    .filters-card {
-        background: var(--card-bg);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        border: 1px solid rgba(0, 0, 0, 0.05);
-    }
-    
-    .filters-card .form-label {
-        color: var(--text-dark);
-        font-weight: 600;
-        font-size: 0.875rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .filters-card .form-control,
-    .filters-card .form-select {
-        border: 2px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 0.625rem 1rem;
-        transition: all 0.3s ease;
-        font-size: 0.95rem;
-    }
-    
-    .filters-card .form-control:focus,
-    .filters-card .form-select:focus {
-        border-color: var(--cafe-medio);
-        box-shadow: 0 0 0 4px rgba(93, 64, 55, 0.1);
-        outline: none;
-    }
-    
-    .btn-filter {
-        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
-        color: white;
-        border: none;
-        padding: 0.625rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.3);
-    }
-    
-    .btn-filter:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(62, 39, 35, 0.4);
-        color: white;
-    }
-    
-    .btn-clear {
-        background: white;
-        color: var(--text-dark);
-        border: 2px solid #e5e7eb;
-        padding: 0.625rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .btn-clear:hover {
-        background: #f3f4f6;
-        border-color: var(--text-muted);
-    }
-    
-    /* ============================================
-       TARJETAS DE EMERGENCIA PREMIUM
-       ============================================ */
-    .emergency-card {
-        background: var(--card-bg);
-        border-radius: 16px;
-        overflow: hidden;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        border: 1px solid rgba(0, 0, 0, 0.05);
-        transition: all 0.3s ease;
-    }
-    
-    .emergency-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-    }
-    
-    .emergency-header {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        padding: 1.25rem 1.5rem;
-        border-bottom: 3px solid;
+
+    /* === HEADER === */
+    .eh-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 1rem;
+        padding: 24px 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        margin-bottom: 24px;
     }
-    
-    .emergency-title {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
+
+    .eh-header h1 {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0f172a;
         margin: 0;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--text-dark);
+        letter-spacing: -0.3px;
     }
-    
-    .emergency-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-        color: white;
-    }
-    
-    .emergency-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: center;
-    }
-    
-    .meta-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.375rem;
-        padding: 0.375rem 0.75rem;
+
+    .eh-header a {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6366f1;
+        text-decoration: none;
+        padding: 8px 14px;
+        background: rgba(99, 102, 241, 0.08);
         border-radius: 8px;
-        font-size: 0.813rem;
-        font-weight: 600;
-        background: white;
-        border: 1px solid #e5e7eb;
+        transition: all 0.2s;
     }
-    
-    .meta-badge i {
-        font-size: 0.875rem;
+
+    .eh-header a:hover {
+        background: rgba(99, 102, 241, 0.15);
     }
-    
-    .emergency-body {
-        padding: 1.5rem;
+
+    /* === FILTERS === */
+    .eh-filters {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        align-items: center;
     }
-    
-    /* ============================================
-       ESTADÍSTICAS PREMIUM
-       ============================================ */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+
+    .eh-search {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
     }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #f8f9fa 0%, white 100%);
-        border-radius: 12px;
-        padding: 1rem;
-        text-align: center;
-        border: 2px solid #e5e7eb;
-        transition: all 0.3s ease;
+
+    .eh-search i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 14px;
     }
-    
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+    .eh-search input {
+        width: 100%;
+        padding: 11px 14px 11px 40px;
+        font-size: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+        color: #1e293b;
+        transition: all 0.2s;
     }
-    
-    .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
-        line-height: 1;
-        margin-bottom: 0.25rem;
+
+    .eh-search input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
     }
-    
-    .stat-label {
-        font-size: 0.75rem;
+
+    .eh-select {
+        padding: 11px 36px 11px 14px;
+        font-size: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center;
+        color: #1e293b;
+        cursor: pointer;
+        min-width: 150px;
+        -webkit-appearance: none;
+    }
+
+    .eh-select:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+
+    .eh-date {
+        padding: 11px 14px;
+        font-size: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+        color: #1e293b;
+        min-width: 150px;
+    }
+
+    .eh-date:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+
+    .eh-clear {
+        padding: 11px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .eh-clear:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+
+    /* === TABLE === */
+    .eh-table {
+        background: #fff;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .eh-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .eh-table thead th {
+        padding: 14px 20px;
+        font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--text-muted);
+        letter-spacing: 0.6px;
+        color: #64748b;
+        background: #f8fafc;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
     }
-    
-    .stat-total { color: var(--info); border-color: rgba(59, 130, 246, 0.3); }
-    .stat-present { color: var(--success); border-color: rgba(16, 185, 129, 0.3); }
-    .stat-absent { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
-    .stat-pending { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); }
-    
-    /* ============================================
-       BOTONES DE ACCIÓN PREMIUM
-       ============================================ */
-    .action-buttons {
+
+    .eh-table tbody tr {
+        transition: background 0.1s;
+    }
+
+    .eh-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .eh-table tbody td {
+        padding: 18px 20px;
+        font-size: 14px;
+        color: #334155;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+
+    .eh-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Zone cell */
+    .eh-zone {
         display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
     }
-    
-    .btn-action {
-        flex: 1;
-        min-width: 120px;
-        padding: 0.625rem 1.25rem;
+
+    .eh-zone-icon {
+        width: 42px;
+        height: 42px;
         border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    .eh-zone-icon.general {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #64748b;
+    }
+
+    .eh-zone-icon.incendio {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        color: #ef4444;
+    }
+
+    .eh-zone-icon.sismo {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        color: #f59e0b;
+    }
+
+    .eh-zone-icon.evacuacion {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        color: #3b82f6;
+    }
+
+    .eh-zone-icon.seguridad {
+        background: linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%);
+        color: #8b5cf6;
+    }
+
+    .eh-zone-info {
+        line-height: 1.4;
+    }
+
+    .eh-zone-name {
         font-weight: 600;
-        font-size: 0.875rem;
+        color: #0f172a;
+        margin-bottom: 2px;
+    }
+
+    .eh-zone-meta {
+        font-size: 12px;
+        color: #94a3b8;
+    }
+
+    /* Type badge */
+    .eh-type {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .eh-type.general {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .eh-type.incendio {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .eh-type.sismo {
+        background: #fffbeb;
+        color: #d97706;
+    }
+
+    .eh-type.evacuacion {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .eh-type.seguridad {
+        background: #faf5ff;
+        color: #7c3aed;
+    }
+
+    /* Stats */
+    .eh-stats {
+        display: flex;
+        gap: 6px;
+    }
+
+    .eh-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 12px;
+        background: #f8fafc;
+        border-radius: 8px;
+        min-width: 48px;
+    }
+
+    .eh-stat-num {
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 3px;
+    }
+
+    .eh-stat-label {
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: #94a3b8;
+    }
+
+    .eh-stat.total .eh-stat-num {
+        color: #0f172a;
+    }
+
+    .eh-stat.present .eh-stat-num {
+        color: #22c55e;
+    }
+
+    .eh-stat.absent .eh-stat-num {
+        color: #ef4444;
+    }
+
+    .eh-stat.pending .eh-stat-num {
+        color: #f59e0b;
+    }
+
+    /* Actions */
+    .eh-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .eh-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
-        transition: all 0.3s ease;
+        gap: 6px;
+        padding: 9px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 8px;
         border: none;
+        cursor: pointer;
+        transition: all 0.15s;
     }
-    
-    .btn-export {
-        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+
+    .eh-btn-excel {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        color: #059669;
     }
-    
-    .btn-export:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-        color: white;
+
+    .eh-btn-excel:hover {
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        transform: translateY(-1px);
     }
-    
-    .btn-delete {
-        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+
+    .eh-btn-del {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        color: #dc2626;
+        padding: 9px 11px;
     }
-    
-    .btn-delete:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
-        color: white;
+
+    .eh-btn-del:hover {
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        transform: translateY(-1px);
     }
-    
-    /* ============================================
-       PAGINACIÓN PREMIUM
-       ============================================ */
-    .pagination-premium {
+
+    /* === PAGINATION === */
+    .eh-pag {
         display: flex;
         justify-content: center;
-        gap: 0.5rem;
-        margin-top: 2rem;
+        gap: 6px;
+        margin-top: 24px;
     }
-    
-    .pagination-premium .page-item {
-        list-style: none;
+
+    .eh-pag-btn {
+        min-width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 500;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        color: #334155;
+        cursor: pointer;
+        transition: all 0.15s;
     }
-    
-    .pagination-premium .page-link {
-        padding: 0.625rem 1rem;
-        border-radius: 10px;
-        border: 2px solid #e5e7eb;
-        color: var(--text-dark);
-        font-weight: 600;
-        transition: all 0.3s ease;
-        background: white;
+
+    .eh-pag-btn:hover:not(.disabled):not(.active) {
+        background: #f8fafc;
+        border-color: #cbd5e1;
     }
-    
-    .pagination-premium .page-link:hover {
-        background: var(--cafe-medio);
-        border-color: var(--cafe-medio);
-        color: white;
-        transform: translateY(-2px);
+
+    .eh-pag-btn.active {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        border-color: transparent;
+        color: #fff;
     }
-    
-    .pagination-premium .page-item.active .page-link {
-        background: linear-gradient(135deg, var(--cafe-oscuro) 0%, var(--cafe-medio) 100%);
-        border-color: var(--cafe-oscuro);
-        color: white;
-        box-shadow: 0 4px 12px rgba(62, 39, 35, 0.3);
-    }
-    
-    .pagination-premium .page-item.disabled .page-link {
-        opacity: 0.5;
+
+    .eh-pag-btn.disabled {
+        opacity: 0.4;
         cursor: not-allowed;
     }
-    
-    /* ============================================
-       ESTADOS VACÍOS
-       ============================================ */
-    .empty-state {
+
+    /* === STATES === */
+    .eh-empty {
         text-align: center;
-        padding: 4rem 2rem;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        padding: 60px 24px;
     }
-    
-    .empty-state i {
-        font-size: 4rem;
-        color: var(--text-muted);
-        margin-bottom: 1rem;
+
+    .eh-empty i {
+        font-size: 40px;
+        color: #cbd5e1;
     }
-    
-    .empty-state h3 {
-        color: var(--text-dark);
-        margin-bottom: 0.5rem;
+
+    .eh-empty h3 {
+        margin: 16px 0 6px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #334155;
     }
-    
-    .empty-state p {
-        color: var(--text-muted);
+
+    .eh-empty p {
+        margin: 0;
+        font-size: 14px;
+        color: #94a3b8;
     }
-    
-    /* ============================================
-       RESPONSIVE
-       ============================================ */
-    @media (max-width: 768px) {
-        .premium-header {
-            padding: 1.5rem;
+
+    .eh-spin {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin: 0 auto 12px;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
         }
-        
-        .premium-header h2 {
-            font-size: 1.5rem;
+    }
+
+    /* === MOBILE === */
+    @media (max-width: 900px) {
+        .eh-table thead {
+            display: none;
         }
-        
-        .filters-card {
-            padding: 1rem;
+
+        .eh-table tbody tr {
+            display: flex;
+            flex-direction: column;
+            padding: 16px 18px;
+            gap: 14px;
+            border-bottom: 1px solid #e2e8f0;
         }
-        
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
+
+        .eh-table tbody td {
+            padding: 0;
+            border: none;
         }
-        
-        .action-buttons {
+
+        .eh-zone-icon {
+            width: 38px;
+            height: 38px;
+            font-size: 16px;
+        }
+
+        .eh-stats {
+            justify-content: space-between;
+        }
+
+        .eh-stat {
+            flex: 1;
+        }
+
+        .eh-actions {
+            padding-top: 12px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .eh-btn {
+            flex: 1;
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .eh-header {
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .eh-filters {
             flex-direction: column;
         }
-        
-        .btn-action {
+
+        .eh-search,
+        .eh-select,
+        .eh-date {
             width: 100%;
+            min-width: 100%;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-4">
-    
-    <!-- Header Premium -->
-    <div class="premium-header">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-                <a href="{{ url_for('emergency.emergency_page') }}" class="back-button mb-3">
-                    <i class="bi bi-arrow-left"></i> Volver
-                </a>
-                <h2><i class="bi bi-clock-history me-2"></i>Historial de Emergencias</h2>
-                <p>Registro completo de emergencias pasadas y sus pases de lista</p>
-            </div>
+<div class="eh">
+
+    <div class="eh-header">
+        <h1>Historial de Emergencias</h1>
+        <a href="{{ url_for('emergency.emergency_page') }}"><i class="bi bi-arrow-left"></i> Volver</a>
+    </div>
+
+    <div class="eh-filters">
+        <div class="eh-search">
+            <i class="bi bi-search"></i>
+            <input type="text" id="search" placeholder="Buscar zona...">
         </div>
+        <select id="type" class="eh-select">
+            <option value="">Todos los tipos</option>
+            <option value="general">General</option>
+            <option value="incendio">Incendio</option>
+            <option value="sismo">Sismo</option>
+            <option value="evacuacion">Evacuación</option>
+            <option value="seguridad">Seguridad</option>
+        </select>
+        <input type="date" id="date" class="eh-date">
+        <button class="eh-clear" onclick="clearFilters()"><i class="bi bi-x"></i> Limpiar</button>
     </div>
-    
-    <!-- Filtros Premium -->
-    <div class="filters-card">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label">
-                    <i class="bi bi-search"></i> Buscar por Zona
-                </label>
-                <input type="text" 
-                       id="searchZone" 
-                       class="form-control" 
-                       placeholder="Nombre de zona...">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">
-                    <i class="bi bi-funnel"></i> Tipo
-                </label>
-                <select id="filterType" class="form-select">
-                    <option value="">Todos los tipos</option>
-                    <option value="general">General</option>
-                    <option value="incendio">🔥 Incendio</option>
-                    <option value="sismo">🌍 Sismo</option>
-                    <option value="evacuacion">🚪 Evacuación</option>
-                    <option value="seguridad">🔒 Seguridad</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">
-                    <i class="bi bi-calendar"></i> Fecha
-                </label>
-                <input type="date" 
-                       id="filterDate" 
-                       class="form-control">
-            </div>
-            <div class="col-md-2">
-                <button class="btn btn-clear w-100" onclick="clearFilters()">
-                    <i class="bi bi-x-circle"></i> Limpiar
-                </button>
-            </div>
-        </div>
+
+    <div class="eh-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Zona</th>
+                    <th>Tipo</th>
+                    <th>Estadísticas</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbody">
+                <tr>
+                    <td colspan="4">
+                        <div class="eh-empty">
+                            <div class="eh-spin"></div>
+                            <h3>Cargando...</h3>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
-    
-    <!-- Lista de Emergencias -->
-    <div id="emergencies-container">
-        <!-- Se carga dinámicamente -->
-    </div>
-    
-    <!-- Paginación -->
-    <nav>
-        <ul class="pagination-premium" id="pagination-container">
-            <!-- Se carga dinámicamente -->
-        </ul>
-    </nav>
-    
+
+    <div class="eh-pag" id="pag"></div>
+
 </div>
 
-<!-- Modal de confirmación de borrado -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden;">
-            <div class="modal-header" style="background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%); color: white; border: none;">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Confirmar Eliminación</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<div class="modal fade" id="delModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;">
+            <div class="modal-body text-center" style="padding:28px 24px;">
+                <div
+                    style="width:52px;height:52px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+                    <i class="bi bi-trash3" style="font-size:22px;color:#ef4444;"></i>
+                </div>
+                <h5 style="margin:0 0 6px;font-weight:600;color:#0f172a;">Eliminar registro</h5>
+                <p style="margin:0;color:#64748b;font-size:13px;">Esta acción no se puede deshacer.</p>
             </div>
-            <div class="modal-body" style="padding: 2rem;">
-                <p class="mb-0" style="font-size: 1.05rem;">¿Estás seguro de que deseas eliminar esta emergencia? Esta acción no se puede deshacer.</p>
-            </div>
-            <div class="modal-footer" style="border: none; padding: 1rem 2rem;">
-                <button type="button" class="btn btn-clear" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-delete" onclick="confirmDelete()">
-                    <i class="bi bi-trash"></i> Eliminar
-                </button>
+            <div style="display:flex;border-top:1px solid #e2e8f0;">
+                <button type="button"
+                    style="flex:1;padding:14px;background:none;border:none;font-size:14px;font-weight:500;color:#64748b;cursor:pointer;"
+                    data-bs-dismiss="modal">Cancelar</button>
+                <button type="button"
+                    style="flex:1;padding:14px;background:none;border:none;border-left:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#ef4444;cursor:pointer;"
+                    onclick="confirmDel()">Eliminar</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-let currentPage = 1;
-let emergencyToDelete = null;
-let deleteModal = null;
+    const T = { general: { i: 'bi-exclamation-circle', l: 'General' }, incendio: { i: 'bi-fire', l: 'Incendio' }, sismo: { i: 'bi-broadcast', l: 'Sismo' }, evacuacion: { i: 'bi-door-open', l: 'Evacuación' }, seguridad: { i: 'bi-shield-check', l: 'Seguridad' } };
+    let page = 1, delId = null, modal = null;
 
-// Inicializar modal cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', function() {
-    const modalElement = document.getElementById('deleteModal');
-    if (modalElement && typeof bootstrap !== 'undefined') {
-        deleteModal = new bootstrap.Modal(modalElement);
-        
-        // Corregir advertencia ARIA: remover foco cuando el modal se oculta
-        modalElement.addEventListener('hidden.bs.modal', function () {
-            document.activeElement.blur();
-        });
-    }
-    
-    // Cargar emergencias al inicio
-    loadEmergencies(1);
-});
-
-async function loadEmergencies(page = 1) {
-    try {
-        const response = await fetch(`/emergency/api/emergencies/history?page=${page}&per_page=20`);
-        const data = await response.json();
-        
-        if (data.success) {
-            renderEmergencies(data.emergencies);
-            renderPagination(data.pagination);
-            currentPage = page;
-        }
-    } catch (error) {
-        console.error('Error cargando emergencias:', error);
-        showError('Error cargando el historial');
-    }
-}
-
-function renderEmergencies(emergencies) {
-    const container = document.getElementById('emergencies-container');
-    
-    if (!emergencies || emergencies.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="bi bi-inbox"></i>
-                <h3>No hay emergencias</h3>
-                <p>No se encontraron emergencias con los filtros aplicados</p>
-            </div>
-        `;
-        return;
-    }
-    
-    const typeIcons = {
-        'general': 'bi-exclamation-triangle',
-        'incendio': 'bi-fire',
-        'sismo': 'bi-broadcast',
-        'evacuacion': 'bi-door-open',
-        'seguridad': 'bi-shield-exclamation'
-    };
-    
-    const typeColors = {
-        'general': '#6c757d',
-        'incendio': '#dc3545',
-        'sismo': '#fd7e14',
-        'evacuacion': '#17a2b8',
-        'seguridad': '#ffc107'
-    };
-    
-    const typeLabels = {
-        'general': 'General',
-        'incendio': 'Incendio',
-        'sismo': 'Sismo',
-        'evacuacion': 'Evacuación',
-        'seguridad': 'Seguridad'
-    };
-    
-    container.innerHTML = emergencies.map(emergency => {
-        const typeIcon = typeIcons[emergency.emergency_type] || 'bi-exclamation-triangle';
-        const typeColor = typeColors[emergency.emergency_type] || '#6c757d';
-        const typeLabel = typeLabels[emergency.emergency_type] || 'General';
-        
-        return `
-            <div class="emergency-card">
-                <div class="emergency-header" style="border-color: ${typeColor};">
-                    <div>
-                        <h3 class="emergency-title">
-                            <div class="emergency-icon" style="background: ${typeColor};">
-                                <i class="bi ${typeIcon}"></i>
-                            </div>
-                            ${emergency.zone_name}
-                        </h3>
-                        <div class="emergency-meta mt-2">
-                            <span class="meta-badge">
-                                <i class="bi bi-tag-fill" style="color: ${typeColor};"></i>
-                                ${typeLabel}
-                            </span>
-                            <span class="meta-badge">
-                                <i class="bi bi-calendar3"></i>
-                                ${emergency.started_at}
-                            </span>
-                            <span class="meta-badge">
-                                <i class="bi bi-clock"></i>
-                                ${emergency.duration}
-                            </span>
-                            <span class="meta-badge">
-                                <i class="bi bi-person-fill"></i>
-                                ${emergency.started_by_name}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="emergency-body">
-                    <div class="stats-grid">
-                        <div class="stat-card stat-total">
-                            <div class="stat-value">${emergency.stats.total}</div>
-                            <div class="stat-label">Total</div>
-                        </div>
-                        <div class="stat-card stat-present">
-                            <div class="stat-value">${emergency.stats.present}</div>
-                            <div class="stat-label">Presentes</div>
-                        </div>
-                        <div class="stat-card stat-absent">
-                            <div class="stat-value">${emergency.stats.absent}</div>
-                            <div class="stat-label">Ausentes</div>
-                        </div>
-                        <div class="stat-card stat-pending">
-                            <div class="stat-value">${emergency.stats.pending}</div>
-                            <div class="stat-label">Pendientes</div>
-                        </div>
-                    </div>
-                    
-                    <div class="action-buttons">
-                        <button class="btn-action btn-export" onclick="downloadExcel(${emergency.id})">
-                            <i class="bi bi-file-earmark-excel"></i>
-                            Exportar Excel
-                        </button>
-                        ${emergency.can_delete ? `
-                            <button class="btn-action btn-delete" onclick="showDeleteModal(${emergency.id})">
-                                <i class="bi bi-trash"></i>
-                                Eliminar
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function renderPagination(pagination) {
-    const container = document.getElementById('pagination-container');
-    
-    if (!pagination || pagination.pages <= 1) {
-        container.innerHTML = '';
-        return;
-    }
-    
-    let html = '';
-    
-    // Botón anterior
-    html += `
-        <li class="page-item ${!pagination.has_prev ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page - 1}); return false;">
-                <i class="bi bi-chevron-left"></i>
-            </a>
-        </li>
-    `;
-    
-    // Páginas
-    const startPage = Math.max(1, pagination.page - 2);
-    const endPage = Math.min(pagination.pages, pagination.page + 2);
-    
-    if (startPage > 1) {
-        html += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadEmergencies(1); return false;">1</a>
-            </li>
-        `;
-        if (startPage > 2) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-        }
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-        html += `
-            <li class="page-item ${i === pagination.page ? 'active' : ''}">
-                <a class="page-link" href="#" onclick="loadEmergencies(${i}); return false;">${i}</a>
-            </li>
-        `;
-    }
-    
-    if (endPage < pagination.pages) {
-        if (endPage < pagination.pages - 1) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-        }
-        html += `
-            <li class="page-item">
-                <a class="page-link" href="#" onclick="loadEmergencies(${pagination.pages}); return false;">${pagination.pages}</a>
-            </li>
-        `;
-    }
-    
-    // Botón siguiente
-    html += `
-        <li class="page-item ${!pagination.has_next ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="loadEmergencies(${pagination.page + 1}); return false;">
-                <i class="bi bi-chevron-right"></i>
-            </a>
-        </li>
-    `;
-    
-    container.innerHTML = html;
-}
-
-// Filtros en tiempo real
-let filterTimeout;
-document.getElementById('searchZone').addEventListener('input', () => {
-    clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(() => applyFilters(), 500);
-});
-
-document.getElementById('filterType').addEventListener('change', applyFilters);
-document.getElementById('filterDate').addEventListener('change', applyFilters);
-
-function applyFilters() {
-    const zone = document.getElementById('searchZone').value.trim();
-    const type = document.getElementById('filterType').value;
-    const date = document.getElementById('filterDate').value;
-    
-    let url = '/emergency/api/emergencies/history?page=1&per_page=20';
-    
-    if (zone) url += `&zone=${encodeURIComponent(zone)}`;
-    if (type) url += `&type=${encodeURIComponent(type)}`;
-    if (date) url += `&date=${encodeURIComponent(date)}`;
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                renderEmergencies(data.emergencies);
-                renderPagination(data.pagination);
-                currentPage = 1;
-            }
-        })
-        .catch(error => {
-            console.error('Error aplicando filtros:', error);
-        });
-}
-
-function clearFilters() {
-    document.getElementById('searchZone').value = '';
-    document.getElementById('filterType').value = '';
-    document.getElementById('filterDate').value = '';
-    loadEmergencies(1);
-}
-
-function downloadExcel(emergencyId) {
-    // Crear un enlace temporal y hacer clic programáticamente
-    const link = document.createElement('a');
-    link.href = `/emergency/api/emergency/${emergencyId}/export-excel`;
-    link.download = `emergencia_${emergencyId}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showSuccess('Descargando reporte Excel...');
-}
-
-function showDeleteModal(emergencyId) {
-    emergencyToDelete = emergencyId;
-    if (deleteModal) {
-        deleteModal.show();
-    }
-}
-
-async function confirmDelete() {
-    if (!emergencyToDelete) return;
-    
-    try {
-        const response = await fetch(`/emergency/api/emergency/${emergencyToDelete}`, {
-            method: 'DELETE'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            if (deleteModal) {
-                deleteModal.hide();
-            }
-            loadEmergencies(currentPage);
-            showSuccess('Emergencia eliminada exitosamente');
-        } else {
-            showError('Error: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showError('Error eliminando emergencia');
-    }
-}
-
-function showSuccess(message) {
-    Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: message,
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true
+    document.addEventListener('DOMContentLoaded', () => {
+        const m = document.getElementById('delModal');
+        if (m && bootstrap) modal = new bootstrap.Modal(m);
+        load();
     });
-}
 
-function showError(message) {
-    Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'error',
-        title: message,
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true
-    });
-}
+    async function load(p = 1) {
+        document.getElementById('tbody').innerHTML = '<tr><td colspan="4"><div class="eh-empty"><div class="eh-spin"></div><h3>Cargando...</h3></div></td></tr>';
+        try {
+            const z = document.getElementById('search').value.trim(), t = document.getElementById('type').value, d = document.getElementById('date').value;
+            let url = `/emergency/api/emergencies/history?page=${p}&per_page=12`;
+            if (z) url += `&zone=${encodeURIComponent(z)}`;
+            if (t) url += `&type=${encodeURIComponent(t)}`;
+            if (d) url += `&date=${encodeURIComponent(d)}`;
+            const r = await fetch(url), data = await r.json();
+            if (data.success) { render(data.emergencies); pag(data.pagination); page = p; }
+        } catch { document.getElementById('tbody').innerHTML = '<tr><td colspan="4"><div class="eh-empty"><i class="bi bi-wifi-off"></i><h3>Error de conexión</h3></div></td></tr>'; }
+    }
+
+    function render(items) {
+        if (!items?.length) { document.getElementById('tbody').innerHTML = '<tr><td colspan="4"><div class="eh-empty"><i class="bi bi-inbox"></i><h3>Sin registros</h3><p>No hay emergencias</p></div></td></tr>'; document.getElementById('pag').innerHTML = ''; return; }
+        document.getElementById('tbody').innerHTML = items.map(e => {
+            const t = T[e.emergency_type] || T.general;
+            return `<tr>
+            <td><div class="eh-zone"><div class="eh-zone-icon ${e.emergency_type}"><i class="bi ${t.i}"></i></div><div class="eh-zone-info"><div class="eh-zone-name">${e.zone_name}</div><div class="eh-zone-meta">${e.started_at} · ${e.duration} · ${e.started_by_name}</div></div></div></td>
+            <td><span class="eh-type ${e.emergency_type}">${t.l}</span></td>
+            <td><div class="eh-stats"><div class="eh-stat total"><span class="eh-stat-num">${e.stats.total}</span><span class="eh-stat-label">Total</span></div><div class="eh-stat present"><span class="eh-stat-num">${e.stats.present}</span><span class="eh-stat-label">Pres</span></div><div class="eh-stat absent"><span class="eh-stat-num">${e.stats.absent}</span><span class="eh-stat-label">Aus</span></div><div class="eh-stat pending"><span class="eh-stat-num">${e.stats.pending}</span><span class="eh-stat-label">Pend</span></div></div></td>
+            <td><div class="eh-actions"><button class="eh-btn eh-btn-excel" onclick="excel(${e.id})"><i class="bi bi-file-earmark-excel"></i> Excel</button>${e.can_delete ? `<button class="eh-btn eh-btn-del" onclick="del(${e.id})"><i class="bi bi-trash3"></i></button>` : ''}</div></td>
+        </tr>`;
+        }).join('');
+    }
+
+    function pag(p) {
+        if (!p || p.pages <= 1) { document.getElementById('pag').innerHTML = ''; return; }
+        let h = `<button class="eh-pag-btn ${!p.has_prev ? 'disabled' : ''}" onclick="${p.has_prev ? 'load(' + (p.page - 1) + ')' : ''}"><i class="bi bi-chevron-left"></i></button>`;
+        for (let i = 1; i <= p.pages; i++) { if (i === 1 || i === p.pages || Math.abs(i - p.page) <= 1) h += `<button class="eh-pag-btn ${i === p.page ? 'active' : ''}" onclick="load(${i})">${i}</button>`; else if (Math.abs(i - p.page) === 2) h += `<span class="eh-pag-btn disabled">…</span>`; }
+        h += `<button class="eh-pag-btn ${!p.has_next ? 'disabled' : ''}" onclick="${p.has_next ? 'load(' + (p.page + 1) + ')' : ''}"><i class="bi bi-chevron-right"></i></button>`;
+        document.getElementById('pag').innerHTML = h;
+    }
+
+    let ft;
+    document.getElementById('search').addEventListener('input', () => { clearTimeout(ft); ft = setTimeout(() => load(1), 300); });
+    document.getElementById('type').addEventListener('change', () => load(1));
+    document.getElementById('date').addEventListener('change', () => load(1));
+
+    function clearFilters() { document.getElementById('search').value = ''; document.getElementById('type').value = ''; document.getElementById('date').value = ''; load(1); }
+    function excel(id) { const a = document.createElement('a'); a.href = `/emergency/api/emergency/${id}/export-excel`; a.download = `emergencia_${id}.xlsx`; document.body.appendChild(a); a.click(); a.remove(); }
+    function del(id) { delId = id; if (modal) modal.show(); }
+    async function confirmDel() { if (!delId) return; try { await fetch(`/emergency/api/emergency/${delId}`, { method: 'DELETE' }); load(page); } catch { } if (modal) modal.hide(); delId = null; }
 </script>
 {% endblock %}
