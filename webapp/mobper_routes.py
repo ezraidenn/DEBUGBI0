@@ -806,6 +806,9 @@ def register():
         session['mobper_user_id'] = nuevo_user.id
         session['mobper_numero_socio'] = nuevo_user.numero_socio
         
+        # Marcar que es primera configuración
+        session['mobper_first_config'] = True
+        
         # Redirigir a config para completar info inicial (única vez)
         return redirect(url_for('mobper.config'))
         
@@ -872,7 +875,11 @@ def config():
             
             db.session.commit()
             
-            # Redirigir a la misma página con mensaje de éxito
+            # Si es primera configuración (post-registro), ir al checklist
+            if session.pop('mobper_first_config', False):
+                return redirect(url_for('mobper.checklist'))
+            
+            # Si no, quedarse en config con mensaje de éxito
             return redirect(url_for('mobper.config', saved=1))
         
         except Exception as e:
