@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MobPer - Iniciar Sesión</title>
+    <title>MovPer - Iniciar Sesión</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #ffffff;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: #f5f3f1;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -21,74 +20,89 @@
             padding: 20px;
         }
 
-        .login-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e0e0e0;
+        .login-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 32px;
             width: 100%;
-            max-width: 420px;
-            overflow: hidden;
+            max-width: 440px;
         }
 
-        .login-header {
-            background: linear-gradient(135deg, #5D4037 0%, #3E2723 100%);
-            color: white;
-            padding: 40px 30px;
+        /* Brand header */
+        .brand {
             text-align: center;
         }
 
-        .logo {
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
+        .brand-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #5D4037, #3E2723);
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 40px;
+            margin: 0 auto 16px;
+            box-shadow: 0 8px 24px rgba(62, 39, 35, 0.25);
         }
 
-        .login-header h1 {
-            font-size: 28px;
+        .brand-icon svg {
+            width: 32px;
+            height: 32px;
+            color: white;
+        }
+
+        .brand h1 {
+            font-size: 26px;
             font-weight: 700;
-            margin-bottom: 8px;
+            color: #3E2723;
+            letter-spacing: -0.5px;
         }
 
-        .login-header p {
+        .brand p {
             font-size: 14px;
-            opacity: 0.9;
+            color: #8D6E63;
+            margin-top: 4px;
         }
 
-        .login-body {
-            padding: 40px 30px;
+        /* Card */
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
+            width: 100%;
+            padding: 36px 32px;
         }
 
+        /* Alerts */
         .alert {
-            padding: 14px 18px;
-            border-radius: 8px;
+            padding: 12px 16px;
+            border-radius: 10px;
             margin-bottom: 24px;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 500;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
+        .alert svg { width: 18px; height: 18px; flex-shrink: 0; }
+
         .alert-error {
-            background: #FFEBEE;
-            color: #C62828;
-            border: 1px solid #EF9A9A;
+            background: #FEF2F2;
+            color: #991B1B;
+            border: 1px solid #FECACA;
         }
 
         .alert-success {
-            background: #E8F5E9;
-            color: #2E7D32;
-            border: 1px solid #A5D6A7;
+            background: #F0FDF4;
+            color: #166534;
+            border: 1px solid #BBF7D0;
         }
 
+        /* Form */
         .form-group {
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
 
         .form-group label {
@@ -96,69 +110,102 @@
             color: #3E2723;
             font-size: 13px;
             font-weight: 600;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            margin-bottom: 6px;
         }
 
         .input-wrapper {
             position: relative;
         }
 
-        .input-icon {
+        .input-wrapper svg.input-icon {
             position: absolute;
-            left: 16px;
+            left: 14px;
             top: 50%;
             transform: translateY(-50%);
-            color: #8D6E63;
-            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            color: #A1887F;
+            pointer-events: none;
         }
 
         .form-group input {
             width: 100%;
-            padding: 14px 16px 14px 48px;
-            border: 2px solid #EFEBE9;
-            border-radius: 8px;
+            padding: 12px 44px 12px 42px;
+            border: 1.5px solid #D7CCC8;
+            border-radius: 10px;
             font-size: 15px;
+            font-family: inherit;
             transition: all 0.2s ease;
-            background: #FAFAFA;
+            background: #FAFAF9;
+            color: #3E2723;
+        }
+
+        .form-group input::placeholder {
+            color: #BCAAA4;
         }
 
         .form-group input:focus {
             outline: none;
             border-color: #5D4037;
-            box-shadow: 0 0 0 4px rgba(93, 64, 55, 0.1);
+            box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.1);
             background: white;
         }
 
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #A1887F;
+            background: none;
+            border: none;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+
+        .password-toggle:hover {
+            background: #EFEBE9;
+            color: #5D4037;
+        }
+
+        .password-toggle svg { width: 18px; height: 18px; }
+
+        /* Buttons */
         .btn-primary {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #5D4037 0%, #3E2723 100%);
+            padding: 13px;
+            background: #5D4037;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 15px;
+            border-radius: 10px;
+            font-size: 14px;
             font-weight: 600;
+            font-family: inherit;
             cursor: pointer;
             transition: all 0.2s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+            letter-spacing: 0.3px;
+            margin-top: 4px;
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(93, 64, 55, 0.4);
+            background: #4E342E;
+            box-shadow: 0 4px 16px rgba(62, 39, 35, 0.3);
+            transform: translateY(-1px);
         }
 
         .btn-primary:active {
             transform: translateY(0);
+            box-shadow: none;
         }
 
         .divider {
             text-align: center;
-            margin: 30px 0;
+            margin: 28px 0;
             position: relative;
         }
 
@@ -174,81 +221,82 @@
 
         .divider span {
             background: white;
-            padding: 0 15px;
-            color: #8D6E63;
+            padding: 0 14px;
+            color: #A1887F;
             font-size: 13px;
             position: relative;
             font-weight: 500;
         }
 
-        .btn-secondary {
+        .btn-outline {
+            display: block;
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             background: white;
             color: #5D4037;
-            border: 2px solid #5D4037;
-            border-radius: 8px;
+            border: 1.5px solid #D7CCC8;
+            border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
+            font-family: inherit;
             cursor: pointer;
             transition: all 0.2s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-secondary:hover {
-            background: #5D4037;
-            color: white;
-        }
-
-        .footer {
             text-align: center;
-            padding: 20px 30px;
-            background: #FAFAFA;
-            color: #8D6E63;
-            font-size: 12px;
+            text-decoration: none;
         }
 
-        .password-toggle {
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: #8D6E63;
-            font-size: 18px;
-            user-select: none;
+        .btn-outline:hover {
+            border-color: #5D4037;
+            background: #FAF8F7;
+        }
+
+        /* Footer */
+        .footer-text {
+            text-align: center;
+            color: #BCAAA4;
+            font-size: 12px;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-header">
-            <div class="logo">📋</div>
-            <h1>MobPer</h1>
-            <p>Sistema de Regularización de Asistencias</p>
+    <div class="login-wrapper">
+        <div class="brand">
+            <div class="brand-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                </svg>
+            </div>
+            <h1>MovPer</h1>
+            <p>Regularización de Asistencias</p>
         </div>
 
-        <div class="login-body">
+        <div class="login-card">
             {% if error %}
             <div class="alert alert-error">
-                <span>⚠️</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
                 <span>{{ error }}</span>
             </div>
             {% endif %}
 
             {% if success %}
             <div class="alert alert-success">
-                <span>✅</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 <span>{{ success }}</span>
             </div>
             {% endif %}
 
             <form method="POST" action="{{ url_for('mobper.login') }}">
                 <div class="form-group">
-                    <label for="numero_socio">Número de Empleado</label>
+                    <label for="numero_socio">Numero de empleado</label>
                     <div class="input-wrapper">
-                        <span class="input-icon">👤</span>
+                        <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
                         <input type="text" 
                                id="numero_socio" 
                                name="numero_socio" 
@@ -260,47 +308,58 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Contraseña</label>
+                    <label for="password">Contrasena</label>
                     <div class="input-wrapper">
-                        <span class="input-icon">🔒</span>
+                        <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        </svg>
                         <input type="password" 
                                id="password" 
                                name="password" 
-                               placeholder="Ingresa tu contraseña"
+                               placeholder="Ingresa tu contrasena"
                                required>
-                        <span class="password-toggle" onclick="togglePassword()">👁️</span>
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <svg id="eye-off-icon" style="display:none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
-                <button type="submit" class="btn-primary">Iniciar Sesión</button>
+                <button type="submit" class="btn-primary">Iniciar sesion</button>
             </form>
 
             <div class="divider">
-                <span>¿No tienes cuenta?</span>
+                <span>Primera vez aqui?</span>
             </div>
 
-            <a href="{{ url_for('mobper.register_page') }}" style="text-decoration: none;">
-                <button type="button" class="btn-secondary">Registrarse</button>
-            </a>
+            <a href="{{ url_for('mobper.register_page') }}" class="btn-outline">Crear cuenta</a>
         </div>
 
-        <div class="footer">
-            Sistema de Regularización de Asistencias Quincenal<br>
-            Versión 2.0 - 2026
+        <div class="footer-text">
+            Movimiento de Personal &middot; Regularizacion Quincenal<br>
+            v2.0 &middot; 2026
         </div>
     </div>
 
     <script>
         function togglePassword() {
             const input = document.getElementById('password');
-            const toggle = document.querySelector('.password-toggle');
+            const eyeOn = document.getElementById('eye-icon');
+            const eyeOff = document.getElementById('eye-off-icon');
             
             if (input.type === 'password') {
                 input.type = 'text';
-                toggle.textContent = '🙈';
+                eyeOn.style.display = 'none';
+                eyeOff.style.display = 'block';
             } else {
                 input.type = 'password';
-                toggle.textContent = '👁️';
+                eyeOn.style.display = 'block';
+                eyeOff.style.display = 'none';
             }
         }
     </script>
