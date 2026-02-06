@@ -1878,8 +1878,9 @@ logger.info("✓ Sistema de emergencias registrado")
 
 # REGISTRAR BLUEPRINT DE MOBPER
 # ============================================
-from webapp.mobper_routes import mobper_bp
+from webapp.mobper_routes import mobper_bp, prewarm_biostar_client
 app.register_blueprint(mobper_bp)
+prewarm_biostar_client()  # Pre-calentar conexión BioStar en background
 logger.info("✓ Sistema MobPer registrado")
 
 

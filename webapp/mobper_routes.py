@@ -22,10 +22,99 @@ from webapp.dias_inhabiles import obtener_dias_inhabiles, obtener_nombre_dia_inh
 from src.utils.config import Config
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user
+import time as time_module
 
 mobper_bp = Blueprint('mobper', __name__, url_prefix='/mobper')
 
 MEXICO_TZ = pytz.timezone('America/Mexico_City')
+
+# =============================================================================
+# CACHE DE BIOSTAR - Evita re-login y re-fetch en cada request
+# =============================================================================
+
+_biostar_client_cache = {
+    'client': None,
+    'last_login': 0,
+    'ttl': 300  # 5 minutos de sesión válida
+}
+
+_biostar_events_cache = {}
+_EVENTS_CACHE_TTL = 300  # 5 minutos
+
+def get_biostar_client():
+    """Obtiene un cliente BioStar reutilizando la sesión si es válida."""
+    now = time_module.time()
+    cache = _biostar_client_cache
+    
+    # Si el cliente existe y la sesión no ha expirado, reutilizar
+    if cache['client'] and (now - cache['last_login']) < cache['ttl']:
+        return cache['client']
+    
+    # Crear nuevo cliente y hacer login
+    t0 = time_module.time()
+    config = Config()
+    biostar_cfg = config.biostar_config
+    client = BioStarAPIClient(
+        host=biostar_cfg['host'],
+        username=biostar_cfg['username'],
+        password=biostar_cfg['password']
+    )
+    
+    if client.login():
+        cache['client'] = client
+        cache['last_login'] = now
+        print(f"[MOBPER CACHE] BioStar login OK en {time_module.time()-t0:.2f}s (cached for {cache['ttl']}s)")
+        return client
+    else:
+        print(f"[MOBPER CACHE] BioStar login FAILED en {time_module.time()-t0:.2f}s")
+        cache['client'] = None
+        return None
+
+def get_cached_events(user_id, quincena_key, fetch_fn):
+    """Cache de eventos por usuario+quincena. fetch_fn() se llama solo si no hay cache."""
+    now = time_module.time()
+    cache_key = f"{user_id}_{quincena_key}"
+    
+    if cache_key in _biostar_events_cache:
+        entry = _biostar_events_cache[cache_key]
+        if (now - entry['timestamp']) < _EVENTS_CACHE_TTL:
+            print(f"[MOBPER CACHE] HIT eventos para {cache_key} (age: {now - entry['timestamp']:.0f}s)")
+            return entry['data']
+        else:
+            print(f"[MOBPER CACHE] EXPIRED eventos para {cache_key}")
+    
+    # Cache miss - fetch
+    t0 = time_module.time()
+    data = fetch_fn()
+    _biostar_events_cache[cache_key] = {'data': data, 'timestamp': now}
+    print(f"[MOBPER CACHE] MISS eventos para {cache_key} - fetched en {time_module.time()-t0:.2f}s")
+    return data
+
+def invalidate_events_cache(user_id=None):
+    """Invalida cache de eventos. Si user_id=None, invalida todo."""
+    if user_id is None:
+        _biostar_events_cache.clear()
+    else:
+        keys_to_remove = [k for k in _biostar_events_cache if k.startswith(f"{user_id}_")]
+        for k in keys_to_remove:
+            del _biostar_events_cache[k]
+
+def prewarm_biostar_client():
+    """Pre-calienta la conexión BioStar en background para que el primer request sea rápido."""
+    import threading
+    def _warm():
+        try:
+            print("[MOBPER CACHE] Pre-calentando conexión BioStar en background...")
+            client = get_biostar_client()
+            if client:
+                print("[MOBPER CACHE] ✓ BioStar pre-calentado exitosamente")
+            else:
+                print("[MOBPER CACHE] ✗ BioStar pre-warm falló")
+        except Exception as e:
+            print(f"[MOBPER CACHE] ✗ Error en pre-warm: {e}")
+    
+    t = threading.Thread(target=_warm, daemon=True)
+    t.start()
 
 # Nombres en español
 DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -381,86 +470,57 @@ def calcular_incidencias_quincena(user, quincena):
             'justificado': inc.justificado if hasattr(inc, 'justificado') else True
         }
     
-    # OPTIMIZACIÓN: Obtener TODOS los registros de la quincena en UNA sola llamada
-    registros_quincena = {}
+    # OPTIMIZACIÓN: Obtener TODOS los registros con CACHE
+    ACCESS_GRANTED_CODES = frozenset([
+        '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
+        '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
+        '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
+    ])
+    
+    quincena_key = f"{quincena['inicio']}_{quincena['fin']}"
+    
+    def fetch_events():
+        """Función que obtiene eventos de BioStar (solo se llama en cache miss)."""
+        registros = {}
+        client = get_biostar_client()
+        if not client:
+            print(f"[MOBPER OPTIMIZADO] Error: No se pudo obtener cliente BioStar")
+            return registros
+        
+        inicio_quincena = datetime.combine(quincena['inicio'], datetime.min.time())
+        fin_quincena = datetime.combine(quincena['fin'], datetime.max.time())
+        inicio_quincena = MEXICO_TZ.localize(inicio_quincena)
+        fin_quincena = MEXICO_TZ.localize(fin_quincena)
+        
+        conditions = [
+            {"column": "user_id.user_id", "operator": 0, "values": [biostar_user_id]},
+            {"column": "datetime", "operator": 3, "values": [
+                inicio_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                fin_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+            ]}
+        ]
+        
+        eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
+        print(f"[MOBPER OPTIMIZADO] Eventos encontrados: {len(eventos)}")
+        
+        for evento in eventos:
+            event_code = evento.get('event_type_id', {}).get('code')
+            if event_code in ACCESS_GRANTED_CODES:
+                dt_str = evento.get('datetime')
+                if dt_str:
+                    dt_utc = datetime.strptime(dt_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+                    dt_utc = pytz.UTC.localize(dt_utc)
+                    dt = dt_utc.astimezone(MEXICO_TZ)
+                    fecha_evento = dt.date()
+                    
+                    if fecha_evento not in registros or dt < registros[fecha_evento]:
+                        registros[fecha_evento] = dt
+        
+        print(f"[MOBPER OPTIMIZADO] Total días con registro: {len(registros)}")
+        return registros
+    
     try:
-        print(f"[MOBPER OPTIMIZADO] Obteniendo eventos para usuario {biostar_user_id} de quincena completa")
-        
-        # Inicializar cliente BioStar
-        config = Config()
-        biostar_cfg = config.biostar_config
-        client = BioStarAPIClient(
-            host=biostar_cfg['host'],
-            username=biostar_cfg['username'],
-            password=biostar_cfg['password']
-        )
-        
-        if not client.login():
-            print(f"[MOBPER OPTIMIZADO] Error: No se pudo autenticar con BioStar")
-            registros_quincena = {}
-        else:
-            # Calcular timestamps para toda la quincena
-            inicio_quincena = datetime.combine(quincena['inicio'], datetime.min.time())
-            fin_quincena = datetime.combine(quincena['fin'], datetime.max.time())
-            
-            # Convertir a timezone aware
-            inicio_quincena = MEXICO_TZ.localize(inicio_quincena)
-            fin_quincena = MEXICO_TZ.localize(fin_quincena)
-            
-            print(f"[MOBPER OPTIMIZADO] Rango: {inicio_quincena} a {fin_quincena}")
-            
-            # Buscar eventos usando search_events
-            conditions = [
-                {
-                    "column": "user_id.user_id",
-                    "operator": 0,  # EQUAL
-                    "values": [biostar_user_id]
-                },
-                {
-                    "column": "datetime",
-                    "operator": 3,  # BETWEEN
-                    "values": [
-                        inicio_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-                        fin_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z')
-                    ]
-                }
-            ]
-            
-            eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
-            print(f"[MOBPER OPTIMIZADO] Eventos encontrados: {len(eventos)}")
-            
-            # Códigos de ACCESS_GRANTED
-            ACCESS_GRANTED_CODES = [
-                '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
-                '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
-                '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
-            ]
-            
-            # Agrupar por fecha y obtener el primer registro de cada día
-            for evento in eventos:
-                event_code = evento.get('event_type_id', {}).get('code')
-                if event_code in ACCESS_GRANTED_CODES:
-                    # Parsear datetime del evento (viene en UTC)
-                    dt_str = evento.get('datetime')
-                    if dt_str:
-                        # Parsear como UTC
-                        dt_utc = datetime.strptime(dt_str, '%Y-%m-%dT%H:%M:%S.%fZ')
-                        dt_utc = pytz.UTC.localize(dt_utc)
-                        # Convertir a timezone de México
-                        dt = dt_utc.astimezone(MEXICO_TZ)
-                        fecha_evento = dt.date()
-                        
-                        if fecha_evento not in registros_quincena:
-                            registros_quincena[fecha_evento] = dt
-                            print(f"[MOBPER OPTIMIZADO] Primer registro {fecha_evento}: {dt.time()}")
-                        else:
-                            # Mantener el más temprano
-                            if dt < registros_quincena[fecha_evento]:
-                                registros_quincena[fecha_evento] = dt
-                                print(f"[MOBPER OPTIMIZADO] Actualizado registro {fecha_evento}: {dt.time()}")
-            
-            print(f"[MOBPER OPTIMIZADO] Total días con registro: {len(registros_quincena)}")
-            
+        registros_quincena = get_cached_events(user.id, quincena_key, fetch_events)
     except Exception as e:
         print(f"[MOBPER OPTIMIZADO] Error obteniendo registros de quincena: {e}")
         import traceback
@@ -905,6 +965,7 @@ def checklist(year=None, month=None, quincena_num=None):
     Mobile-first con código de colores.
     Soporta navegación entre quincenas.
     """
+    t_start = time_module.time()
     user = get_current_mobper_user()
     
     # Calcular quincena (actual o especificada)
@@ -921,7 +982,9 @@ def checklist(year=None, month=None, quincena_num=None):
     quincena_siguiente = obtener_quincena_siguiente(quincena)
     
     # Calcular incidencias automáticas
+    t_api = time_module.time()
     incidencias = calcular_incidencias_quincena(user, quincena)
+    print(f"[MOBPER PERF] calcular_incidencias_quincena: {time_module.time()-t_api:.2f}s")
     
     # Calcular resumen
     resumen = {
@@ -937,6 +1000,8 @@ def checklist(year=None, month=None, quincena_num=None):
     from datetime import date as date_type
     hoy = date_type.today()
     puede_ir_siguiente = quincena_siguiente['inicio'] <= hoy
+    
+    print(f"[MOBPER PERF] Total checklist route: {time_module.time()-t_start:.2f}s")
     
     return render_template(
         'mobper_checklist_v3.html',
