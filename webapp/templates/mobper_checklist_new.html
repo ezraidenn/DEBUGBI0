@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobPer - Checklist</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding-bottom: 80px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #5D4037 0%, #3E2723 100%);
+            color: white;
+            padding: 25px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .header-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            font-size: 15px;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+
+        .user-info {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info a {
+            color: white;
+            text-decoration: none;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+
+        .user-info a:hover {
+            opacity: 1;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 25px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e0e0e0;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #2c2c2c;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .resumen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+
+        .resumen-item {
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .resumen-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .resumen-item.verde {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border: 2px solid #4caf50;
+        }
+
+        .resumen-item.amarillo {
+            background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+            border: 2px solid #ffc107;
+        }
+
+        .resumen-item.rojo {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            border: 2px solid #f44336;
+        }
+
+        .resumen-item.azul {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 2px solid #2196f3;
+        }
+
+        .resumen-item.gris {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+            border: 2px solid #9e9e9e;
+        }
+
+        .resumen-item .emoji {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .resumen-item .label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .resumen-item .count {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c2c2c;
+        }
+
+        .atajos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .atajo-btn {
+            padding: 14px 18px;
+            border: 2px solid #5D4037;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #5D4037;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .atajo-btn:hover {
+            background: #5D4037;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+        }
+
+        .incidencia-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        .incidencia-card:hover {
+            border-color: #5D4037;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .incidencia-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f5f5f5;
+        }
+
+        .fecha-info {
+            flex: 1;
+        }
+
+        .fecha-principal {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c2c2c;
+            margin-bottom: 4px;
+        }
+
+        .fecha-secundaria {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .estado-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .estado-badge.a-tiempo {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .estado-badge.retardo {
+            background: #fff9e6;
+            color: #f57c00;
+        }
+
+        .estado-badge.falta {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .estado-badge.descanso {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .incidencia-body {
+            display: grid;
+            gap: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #444;
+        }
+
+        .info-icon {
+            font-size: 18px;
+        }
+
+        .clasificacion-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 2px solid #f5f5f5;
+        }
+
+        .clasificacion-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .clasificacion-dropdown {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .clasificacion-dropdown:focus {
+            outline: none;
+            border-color: #5D4037;
+            box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.1);
+        }
+
+        .observaciones-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+            transition: all 0.2s;
+        }
+
+        .observaciones-input:focus {
+            outline: none;
+            border-color: #5D4037;
+            box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.1);
+        }
+
+        .btn-guardar {
+            padding: 12px 24px;
+            background: #5D4037;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-guardar:hover {
+            background: #4E342E;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+        }
+
+        .etiqueta-clasificacion {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 12px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .etiqueta-clasificacion.remoto {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .etiqueta-clasificacion.guardia {
+            background: #f3e5f5;
+            color: #6a1b9a;
+        }
+
+        .etiqueta-clasificacion.permiso-goce {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .etiqueta-clasificacion.permiso-sin-goce {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .etiqueta-clasificacion.vacaciones {
+            background: #e0f7fa;
+            color: #00695c;
+        }
+
+        .etiqueta-clasificacion.justificado {
+            background: #f1f8e9;
+            color: #558b2f;
+        }
+
+        .etiqueta-clasificacion.inhabil {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        .etiqueta-clasificacion.incapacidad {
+            background: #fff9c4;
+            color: #f57f17;
+        }
+
+        .seccion-titulo {
+            font-size: 16px;
+            font-weight: 700;
+            color: #5D4037;
+            margin: 30px 0 16px 0;
+            padding-bottom: 8px;
+            border-bottom: 3px solid #5D4037;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #2e7d32;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            display: none;
+            animation: slideIn 0.3s;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+
+        .toast.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>📋 Movimiento de Personal</h1>
+            <p class="subtitle">{{ quincena.nombre }}</p>
+            <div class="user-info">
+                <div>👤 {{ user.nombre_completo }}</div>
+                <div style="display: flex; gap: 15px;">
+                    <a href="{{ url_for('mobper.config') }}">⚙️ Configuración</a>
+                    <a href="{{ url_for('mobper.logout') }}">Cerrar sesión →</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Resumen -->
+        <div class="card">
+            <div class="card-title">📊 Resumen de Quincena</div>
+            <div class="resumen-grid">
+                <div class="resumen-item verde">
+                    <div class="emoji">✅</div>
+                    <div class="label">A tiempo</div>
+                    <div class="count">{{ resumen.a_tiempo }}</div>
+                </div>
+                <div class="resumen-item amarillo">
+                    <div class="emoji">⚠️</div>
+                    <div class="label">Retardos</div>
+                    <div class="count">{{ resumen.retardos }}</div>
+                </div>
+                <div class="resumen-item rojo">
+                    <div class="emoji">❌</div>
+                    <div class="label">Faltas</div>
+                    <div class="count">{{ resumen.faltas }}</div>
+                </div>
+                <div class="resumen-item azul">
+                    <div class="emoji">📅</div>
+                    <div class="label">Inhábiles</div>
+                    <div class="count">{{ resumen.inhabiles }}</div>
+                </div>
+                <div class="resumen-item gris">
+                    <div class="emoji">🏖️</div>
+                    <div class="label">Descansos</div>
+                    <div class="count">{{ resumen.descansos }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atajos Rápidos -->
+        <div class="card">
+            <div class="card-title">⚡ Atajos Rápidos</div>
+            <div class="atajos-grid">
+                <button class="atajo-btn" onclick="aplicarClasificacion('JUSTIFICADO', 'retardos')">
+                    ✅ Justificar todos los retardos
+                </button>
+                <button class="atajo-btn" onclick="aplicarClasificacion('REMOTO', 'faltas')">
+                    🏠 Todas las faltas → Remoto
+                </button>
+                <button class="atajo-btn" onclick="aplicarClasificacion('GUARDIA', 'faltas')">
+                    📞 Todas las faltas → Guardia
+                </button>
+                <button class="atajo-btn" onclick="aplicarClasificacion('PERMISO_GOCE', 'faltas')">
+                    📅 Todas las faltas → Permiso
+                </button>
+                <button class="atajo-btn" onclick="limpiarClasificaciones()">
+                    🔄 Restablecer valores
+                </button>
+            </div>
+        </div>
+
+        <!-- Incidencias por Tipo -->
+        {% set retardos = [] %}
+        {% set faltas = [] %}
+        {% set a_tiempo = [] %}
+        
+        {% for inc in incidencias %}
+            {% if inc.estado_auto == 'RETARDO' %}
+                {% set _ = retardos.append(inc) %}
+            {% elif inc.estado_auto == 'FALTA' %}
+                {% set _ = faltas.append(inc) %}
+            {% elif inc.estado_auto == 'A_TIEMPO' %}
+                {% set _ = a_tiempo.append(inc) %}
+            {% endif %}
+        {% endfor %}
+
+        <!-- Retardos -->
+        {% if retardos %}
+        <div class="seccion-titulo">⚠️ RETARDOS ({{ retardos|length }})</div>
+        {% for inc in retardos %}
+        <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
+            <div class="incidencia-header">
+                <div class="fecha-info">
+                    <div class="fecha-principal">{{ formatear_fecha(inc.fecha) }}</div>
+                    <div class="fecha-secundaria">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                </div>
+                <div class="estado-badge retardo">
+                    +{{ inc.minutos_diferencia }} min
+                </div>
+            </div>
+            
+            <div class="incidencia-body">
+                <div class="info-row">
+                    <span class="info-icon">⏱️</span>
+                    <span>Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }} (límite: {{ inc.hora_limite.strftime('%H:%M') }})</span>
+                </div>
+
+                <div class="clasificacion-section">
+                    <div class="clasificacion-label">Clasificar incidencia</div>
+                    <select class="clasificacion-dropdown" 
+                            data-fecha="{{ inc.fecha }}"
+                            onchange="mostrarEtiqueta(this)">
+                        <option value="">Sin clasificar</option>
+                        <option value="JUSTIFICADO" {% if inc.clasificacion == 'JUSTIFICADO' %}selected{% endif %}>Justificado</option>
+                        <option value="REMOTO" {% if inc.clasificacion == 'REMOTO' %}selected{% endif %}>Trabajo remoto</option>
+                        <option value="GUARDIA" {% if inc.clasificacion == 'GUARDIA' %}selected{% endif %}>Guardia</option>
+                        <option value="PERMISO_GOCE" {% if inc.clasificacion == 'PERMISO_GOCE' %}selected{% endif %}>Permiso con goce</option>
+                        <option value="PERMISO_SIN_GOCE" {% if inc.clasificacion == 'PERMISO_SIN_GOCE' %}selected{% endif %}>Permiso sin goce</option>
+                        <option value="VACACIONES" {% if inc.clasificacion == 'VACACIONES' %}selected{% endif %}>Vacaciones</option>
+                        <option value="INHABIL" {% if inc.clasificacion == 'INHABIL' %}selected{% endif %}>Día inhábil</option>
+                        <option value="INCAPACIDAD" {% if inc.clasificacion == 'INCAPACIDAD' %}selected{% endif %}>Incapacidad</option>
+                    </select>
+
+                    <textarea class="observaciones-input" 
+                              data-fecha="{{ inc.fecha }}"
+                              placeholder="Observaciones (opcional)...">{{ inc.observaciones or '' }}</textarea>
+
+                    <button class="btn-guardar" onclick="guardarClasificacion('{{ inc.fecha }}')">
+                        Guardar
+                    </button>
+
+                    {% if inc.clasificacion %}
+                    <div class="etiqueta-clasificacion {{ inc.clasificacion.lower().replace('_', '-') }}" 
+                         id="etiqueta-{{ inc.fecha }}">
+                        <span>🏷️</span>
+                        <span>{{ obtener_nombre_clasificacion(inc.clasificacion) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Faltas -->
+        {% if faltas %}
+        <div class="seccion-titulo">❌ FALTAS ({{ faltas|length }})</div>
+        {% for inc in faltas %}
+        <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
+            <div class="incidencia-header">
+                <div class="fecha-info">
+                    <div class="fecha-principal">{{ formatear_fecha(inc.fecha) }}</div>
+                    <div class="fecha-secundaria">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                </div>
+                <div class="estado-badge falta">
+                    Sin checada
+                </div>
+            </div>
+            
+            <div class="incidencia-body">
+                <div class="info-row">
+                    <span class="info-icon">❌</span>
+                    <span>Inasistencia - No se detectó registro</span>
+                </div>
+
+                <div class="clasificacion-section">
+                    <div class="clasificacion-label">Clasificar incidencia</div>
+                    <select class="clasificacion-dropdown" 
+                            data-fecha="{{ inc.fecha }}"
+                            onchange="mostrarEtiqueta(this)">
+                        <option value="">Sin clasificar</option>
+                        <option value="REMOTO" {% if inc.clasificacion == 'REMOTO' %}selected{% endif %}>Trabajo remoto</option>
+                        <option value="GUARDIA" {% if inc.clasificacion == 'GUARDIA' %}selected{% endif %}>Guardia</option>
+                        <option value="PERMISO_GOCE" {% if inc.clasificacion == 'PERMISO_GOCE' %}selected{% endif %}>Permiso con goce</option>
+                        <option value="PERMISO_SIN_GOCE" {% if inc.clasificacion == 'PERMISO_SIN_GOCE' %}selected{% endif %}>Permiso sin goce</option>
+                        <option value="VACACIONES" {% if inc.clasificacion == 'VACACIONES' %}selected{% endif %}>Vacaciones</option>
+                        <option value="INHABIL" {% if inc.clasificacion == 'INHABIL' %}selected{% endif %}>Día inhábil</option>
+                        <option value="INCAPACIDAD" {% if inc.clasificacion == 'INCAPACIDAD' %}selected{% endif %}>Incapacidad</option>
+                        <option value="JUSTIFICADO" {% if inc.clasificacion == 'JUSTIFICADO' %}selected{% endif %}>Justificado</option>
+                    </select>
+
+                    <textarea class="observaciones-input" 
+                              data-fecha="{{ inc.fecha }}"
+                              placeholder="Observaciones (opcional)...">{{ inc.observaciones or '' }}</textarea>
+
+                    <button class="btn-guardar" onclick="guardarClasificacion('{{ inc.fecha }}')">
+                        Guardar
+                    </button>
+
+                    {% if inc.clasificacion %}
+                    <div class="etiqueta-clasificacion {{ inc.clasificacion.lower().replace('_', '-') }}" 
+                         id="etiqueta-{{ inc.fecha }}">
+                        <span>🏷️</span>
+                        <span>{{ obtener_nombre_clasificacion(inc.clasificacion) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- A Tiempo -->
+        {% if a_tiempo %}
+        <div class="seccion-titulo">✅ A TIEMPO ({{ a_tiempo|length }})</div>
+        {% for inc in a_tiempo %}
+        <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
+            <div class="incidencia-header">
+                <div class="fecha-info">
+                    <div class="fecha-principal">{{ formatear_fecha(inc.fecha) }}</div>
+                    <div class="fecha-secundaria">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                </div>
+                <div class="estado-badge a-tiempo">
+                    A tiempo
+                </div>
+            </div>
+            
+            <div class="incidencia-body">
+                <div class="info-row">
+                    <span class="info-icon">✅</span>
+                    <span>Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Toast de notificación -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function mostrarEtiqueta(select) {
+            const fecha = select.dataset.fecha;
+            const clasificacion = select.value;
+            const card = select.closest('.incidencia-card');
+            
+            // Remover etiqueta anterior si existe
+            const etiquetaAnterior = card.querySelector('.etiqueta-clasificacion');
+            if (etiquetaAnterior) {
+                etiquetaAnterior.remove();
+            }
+            
+            // Si hay clasificación, mostrar etiqueta
+            if (clasificacion) {
+                const nombres = {
+                    'REMOTO': 'Trabajo Remoto',
+                    'GUARDIA': 'Guardia',
+                    'PERMISO_GOCE': 'Permiso con Goce',
+                    'PERMISO_SIN_GOCE': 'Permiso sin Goce',
+                    'VACACIONES': 'Vacaciones',
+                    'JUSTIFICADO': 'Justificado',
+                    'INHABIL': 'Día Inhábil',
+                    'INCAPACIDAD': 'Incapacidad'
+                };
+                
+                const etiqueta = document.createElement('div');
+                etiqueta.className = `etiqueta-clasificacion ${clasificacion.toLowerCase().replace('_', '-')}`;
+                etiqueta.id = `etiqueta-${fecha}`;
+                etiqueta.innerHTML = `<span>🏷️</span><span>${nombres[clasificacion]}</span>`;
+                
+                const btnGuardar = card.querySelector('.btn-guardar');
+                btnGuardar.parentNode.insertBefore(etiqueta, btnGuardar.nextSibling);
+            }
+        }
+
+        function guardarClasificacion(fecha) {
+            const card = document.querySelector(`[data-fecha="${fecha}"]`);
+            const select = card.querySelector('.clasificacion-dropdown');
+            const textarea = card.querySelector('.observaciones-input');
+            
+            const clasificacion = select.value;
+            const observaciones = textarea.value;
+            
+            if (!clasificacion) {
+                mostrarToast('Selecciona una clasificación', 'error');
+                return;
+            }
+            
+            fetch('/mobper/api/clasificar-dia', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fecha: fecha,
+                    clasificacion: clasificacion,
+                    observaciones: observaciones
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarToast('✅ Clasificación guardada correctamente', 'success');
+                } else {
+                    mostrarToast('❌ Error al guardar: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                mostrarToast('❌ Error de conexión', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        function aplicarClasificacion(clasificacion, tipo) {
+            const fechas = [];
+            
+            // Recopilar fechas según el tipo
+            document.querySelectorAll('.incidencia-card').forEach(card => {
+                const badge = card.querySelector('.estado-badge');
+                if (tipo === 'retardos' && badge.classList.contains('retardo')) {
+                    fechas.push(card.dataset.fecha);
+                } else if (tipo === 'faltas' && badge.classList.contains('falta')) {
+                    fechas.push(card.dataset.fecha);
+                }
+            });
+            
+            if (fechas.length === 0) {
+                mostrarToast('No hay incidencias de este tipo', 'error');
+                return;
+            }
+            
+            if (!confirm(`¿Aplicar clasificación "${clasificacion}" a ${fechas.length} días?`)) {
+                return;
+            }
+            
+            fetch('/mobper/api/clasificar-multiple', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fechas: fechas,
+                    clasificacion: clasificacion,
+                    observaciones: `Aplicado en lote: ${clasificacion}`
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarToast(`✅ ${data.count} días clasificados correctamente`, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarToast('❌ Error al aplicar clasificación', 'error');
+                }
+            })
+            .catch(error => {
+                mostrarToast('❌ Error de conexión', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        function limpiarClasificaciones() {
+            if (!confirm('¿Restablecer todas las clasificaciones? Esta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            // Implementar lógica de limpieza
+            mostrarToast('Función en desarrollo', 'error');
+        }
+
+        function mostrarToast(mensaje, tipo) {
+            const toast = document.getElementById('toast');
+            toast.textContent = mensaje;
+            toast.style.background = tipo === 'success' ? '#2e7d32' : '#c62828';
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Mostrar etiquetas al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.clasificacion-dropdown').forEach(select => {
+                if (select.value) {
+                    mostrarEtiqueta(select);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

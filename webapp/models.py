@@ -493,3 +493,119 @@ class PanicModeLog(db.Model):
     
     def __repr__(self):
         return f'<PanicModeLog {self.device_name} - {self.action} by {self.username}>'
+
+
+# ============================================
+# SISTEMA MOBPER - MOVIMIENTO DE PERSONAL
+# ============================================
+
+class MobPerUser(db.Model):
+    """Usuario del sistema MobPer (independiente del sistema principal)"""
+    __tablename__ = 'mobper_users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    numero_socio = db.Column(db.String(20), unique=True, nullable=False)
+    nombre_completo = db.Column(db.String(200), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    
+    # Relaciones
+    preset = db.relationship('PresetUsuario', backref='user', uselist=False, cascade='all, delete-orphan')
+    incidencias_dia = db.relationship('IncidenciaDia', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+    
+    def __repr__(self):
+        return f'<MobPerUser {self.numero_socio} - {self.nombre_completo}>'
+
+class PresetUsuario(db.Model):
+    """Configuración de horarios y preferencias del usuario"""
+    __tablename__ = 'mobper_presets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('mobper_users.id'), nullable=False)
+    
+    # Datos para el formato
+    nombre_formato = db.Column(db.String(200))
+    departamento_formato = db.Column(db.String(100))
+    jefe_directo_nombre = db.Column(db.String(200))
+    
+    # Configuración de horario
+    hora_entrada_default = db.Column(db.Time, default=datetime.strptime('09:00:00', '%H:%M:%S').time())
+    tolerancia_segundos = db.Column(db.Integer, default=600)  # 10 minutos
+    dias_descanso = db.Column(db.JSON, default=[5, 6])  # Sábado y Domingo
+    lista_inhabiles = db.Column(db.JSON, default=[])
+    
+    vigente_desde = db.Column(db.Date, default=datetime.utcnow)
+    vigente_hasta = db.Column(db.Date)
+    
+    def __repr__(self):
+        return f'<PresetUsuario {self.user_id}>'
+
+class MovPerPeriodo(db.Model):
+    """Snapshot de una quincena procesada"""
+    __tablename__ = 'mobper_periodos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('mobper_users.id'), nullable=False)
+    periodo_inicio = db.Column(db.Date, nullable=False)
+    periodo_fin = db.Column(db.Date, nullable=False)
+    
+    preset_snapshot = db.Column(db.JSON)  # Copia del preset usado
+    raw_daily_first_checkins = db.Column(db.JSON)  # {"2026-01-01": "09:05:23", ...}
+    raw_daily_status_auto = db.Column(db.JSON)  # {"2026-01-01": "A_TIEMPO", ...}
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    pdf_generated_at = db.Column(db.DateTime)
+    pdf_hash = db.Column(db.String(64))
+    
+    def __repr__(self):
+        return f'<MovPerPeriodo {self.periodo_inicio} - {self.periodo_fin}>'
+
+class IncidenciaDia(db.Model):
+    """Clasificación individual por día - cada día puede tener diferente justificación"""
+    __tablename__ = 'mobper_incidencias_dia'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('mobper_users.id'), nullable=False)
+    fecha = db.Column(db.Date, nullable=False)
+    
+    # Estado automático detectado
+    estado_auto = db.Column(db.String(20))  # A_TIEMPO, RETARDO, FALTA, DESCANSO, INHABIL
+    
+    # Clasificación manual del usuario
+    # Opciones: REMOTO, GUARDIA, VACACIONES, PERMISO, INHABIL, INCAPACIDAD
+    # RETARDO se justifica automáticamente
+    clasificacion = db.Column(db.String(50))
+    
+    # Campo general: ¿Con goce de sueldo? (aplica a nivel de quincena)
+    con_goce_sueldo = db.Column(db.Boolean, default=True)
+    
+    # Para retardos: ¿está justificado? (por defecto True - auto-justificado)
+    justificado = db.Column(db.Boolean, default=True)
+    
+    # Motivo generado automáticamente según clasificación
+    motivo_auto = db.Column(db.String(200))
+    
+    # Datos del registro
+    hora_entrada = db.Column(db.Time)
+    minutos_diferencia = db.Column(db.Integer)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Índice único para evitar duplicados
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'fecha', name='unique_user_fecha_dia'),
+    )
+    
+    def __repr__(self):
+        return f'<IncidenciaDia {self.user_id} {self.fecha} - {self.clasificacion}>'

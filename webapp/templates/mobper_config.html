@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobPer - Configuración</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            padding-bottom: 80px;
+        }
+
+        .header {
+            background: #5D4037;
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-bottom: 3px solid #4E342E;
+        }
+
+        .header-content {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+            border: 1px solid #EFEBE9;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #3E2723;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #EFEBE9;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #3E2723;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="time"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #D7CCC8;
+            border-radius: 4px;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            background: #FAFAFA;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #5D4037;
+            box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.1);
+            background: white;
+        }
+
+        .form-group small {
+            display: block;
+            color: #8D6E63;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            cursor: pointer;
+            text-transform: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            padding: 14px 32px;
+            background: #5D4037;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: #4E342E;
+            box-shadow: 0 6px 16px rgba(93, 64, 55, 0.4);
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #A5D6A7;
+        }
+
+        .alert-error {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF9A9A;
+        }
+
+        .inhabiles-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .inhabil-tag {
+            background: #EFEBE9;
+            color: #5D4037;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .inhabil-tag button {
+            background: none;
+            border: none;
+            color: #5D4037;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .add-inhabil {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .add-inhabil input {
+            flex: 1;
+        }
+
+        .add-inhabil button {
+            padding: 12px 20px;
+            background: #8D6E63;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .add-inhabil button:hover {
+            background: #6D4C41;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>⚙️ Configuración de Horarios</h1>
+            <a href="{{ url_for('mobper.checklist') }}" class="btn-back">← Volver</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if success %}
+        <div class="alert alert-success">
+            ✅ {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            ❌ {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('mobper.config') }}">
+            <!-- Información Personal -->
+            <div class="card">
+                <h2 class="card-title">📋 Información Personal</h2>
+                
+                <div class="form-group">
+                    <label for="nombre_formato">Nombre completo (para el formato)</label>
+                    <input type="text" id="nombre_formato" name="nombre_formato" 
+                           value="{{ preset.nombre_formato if preset else user.nombre_completo }}" required>
+                    <small>Nombre que aparecerá en el formato de movimiento de personal</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="departamento_formato">Departamento</label>
+                    <input type="text" id="departamento_formato" name="departamento_formato" 
+                           value="{{ preset.departamento_formato if preset else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="jefe_directo_nombre">Jefe Directo</label>
+                    <input type="text" id="jefe_directo_nombre" name="jefe_directo_nombre" 
+                           value="{{ preset.jefe_directo_nombre if preset else '' }}">
+                </div>
+            </div>
+
+            <!-- Configuración de Horario -->
+            <div class="card">
+                <h2 class="card-title">🕐 Configuración de Horario</h2>
+                
+                <div class="form-group">
+                    <label for="hora_entrada_default">Hora de entrada</label>
+                    <input type="time" id="hora_entrada_default" name="hora_entrada_default" 
+                           value="{{ preset.hora_entrada_default.strftime('%H:%M') if preset and preset.hora_entrada_default else '09:00' }}" required>
+                    <small>Hora a la que debes entrar normalmente</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="tolerancia_minutos">Tolerancia (minutos)</label>
+                    <input type="number" id="tolerancia_minutos" name="tolerancia_minutos" 
+                           value="{{ (preset.tolerancia_segundos // 60) if preset else 10 }}" 
+                           min="0" max="60" required>
+                    <small>Minutos de tolerancia después de la hora de entrada</small>
+                </div>
+            </div>
+
+            <!-- Días de Descanso -->
+            <div class="card">
+                <h2 class="card-title">🏖️ Días de Descanso</h2>
+                
+                <div class="checkbox-group">
+                    {% set dias_descanso = preset.dias_descanso if preset else [5, 6] %}
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_0" name="dias_descanso" value="0" 
+                               {% if 0 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_0">Lunes</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_1" name="dias_descanso" value="1" 
+                               {% if 1 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_1">Martes</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_2" name="dias_descanso" value="2" 
+                               {% if 2 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_2">Miércoles</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_3" name="dias_descanso" value="3" 
+                               {% if 3 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_3">Jueves</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_4" name="dias_descanso" value="4" 
+                               {% if 4 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_4">Viernes</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_5" name="dias_descanso" value="5" 
+                               {% if 5 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_5">Sábado</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="dia_6" name="dias_descanso" value="6" 
+                               {% if 6 in dias_descanso %}checked{% endif %}>
+                        <label for="dia_6">Domingo</label>
+                    </div>
+                </div>
+                <small style="display: block; margin-top: 12px; color: #8D6E63; font-size: 12px;">
+                    Selecciona los días en los que NO trabajas habitualmente
+                </small>
+            </div>
+
+            <!-- Días Inhábiles -->
+            <div class="card">
+                <h2 class="card-title">📅 Días Inhábiles (Festivos)</h2>
+                
+                <div class="inhabiles-list" id="inhabiles-list">
+                    {% if preset and preset.lista_inhabiles %}
+                        {% for fecha in preset.lista_inhabiles %}
+                        <div class="inhabil-tag">
+                            {{ fecha }}
+                            <button type="button" onclick="removeInhabil('{{ fecha }}')">×</button>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <small style="color: #8D6E63;">No hay días inhábiles configurados</small>
+                    {% endif %}
+                </div>
+
+                <div class="add-inhabil">
+                    <input type="date" id="nueva_fecha_inhabil" placeholder="Agregar día inhábil">
+                    <button type="button" onclick="addInhabil()">Agregar</button>
+                </div>
+
+                <input type="hidden" id="lista_inhabiles" name="lista_inhabiles" 
+                       value="{{ preset.lista_inhabiles|tojson if preset else '[]' }}">
+            </div>
+
+            <button type="submit" class="btn-primary">Guardar Configuración</button>
+        </form>
+    </div>
+
+    <script>
+        let inhabiles = {{ preset.lista_inhabiles|tojson if preset else '[]' }};
+
+        function addInhabil() {
+            const input = document.getElementById('nueva_fecha_inhabil');
+            const fecha = input.value;
+            
+            if (!fecha) {
+                alert('Selecciona una fecha');
+                return;
+            }
+
+            if (inhabiles.includes(fecha)) {
+                alert('Esta fecha ya está agregada');
+                return;
+            }
+
+            inhabiles.push(fecha);
+            updateInhabilesList();
+            input.value = '';
+        }
+
+        function removeInhabil(fecha) {
+            inhabiles = inhabiles.filter(f => f !== fecha);
+            updateInhabilesList();
+        }
+
+        function updateInhabilesList() {
+            const container = document.getElementById('inhabiles-list');
+            const hiddenInput = document.getElementById('lista_inhabiles');
+            
+            hiddenInput.value = JSON.stringify(inhabiles);
+            
+            if (inhabiles.length === 0) {
+                container.innerHTML = '<small style="color: #8D6E63;">No hay días inhábiles configurados</small>';
+            } else {
+                container.innerHTML = inhabiles.map(fecha => `
+                    <div class="inhabil-tag">
+                        ${fecha}
+                        <button type="button" onclick="removeInhabil('${fecha}')">×</button>
+                    </div>
+                `).join('');
+            }
+        }
+    </script>
+</body>
+</html>

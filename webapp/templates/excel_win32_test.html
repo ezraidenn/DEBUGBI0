@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Win32COM Excel - MobPer</title>
+    <style>
+        :root {
+            --cafe-oscuro: #3E2723;
+            --cafe-medio: #5D4037;
+            --cafe-claro: #8D6E63;
+            --verde: #2E7D32;
+            --rojo: #C62828;
+            --azul: #1565C0;
+            --gris: #757575;
+            --gris-claro: #F5F5F5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            background: linear-gradient(135deg, #EFEBE9 0%, #D7CCC8 100%);
+            min-height: 100vh;
+            color: var(--cafe-oscuro);
+        }
+
+        .header {
+            background: var(--cafe-oscuro);
+            color: white;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 400;
+        }
+
+        .header .subtitle {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .btn-run-all {
+            background: var(--verde);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .btn-run-all:hover {
+            background: #1B5E20;
+            transform: translateY(-1px);
+        }
+
+        .btn-run-all:disabled {
+            background: var(--gris);
+            cursor: not-allowed;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+        }
+
+        .test-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 2px solid transparent;
+            transition: all 0.25s;
+        }
+
+        .test-card:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .test-card.success {
+            border-color: var(--verde);
+        }
+
+        .test-card.error {
+            border-color: var(--rojo);
+        }
+
+        .test-card.running {
+            border-color: #FF9800;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            background: var(--cafe-oscuro);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.pending {
+            background: #E0E0E0;
+            color: #616161;
+        }
+
+        .badge.running {
+            background: #FFF3E0;
+            color: #E65100;
+        }
+
+        .badge.success {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+
+        .badge.error {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .field-row {
+            display: flex;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .field-label {
+            font-weight: 600;
+            color: var(--cafe-medio);
+            width: 110px;
+            flex-shrink: 0;
+        }
+
+        .field-value {
+            color: var(--cafe-oscuro);
+            word-break: break-word;
+        }
+
+        .options-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+
+        .option-tag {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .option-tag.active {
+            background: var(--cafe-oscuro);
+            color: white;
+        }
+
+        .option-tag.inactive {
+            background: #ECEFF1;
+            color: #90A4AE;
+        }
+
+        .card-actions {
+            padding: 16px 20px;
+            background: var(--gris-claro);
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-run {
+            background: var(--cafe-medio);
+            color: white;
+        }
+
+        .btn-run:hover {
+            background: var(--cafe-oscuro);
+        }
+
+        .btn-run:disabled {
+            background: #A1887F;
+            cursor: not-allowed;
+        }
+
+        .btn-download {
+            background: var(--verde);
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #1B5E20;
+        }
+
+        .btn-download:disabled {
+            background: #A5D6A7;
+            cursor: not-allowed;
+        }
+
+        .result-message {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .result-message.show {
+            display: block;
+        }
+
+        .result-message.success {
+            background: #E8F5E9;
+            color: var(--verde);
+        }
+
+        .result-message.error {
+            background: #FFEBEE;
+            color: var(--rojo);
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--gris);
+            font-size: 13px;
+        }
+
+        .summary-bar {
+            background: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 32px;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--cafe-oscuro);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gris);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div>
+            <h1>🧪 Test Win32COM Excel</h1>
+            <div class="subtitle">Escenarios de prueba para generación de documentos MobPer</div>
+        </div>
+        <button class="btn-run-all" onclick="runAllTests()">
+            🚀 Ejecutar Todos
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="summary-bar">
+            <div class="summary-stats">
+                <div class="stat">
+                    <span class="stat-value" id="stat-total">8</span>
+                    <span class="stat-label">Total Tests</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-success" style="color: var(--verde);">0</span>
+                    <span class="stat-label">Exitosos</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-error" style="color: var(--rojo);">0</span>
+                    <span class="stat-label">Fallidos</span>
+                </div>
+            </div>
+            <div>
+                <a href="/mobper/output-folder" style="color: var(--cafe-medio);">📁 Abrir Carpeta de Salida</a>
+            </div>
+        </div>
+
+        <div class="grid" id="tests-grid"></div>
+    </div>
+
+    <div class="footer">
+        Usando Win32COM (PyWin32) para control directo de Excel • MIT 2026
+    </div>
+
+    <script>
+        const tests = [
+            {
+                id: 'solo_retardo',
+                title: 'Solo Retardos',
+                description: 'Empleado con únicamente retardos (llegar tarde)',
+                data: {
+                    nombre: 'MARIA FERNANDEZ LOPEZ',
+                    departamento: 'CONTABILIDAD',
+                    dias: '3, 5, 8 de Febrero',
+                    motivo: 'Retardo justificado los días 3, 5 y 8',
+                    solicito: 'Maria Fernandez Lopez',
+                    autorizo: 'Pedro Gonzalez Martinez'
+                },
+                options: { para_llegar_tarde: true, goce_sueldo: true }
+            },
+            {
+                id: 'solo_falta',
+                title: 'Solo Faltas',
+                description: 'Empleado con faltas justificadas',
+                data: {
+                    nombre: 'JUAN CARLOS HERNANDEZ',
+                    departamento: 'RECURSOS HUMANOS',
+                    dias: '10, 11, 12 de Febrero',
+                    motivo: 'Falta justificada por cita médica',
+                    solicito: 'Juan Carlos Hernandez',
+                    autorizo: 'Ana Maria Ruiz'
+                },
+                options: { para_faltar: true, goce_sueldo: true }
+            },
+            {
+                id: 'falta_y_retardo',
+                title: 'Faltas + Retardos',
+                description: 'Combinación de ambos tipos de incidencias',
+                data: {
+                    nombre: 'ROBERTO MARTINEZ SANCHEZ',
+                    departamento: 'TI',
+                    dias: '1, 2, 5, 6, 8, 12, 15 de Febrero',
+                    motivo: 'Días 1-2 trabajo remoto, Días 5,6,8,12,15 retardo',
+                    solicito: 'Roberto Martinez Sanchez',
+                    autorizo: 'Carlos Medina'
+                },
+                options: { para_faltar: true, para_llegar_tarde: true, goce_sueldo: true }
+            },
+            {
+                id: 'sin_goce_sueldo',
+                title: 'SIN Goce de Sueldo',
+                description: 'Falta sin goce de sueldo',
+                data: {
+                    nombre: 'PATRICIA GOMEZ VILLA',
+                    departamento: 'VENTAS',
+                    dias: '20, 21 de Febrero',
+                    motivo: 'Asunto personal sin goce de sueldo',
+                    solicito: 'Patricia Gomez Villa',
+                    autorizo: 'Miguel Angel Torres'
+                },
+                options: { para_faltar: true, goce_sueldo: false }
+            },
+            {
+                id: 'olvido_checar',
+                title: 'Olvidó Checar',
+                description: 'Olvido de registro de entrada/salida',
+                data: {
+                    nombre: 'LUIS ENRIQUE MORALES',
+                    departamento: 'OPERACIONES',
+                    dias: '7 de Febrero',
+                    motivo: 'Olvidó registrar entrada el día 7',
+                    solicito: 'Luis Enrique Morales',
+                    autorizo: 'Sofia Ramirez'
+                },
+                options: { olvido_checar: true, goce_sueldo: true }
+            },
+            {
+                id: 'retirarse_temprano',
+                title: 'Salida Anticipada',
+                description: 'Permiso para retirarse temprano',
+                data: {
+                    nombre: 'ANDREA SILVA MENDEZ',
+                    departamento: 'ADMINISTRACION',
+                    dias: '14 de Febrero',
+                    motivo: 'Permiso para salir temprano por cita médica',
+                    solicito: 'Andrea Silva Mendez',
+                    autorizo: 'Ricardo Lopez'
+                },
+                options: { retirarse_temprano: true, goce_sueldo: true }
+            },
+            {
+                id: 'quincena_completa',
+                title: 'Quincena Completa',
+                description: 'Múltiples incidencias en toda la quincena',
+                data: {
+                    nombre: 'RAUL ABEL CETINA POOL',
+                    departamento: 'TI',
+                    dias: '1-15 de Febrero (múltiples)',
+                    motivo: 'Trabajo remoto, retardos, guardia telefónica',
+                    solicito: 'Raul Abel Cetina Pool',
+                    autorizo: 'Carlos Medina'
+                },
+                options: { para_faltar: true, para_llegar_tarde: true, goce_sueldo: true }
+            },
+            {
+                id: 'salir_regresar',
+                title: 'Salir y Regresar',
+                description: 'Permiso para salir a trámite y regresar',
+                data: {
+                    nombre: 'CARMEN RODRIGUEZ PEREZ',
+                    departamento: 'LEGAL',
+                    dias: '6 de Febrero',
+                    motivo: 'Permiso para salir a trámite bancario',
+                    solicito: 'Carmen Rodriguez Perez',
+                    autorizo: 'Fernando Diaz'
+                },
+                options: { para_salir_regresar: true, goce_sueldo: true }
+            }
+        ];
+
+        let testStatus = {};
+
+        function renderTests() {
+            const grid = document.getElementById('tests-grid');
+            grid.innerHTML = tests.map(test => {
+                const opts = test.options;
+                return `
+                <div class="test-card" id="card-${test.id}">
+                    <div class="card-header">
+                        <h3>${test.title}</h3>
+                        <span class="badge pending" id="badge-${test.id}">Pendiente</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="field-row">
+                            <span class="field-label">Empleado:</span>
+                            <span class="field-value">${test.data.nombre}</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-label">Depto:</span>
+                            <span class="field-value">${test.data.departamento}</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-label">Días:</span>
+                            <span class="field-value">${test.data.dias}</span>
+                        </div>
+                        <div class="field-row">
+                            <span class="field-label">Autorizó:</span>
+                            <span class="field-value">${test.data.autorizo}</span>
+                        </div>
+                        <div class="options-row">
+                            <span class="option-tag ${opts.para_faltar ? 'active' : 'inactive'}">Faltar</span>
+                            <span class="option-tag ${opts.para_llegar_tarde ? 'active' : 'inactive'}">Llegar Tarde</span>
+                            <span class="option-tag ${opts.olvido_checar ? 'active' : 'inactive'}">Olvidó Checar</span>
+                            <span class="option-tag ${opts.retirarse_temprano ? 'active' : 'inactive'}">Retirarse</span>
+                            <span class="option-tag ${opts.para_salir_regresar ? 'active' : 'inactive'}">Salir/Regresar</span>
+                            <span class="option-tag ${opts.goce_sueldo ? 'active' : 'inactive'}">Goce Sueldo</span>
+                        </div>
+                        <div class="result-message" id="result-${test.id}"></div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-run" id="btn-run-${test.id}" onclick="runTest('${test.id}')">
+                            ▶ Ejecutar
+                        </button>
+                        <button class="btn btn-download" id="btn-download-${test.id}" onclick="downloadFile('${test.id}')" disabled>
+                            📥 Descargar
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const success = Object.values(testStatus).filter(s => s === 'success').length;
+            const error = Object.values(testStatus).filter(s => s === 'error').length;
+            document.getElementById('stat-success').textContent = success;
+            document.getElementById('stat-error').textContent = error;
+        }
+
+        function updateCard(testId, status, message = '') {
+            const card = document.getElementById(`card-${testId}`);
+            const badge = document.getElementById(`badge-${testId}`);
+            const result = document.getElementById(`result-${testId}`);
+            const downloadBtn = document.getElementById(`btn-download-${testId}`);
+
+            card.className = 'test-card ' + status;
+            badge.className = 'badge ' + status;
+
+            const statusTexts = {
+                pending: 'Pendiente',
+                running: 'Ejecutando...',
+                success: '✓ Éxito',
+                error: '✗ Error'
+            };
+            badge.textContent = statusTexts[status];
+
+            if (message) {
+                result.textContent = message;
+                result.className = `result-message ${status} show`;
+            }
+
+            if (status === 'success') {
+                downloadBtn.disabled = false;
+            }
+
+            testStatus[testId] = status;
+            updateStats();
+        }
+
+        async function runTest(testId) {
+            const runBtn = document.getElementById(`btn-run-${testId}`);
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<span class="spinner"></span> Generando...';
+
+            updateCard(testId, 'running');
+
+            try {
+                const response = await fetch(`/mobper/test-win32/${testId}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    updateCard(testId, 'success', `Archivo: ${data.filename}`);
+                } else {
+                    updateCard(testId, 'error', data.error);
+                }
+            } catch (error) {
+                updateCard(testId, 'error', error.message);
+            }
+
+            runBtn.disabled = false;
+            runBtn.innerHTML = '▶ Ejecutar';
+        }
+
+        async function runAllTests() {
+            const btn = document.querySelector('.btn-run-all');
+            btn.disabled = true;
+            btn.textContent = '⏳ Ejecutando...';
+
+            for (const test of tests) {
+                await runTest(test.id);
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            btn.disabled = false;
+            btn.textContent = '🚀 Ejecutar Todos';
+        }
+
+        function downloadFile(testId) {
+            window.location.href = `/mobper/download-win32/${testId}`;
+        }
+
+        // Init
+        renderTests();
+    </script>
+</body>
+
+</html>

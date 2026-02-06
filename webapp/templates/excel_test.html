@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Librerías Excel - MobPer</title>
+    <style>
+        :root {
+            --cafe-oscuro: #3E2723;
+            --cafe-medio: #5D4037;
+            --cafe-claro: #8D6E63;
+            --verde: #2E7D32;
+            --rojo: #C62828;
+            --azul: #1565C0;
+            --gris: #757575;
+            --gris-claro: #F5F5F5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #EFEBE9;
+            color: var(--cafe-oscuro);
+            line-height: 1.5;
+        }
+
+        .header {
+            background: var(--cafe-oscuro);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-card h3 {
+            color: var(--cafe-oscuro);
+            margin-bottom: 12px;
+        }
+
+        .info-card pre {
+            background: var(--gris-claro);
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--cafe-medio);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--cafe-oscuro);
+        }
+
+        .btn-success {
+            background: var(--verde);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--rojo);
+            color: white;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .method-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .method-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .method-card.success {
+            border-color: var(--verde);
+        }
+
+        .method-card.error {
+            border-color: var(--rojo);
+        }
+
+        .method-card.pending {
+            border-color: var(--gris);
+        }
+
+        .method-header {
+            padding: 16px;
+            background: var(--gris-claro);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .method-header h3 {
+            font-size: 16px;
+            color: var(--cafe-oscuro);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.pending {
+            background: var(--gris-claro);
+            color: var(--gris);
+        }
+
+        .status-badge.running {
+            background: #FFF3E0;
+            color: #EF6C00;
+        }
+
+        .status-badge.success {
+            background: #E8F5E9;
+            color: var(--verde);
+        }
+
+        .status-badge.error {
+            background: #FFEBEE;
+            color: var(--rojo);
+        }
+
+        .method-body {
+            padding: 16px;
+        }
+
+        .method-body p {
+            font-size: 14px;
+            color: var(--gris);
+            margin-bottom: 12px;
+        }
+
+        .method-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .method-actions .btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        .result-box {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+        }
+
+        .result-box.success {
+            background: #E8F5E9;
+            color: var(--verde);
+        }
+
+        .result-box.error {
+            background: #FFEBEE;
+            color: var(--rojo);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--cafe-medio);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+
+        .toast.success {
+            background: var(--verde);
+        }
+
+        .toast.error {
+            background: var(--rojo);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .log-section {
+            background: white;
+            border-radius: 8px;
+            margin-top: 24px;
+            overflow: hidden;
+        }
+
+        .log-header {
+            padding: 16px;
+            background: var(--cafe-oscuro);
+            color: white;
+        }
+
+        .log-body {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-entry.success {
+            color: #4ec9b0;
+        }
+
+        .log-entry.error {
+            color: #f48771;
+        }
+
+        .log-entry.info {
+            color: #9cdcfe;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🧪 Test de Librerías Excel</h1>
+        <p>Prueba diferentes métodos para editar el formato de MobPer</p>
+    </div>
+
+    <div class="container">
+        <div class="info-card">
+            <h3>📋 Datos de Prueba</h3>
+            <pre id="test-data">Cargando...</pre>
+        </div>
+
+        <div class="actions-bar">
+            <button class="btn btn-primary" onclick="runAllTests()">
+                🚀 Ejecutar Todas las Pruebas
+            </button>
+            <button class="btn btn-success" onclick="location.reload()">
+                🔄 Reiniciar
+            </button>
+        </div>
+
+        <div class="grid" id="methods-grid">
+            <!-- Cards se generan dinámicamente -->
+        </div>
+
+        <div class="log-section">
+            <div class="log-header">📝 Log de Ejecución</div>
+            <div class="log-body" id="log-body">
+                <div class="log-entry info">Listo para ejecutar pruebas...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const methods = [
+            {
+                id: 'openpyxl_basic',
+                name: 'openpyxl Basic',
+                library: 'openpyxl',
+                description: 'Edición directa con openpyxl. Puede perder algunos elementos visuales.',
+                status: 'pending'
+            },
+            {
+                id: 'openpyxl_preserve',
+                name: 'openpyxl Preserve',
+                library: 'openpyxl (preserve)',
+                description: 'openpyxl preservando estilos de celda antes/después de editar.',
+                status: 'pending'
+            },
+            {
+                id: 'openpyxl_full',
+                name: 'openpyxl Full',
+                library: 'openpyxl full',
+                description: 'openpyxl con rich_text=True para preservar formato.',
+                status: 'pending'
+            },
+            {
+                id: 'spire_xls',
+                name: 'Spire.XLS Range',
+                library: 'Spire.XLS',
+                description: 'Librería comercial usando Range["C8"].Text.',
+                status: 'pending'
+            },
+            {
+                id: 'spire_getcell',
+                name: 'Spire.XLS GetRange',
+                library: 'Spire.XLS',
+                description: 'Spire.XLS usando get_Range(row, col).Text.',
+                status: 'pending'
+            },
+            {
+                id: 'spire_value',
+                name: 'Spire.XLS Value',
+                library: 'Spire.XLS',
+                description: 'Spire.XLS usando .Value en vez de .Text.',
+                status: 'pending'
+            },
+            {
+                id: 'xlwings',
+                name: 'xlwings',
+                library: 'xlwings',
+                description: 'Controla Excel directamente via COM. Requiere Excel instalado.',
+                status: 'pending'
+            },
+            {
+                id: 'win32com',
+                name: 'win32com',
+                library: 'PyWin32',
+                description: 'Control directo de Excel via COM API.',
+                status: 'pending'
+            },
+            {
+                id: 'pandas_openpyxl',
+                name: 'Pandas + openpyxl',
+                library: 'pandas',
+                description: 'Pandas usando openpyxl engine. No ideal para templates.',
+                status: 'pending'
+            },
+            {
+                id: 'xlutils',
+                name: 'xlrd/xlwt',
+                library: 'xlutils',
+                description: 'Solo para archivos .xls legacy. NO funciona con .xlsx.',
+                status: 'pending'
+            }
+        ];
+
+        const testData = {
+            nombre: 'Juan Pérez García',
+            departamento: 'Sistemas de Información',
+            puesto: 'Desarrollador Senior',
+            numero_empleado: '12345',
+            fecha_aplicacion: '01 al 15 de Febrero de 2026',
+            motivo: 'Retardo los días 03, 05, 08 de Febrero 2026'
+        };
+
+        // Inicializar página
+        document.addEventListener('DOMContentLoaded', () => {
+            // Mostrar datos de prueba
+            document.getElementById('test-data').textContent = JSON.stringify(testData, null, 2);
+
+            // Renderizar cards
+            renderMethodCards();
+        });
+
+        function renderMethodCards() {
+            const grid = document.getElementById('methods-grid');
+            grid.innerHTML = methods.map(m => `
+                <div class="method-card ${m.status}" id="card-${m.id}">
+                    <div class="method-header">
+                        <h3>${m.name}</h3>
+                        <span class="status-badge ${m.status}" id="badge-${m.id}">
+                            ${getStatusText(m.status)}
+                        </span>
+                    </div>
+                    <div class="method-body">
+                        <p><strong>Librería:</strong> ${m.library}</p>
+                        <p>${m.description}</p>
+                        <div class="result-box" id="result-${m.id}"></div>
+                        <div class="method-actions">
+                            <button class="btn btn-primary" onclick="runTest('${m.id}')" id="btn-run-${m.id}">
+                                ▶️ Ejecutar
+                            </button>
+                            <button class="btn btn-success" onclick="downloadFile('${m.id}')" id="btn-download-${m.id}" disabled>
+                                📥 Descargar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'pending': return '⏳ Pendiente';
+                case 'running': return '🔄 Ejecutando...';
+                case 'success': return '✅ Éxito';
+                case 'error': return '❌ Error';
+                default: return status;
+            }
+        }
+
+        function addLog(message, type = 'info') {
+            const logBody = document.getElementById('log-body');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logBody.appendChild(entry);
+            logBody.scrollTop = logBody.scrollHeight;
+        }
+
+        function updateCardStatus(methodId, status, message = null) {
+            const card = document.getElementById(`card-${methodId}`);
+            const badge = document.getElementById(`badge-${methodId}`);
+            const resultBox = document.getElementById(`result-${methodId}`);
+            const downloadBtn = document.getElementById(`btn-download-${methodId}`);
+
+            // Quitar clases previas
+            card.classList.remove('pending', 'running', 'success', 'error');
+            badge.classList.remove('pending', 'running', 'success', 'error');
+            resultBox.classList.remove('success', 'error', 'show');
+
+            // Agregar nuevas
+            card.classList.add(status);
+            badge.classList.add(status);
+            badge.textContent = getStatusText(status);
+
+            if (message) {
+                resultBox.textContent = message;
+                resultBox.classList.add(status, 'show');
+            }
+
+            if (status === 'success') {
+                downloadBtn.disabled = false;
+            }
+        }
+
+        async function runTest(methodId) {
+            const runBtn = document.getElementById(`btn-run-${methodId}`);
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<span class="loading-spinner"></span>Ejecutando...';
+
+            updateCardStatus(methodId, 'running');
+            addLog(`Iniciando prueba: ${methodId}`, 'info');
+
+            try {
+                const response = await fetch(`/mobper/test-excel/${methodId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    updateCardStatus(methodId, 'success', `Archivo generado: ${data.filename}`);
+                    addLog(`✅ ${methodId}: Éxito - ${data.filename}`, 'success');
+                } else {
+                    updateCardStatus(methodId, 'error', data.error);
+                    addLog(`❌ ${methodId}: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                updateCardStatus(methodId, 'error', error.message);
+                addLog(`❌ ${methodId}: ${error.message}`, 'error');
+            }
+
+            runBtn.disabled = false;
+            runBtn.innerHTML = '▶️ Ejecutar';
+        }
+
+        async function runAllTests() {
+            addLog('=== Iniciando todas las pruebas ===', 'info');
+
+            for (const method of methods) {
+                await runTest(method.id);
+                // Pequeña pausa entre pruebas
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            addLog('=== Todas las pruebas completadas ===', 'info');
+            showToast('Todas las pruebas completadas', 'success');
+        }
+
+        function downloadFile(methodId) {
+            window.location.href = `/mobper/download-test/${methodId}`;
+        }
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+
+</html>

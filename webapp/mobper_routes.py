@@ -1,0 +1,1546 @@
+"""
+Módulo MobPer - Movimiento de Personal
+Sistema de regularización de asistencias quincenal
+
+Este módulo funciona como una aplicación independiente con su propio login.
+"""
+
+from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for
+from flask_login import login_required, current_user
+from datetime import datetime, timedelta, date, time as time_type
+from calendar import monthrange
+import pytz
+import json
+import os
+from io import BytesIO
+from openpyxl import load_workbook
+from openpyxl.styles import Font, Alignment
+from sqlalchemy import and_, or_, func
+from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia
+from src.api.biostar_client import BioStarAPIClient
+from webapp.dias_inhabiles import obtener_dias_inhabiles, obtener_nombre_dia_inhabil
+from src.utils.config import Config
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import login_user, logout_user
+
+mobper_bp = Blueprint('mobper', __name__, url_prefix='/mobper')
+
+MEXICO_TZ = pytz.timezone('America/Mexico_City')
+
+# Nombres en español
+DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+def formatear_fecha_espanol(fecha):
+    """Formatea fecha como 'Lunes 28 de Enero'"""
+    dia_semana = DIAS_SEMANA[fecha.weekday()]
+    mes = MESES[fecha.month]
+    return f"{dia_semana} {fecha.day} de {mes}"
+
+def obtener_nombre_clasificacion(codigo):
+    """Retorna el nombre en español de una clasificación"""
+    nombres = {
+        'REMOTO': 'Trabajo Remoto',
+        'GUARDIA': 'Guardia',
+        'PERMISO': 'Permiso',
+        'VACACIONES': 'Vacaciones',
+        'INHABIL': 'Día Inhábil',
+        'INCAPACIDAD': 'Incapacidad'
+    }
+    return nombres.get(codigo, codigo)
+
+def generar_motivo_auto(estado_auto, clasificacion, numero_dia):
+    """Genera el motivo automático según el tipo de incidencia"""
+    if estado_auto == 'RETARDO':
+        return f"{numero_dia} retardo justificado"
+    elif estado_auto == 'FALTA':
+        motivos = {
+            'REMOTO': f"{numero_dia} falta justificada, trabajo remoto",
+            'GUARDIA': f"{numero_dia} falta justificada, guardia",
+            'PERMISO': f"{numero_dia} falta justificada, permiso",
+            'VACACIONES': f"{numero_dia} falta justificada, vacaciones",
+            'INCAPACIDAD': f"{numero_dia} falta justificada, incapacidad",
+            'INHABIL': f"{numero_dia} día inhábil"
+        }
+        return motivos.get(clasificacion, f"{numero_dia} falta")
+    return ""
+
+def now_cdmx():
+    """Retorna datetime actual en zona horaria CDMX"""
+    return datetime.now(MEXICO_TZ)
+
+# ============================================================================
+# AUTENTICACIÓN PERSONALIZADA PARA MOBPER
+# ============================================================================
+
+def mobper_login_required(f):
+    """Decorador para proteger rutas de MobPer"""
+    from functools import wraps
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'mobper_user_id' not in session:
+            return redirect(url_for('mobper.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_current_mobper_user():
+    """Obtiene el usuario actual de MobPer desde la sesión"""
+    if 'mobper_user_id' not in session:
+        return None
+    return MobPerUser.query.get(session['mobper_user_id'])
+
+# ============================================================================
+# UTILIDADES DE QUINCENAS
+# ============================================================================
+
+def calcular_quincena_actual(fecha=None):
+    """
+    Calcula la quincena actual basándose en la fecha proporcionada.
+    
+    Reglas:
+    - Primera quincena: día 1 al 15
+    - Segunda quincena: día 16 al último día del mes
+    
+    Args:
+        fecha: datetime o None (usa fecha actual)
+    
+    Returns:
+        dict: {
+            'numero': 1 o 2,
+            'inicio': date,
+            'fin': date,
+            'mes': int,
+            'anio': int,
+            'nombre': str (ej: "Primera quincena de enero 2026")
+        }
+    """
+    if fecha is None:
+        fecha = now_cdmx().date()
+    elif isinstance(fecha, datetime):
+        fecha = fecha.date()
+    
+    dia = fecha.day
+    mes = fecha.month
+    anio = fecha.year
+    
+    # Determinar si es primera o segunda quincena
+    if dia <= 15:
+        # Primera quincena: 1 al 15
+        numero = 1
+        inicio = date(anio, mes, 1)
+        fin = date(anio, mes, 15)
+    else:
+        # Segunda quincena: 16 al último día del mes
+        numero = 2
+        ultimo_dia = monthrange(anio, mes)[1]
+        inicio = date(anio, mes, 16)
+        fin = date(anio, mes, ultimo_dia)
+    
+    # Nombre del mes en español
+    meses = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ]
+    nombre_mes = meses[mes - 1]
+    
+    nombre_quincena = f"{'Primera' if numero == 1 else 'Segunda'} quincena de {nombre_mes} {anio}"
+    
+    return {
+        'numero': numero,
+        'inicio': inicio,
+        'fin': fin,
+        'mes': mes,
+        'anio': anio,
+        'nombre': nombre_quincena,
+        'dias_totales': (fin - inicio).days + 1
+    }
+
+def obtener_quincena_anterior(quincena_actual):
+    """
+    Obtiene la quincena anterior a la proporcionada.
+    
+    Args:
+        quincena_actual: dict retornado por calcular_quincena_actual()
+    
+    Returns:
+        dict: quincena anterior
+    """
+    if quincena_actual['numero'] == 1:
+        # Si es primera quincena, la anterior es la segunda del mes anterior
+        mes_anterior = quincena_actual['mes'] - 1
+        anio_anterior = quincena_actual['anio']
+        if mes_anterior == 0:
+            mes_anterior = 12
+            anio_anterior -= 1
+        fecha_anterior = date(anio_anterior, mes_anterior, 20)  # Día 20 está en segunda quincena
+    else:
+        # Si es segunda quincena, la anterior es la primera del mismo mes
+        fecha_anterior = date(quincena_actual['anio'], quincena_actual['mes'], 10)
+    
+    return calcular_quincena_actual(fecha_anterior)
+
+def obtener_quincena_siguiente(quincena_actual):
+    """
+    Obtiene la quincena siguiente a la proporcionada.
+    """
+    if quincena_actual['numero'] == 2:
+        # Si es segunda quincena, la siguiente es la primera del mes siguiente
+        mes_siguiente = quincena_actual['mes'] + 1
+        anio_siguiente = quincena_actual['anio']
+        if mes_siguiente == 13:
+            mes_siguiente = 1
+            anio_siguiente += 1
+        fecha_siguiente = date(anio_siguiente, mes_siguiente, 5)
+    else:
+        # Si es primera quincena, la siguiente es la segunda del mismo mes
+        fecha_siguiente = date(quincena_actual['anio'], quincena_actual['mes'], 20)
+    
+    return calcular_quincena_actual(fecha_siguiente)
+
+# ============================================================================
+# MOTOR DE CÁLCULO DE INCIDENCIAS
+# ============================================================================
+
+def obtener_primer_registro_dia(biostar_user_id, fecha):
+    """
+    Obtiene el primer registro ACCESS_GRANTED del día para un usuario desde BioStar API.
+    
+    Args:
+        biostar_user_id: ID del usuario en BioStar (string)
+        fecha: date
+    
+    Returns:
+        datetime o None
+    """
+    try:
+        print(f"[MOBPER] Buscando eventos para usuario {biostar_user_id} en fecha {fecha}")
+        
+        # Inicializar cliente BioStar
+        config = Config()
+        biostar_cfg = config.biostar_config
+        client = BioStarAPIClient(
+            host=biostar_cfg['host'],
+            username=biostar_cfg['username'],
+            password=biostar_cfg['password']
+        )
+        
+        if not client.login():
+            print(f"[MOBPER] Error: No se pudo autenticar con BioStar")
+            return None
+        
+        # Calcular timestamps para el día completo
+        inicio_dia = datetime.combine(fecha, datetime.min.time())
+        fin_dia = datetime.combine(fecha, datetime.max.time())
+        
+        # Convertir a timezone aware
+        inicio_dia = MEXICO_TZ.localize(inicio_dia)
+        fin_dia = MEXICO_TZ.localize(fin_dia)
+        
+        print(f"[MOBPER] Rango: {inicio_dia} a {fin_dia}")
+        
+        # Buscar eventos del usuario en ese día usando search_events
+        # Usar estructura correcta: user_id.user_id y datetime con operador BETWEEN
+        conditions = [
+            {
+                "column": "user_id.user_id",
+                "operator": 0,  # EQUAL
+                "values": [biostar_user_id]
+            },
+            {
+                "column": "datetime",
+                "operator": 3,  # BETWEEN
+                "values": [
+                    inicio_dia.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                    fin_dia.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                ]
+            }
+        ]
+        
+        eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
+        
+        print(f"[MOBPER] Eventos encontrados: {len(eventos)}")
+        
+        if not eventos:
+            print(f"[MOBPER] No se encontraron eventos")
+            return None
+        
+        # Filtrar solo eventos ACCESS_GRANTED y obtener el primero
+        # Códigos de ACCESS_GRANTED según BioStar 2 API
+        ACCESS_GRANTED_CODES = [
+            '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
+            '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
+            '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
+        ]
+        
+        eventos_granted = [
+            e for e in eventos 
+            if e.get('event_type_id', {}).get('code') in ACCESS_GRANTED_CODES
+        ]
+        
+        print(f"[MOBPER] Eventos ACCESS_GRANTED: {len(eventos_granted)}")
+        
+        if not eventos_granted:
+            if eventos:
+                print(f"[MOBPER] Primer evento código: {eventos[0].get('event_type_id', {}).get('code')}")
+            return None
+        
+        # Ordenar por fecha y obtener el primero
+        eventos_granted.sort(key=lambda x: x.get('datetime', ''))
+        primer_evento = eventos_granted[0]
+        
+        print(f"[MOBPER] Primer registro: {primer_evento.get('datetime')}")
+        
+        # Parsear datetime
+        from dateutil import parser
+        dt = parser.parse(primer_evento['datetime'])
+        
+        # Asegurar que tiene timezone
+        if dt.tzinfo is None:
+            dt = MEXICO_TZ.localize(dt)
+        else:
+            dt = dt.astimezone(MEXICO_TZ)
+        
+        print(f"[MOBPER] Hora local: {dt.strftime('%H:%M:%S')}")
+        
+        return dt
+        
+    except Exception as e:
+        print(f"[MOBPER] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def calcular_incidencias_quincena(user, quincena):
+    """
+    Calcula las incidencias automáticas para una quincena completa.
+    OPTIMIZADO: Obtiene todos los registros en UNA sola llamada API.
+    
+    Args:
+        user: Usuario MobPer
+        quincena: Dict con 'inicio', 'fin', 'nombre', 'anio', 'mes', 'numero'
+        
+    Returns:
+        Lista de diccionarios con información de cada día
+    """
+    # Obtener o crear preset del usuario
+    preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+    
+    if not preset:
+        # Crear preset por defecto si no existe
+        preset = PresetUsuario(
+            user_id=user.id,
+            nombre_formato=user.nombre_completo,
+            departamento_formato='',
+            jefe_directo_nombre='',
+            hora_entrada_default=datetime.strptime('09:00:00', '%H:%M:%S').time(),
+            tolerancia_segundos=600,  # 10 minutos
+            dias_descanso=[5, 6],  # Sábado y Domingo
+            lista_inhabiles=[],
+            vigente_desde=quincena['inicio']
+        )
+        db.session.add(preset)
+        db.session.commit()
+    
+    hora_entrada_default = preset.hora_entrada_default
+    tolerancia_segundos = preset.tolerancia_segundos
+    dias_descanso = preset.dias_descanso or [5, 6]
+    
+    # Obtener días inhábiles oficiales del año de la quincena
+    anio_quincena = quincena['inicio'].year
+    dias_inhabiles_oficiales = obtener_dias_inhabiles(anio_quincena)
+    
+    # Combinar días inhábiles del preset con los oficiales
+    lista_inhabiles_preset = preset.lista_inhabiles or []
+    lista_inhabiles = list(set(lista_inhabiles_preset + dias_inhabiles_oficiales))
+    
+    # Usar numero_socio como biostar_user_id
+    biostar_user_id = user.numero_socio
+    
+    # Calcular hora límite
+    hora_limite_dt = datetime.combine(date.today(), hora_entrada_default) + timedelta(seconds=tolerancia_segundos)
+    hora_limite = hora_limite_dt.time()
+    
+    incidencias = []
+    fecha_actual = quincena['inicio']
+    
+    # Cargar clasificaciones guardadas para esta quincena
+    clasificaciones_guardadas = {}
+    incidencias_db = IncidenciaDia.query.filter(
+        IncidenciaDia.user_id == user.id,
+        IncidenciaDia.fecha >= quincena['inicio'],
+        IncidenciaDia.fecha <= quincena['fin']
+    ).all()
+    
+    for inc in incidencias_db:
+        clasificaciones_guardadas[inc.fecha] = {
+            'clasificacion': inc.clasificacion,
+            'motivo_auto': inc.motivo_auto,
+            'con_goce_sueldo': inc.con_goce_sueldo,
+            'justificado': inc.justificado if hasattr(inc, 'justificado') else True
+        }
+    
+    # OPTIMIZACIÓN: Obtener TODOS los registros de la quincena en UNA sola llamada
+    registros_quincena = {}
+    try:
+        print(f"[MOBPER OPTIMIZADO] Obteniendo eventos para usuario {biostar_user_id} de quincena completa")
+        
+        # Inicializar cliente BioStar
+        config = Config()
+        biostar_cfg = config.biostar_config
+        client = BioStarAPIClient(
+            host=biostar_cfg['host'],
+            username=biostar_cfg['username'],
+            password=biostar_cfg['password']
+        )
+        
+        if not client.login():
+            print(f"[MOBPER OPTIMIZADO] Error: No se pudo autenticar con BioStar")
+            registros_quincena = {}
+        else:
+            # Calcular timestamps para toda la quincena
+            inicio_quincena = datetime.combine(quincena['inicio'], datetime.min.time())
+            fin_quincena = datetime.combine(quincena['fin'], datetime.max.time())
+            
+            # Convertir a timezone aware
+            inicio_quincena = MEXICO_TZ.localize(inicio_quincena)
+            fin_quincena = MEXICO_TZ.localize(fin_quincena)
+            
+            print(f"[MOBPER OPTIMIZADO] Rango: {inicio_quincena} a {fin_quincena}")
+            
+            # Buscar eventos usando search_events
+            conditions = [
+                {
+                    "column": "user_id.user_id",
+                    "operator": 0,  # EQUAL
+                    "values": [biostar_user_id]
+                },
+                {
+                    "column": "datetime",
+                    "operator": 3,  # BETWEEN
+                    "values": [
+                        inicio_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+                        fin_quincena.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                    ]
+                }
+            ]
+            
+            eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
+            print(f"[MOBPER OPTIMIZADO] Eventos encontrados: {len(eventos)}")
+            
+            # Códigos de ACCESS_GRANTED
+            ACCESS_GRANTED_CODES = [
+                '4097', '4098', '4099', '4100', '4101', '4102', '4103', '4104', '4105', '4106', '4107',
+                '4112', '4113', '4114', '4115', '4118', '4119', '4120', '4121', '4122', '4123', '4128', '4129',
+                '4865', '4866', '4867', '4868', '4869', '4870', '4871', '4872'
+            ]
+            
+            # Agrupar por fecha y obtener el primer registro de cada día
+            for evento in eventos:
+                event_code = evento.get('event_type_id', {}).get('code')
+                if event_code in ACCESS_GRANTED_CODES:
+                    # Parsear datetime del evento (viene en UTC)
+                    dt_str = evento.get('datetime')
+                    if dt_str:
+                        # Parsear como UTC
+                        dt_utc = datetime.strptime(dt_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+                        dt_utc = pytz.UTC.localize(dt_utc)
+                        # Convertir a timezone de México
+                        dt = dt_utc.astimezone(MEXICO_TZ)
+                        fecha_evento = dt.date()
+                        
+                        if fecha_evento not in registros_quincena:
+                            registros_quincena[fecha_evento] = dt
+                            print(f"[MOBPER OPTIMIZADO] Primer registro {fecha_evento}: {dt.time()}")
+                        else:
+                            # Mantener el más temprano
+                            if dt < registros_quincena[fecha_evento]:
+                                registros_quincena[fecha_evento] = dt
+                                print(f"[MOBPER OPTIMIZADO] Actualizado registro {fecha_evento}: {dt.time()}")
+            
+            print(f"[MOBPER OPTIMIZADO] Total días con registro: {len(registros_quincena)}")
+            
+    except Exception as e:
+        print(f"[MOBPER OPTIMIZADO] Error obteniendo registros de quincena: {e}")
+        import traceback
+        traceback.print_exc()
+        registros_quincena = {}
+    
+    while fecha_actual <= quincena['fin']:
+        dia_semana = fecha_actual.weekday()
+        
+        # Paso 1: Clasificar tipo de día
+        if fecha_actual in lista_inhabiles:
+            tipo_dia = 'INHABIL'
+            estado_auto = 'INHABIL'
+            primer_registro = None
+            minutos_diferencia = None
+            nombre_inhabil = obtener_nombre_dia_inhabil(fecha_actual)
+        elif dia_semana in dias_descanso:
+            tipo_dia = 'DESCANSO'
+            estado_auto = 'DESCANSO'
+            primer_registro = None
+            minutos_diferencia = None
+        else:
+            tipo_dia = 'LABORAL'
+            
+            # Paso 2: Usar registro precargado (ya no hacemos llamada API aquí)
+            primer_registro = registros_quincena.get(fecha_actual)
+            
+            if primer_registro is None:
+                # Sin registro = FALTA
+                estado_auto = 'FALTA'
+                minutos_diferencia = None
+            else:
+                # Comparar con hora límite
+                hora_registro = primer_registro.time()
+                
+                # Calcular diferencia en segundos totales
+                entrada_dt = datetime.combine(date.today(), hora_entrada_default)
+                registro_dt = datetime.combine(date.today(), hora_registro)
+                diferencia_segundos = (registro_dt - entrada_dt).total_seconds()
+                minutos_diferencia = int(diferencia_segundos / 60)
+                
+                # Comparar con hora límite: si llega ANTES de que termine el minuto límite, es a tiempo
+                # Ejemplo: límite 09:10, si llega a las 09:10:59 es a tiempo, 09:11:00 es retardo
+                limite_dt = datetime.combine(date.today(), hora_limite)
+                # Agregar 59 segundos al límite para que todo el minuto cuente como a tiempo
+                limite_con_segundos = limite_dt + timedelta(seconds=59)
+                
+                if registro_dt <= limite_con_segundos:
+                    estado_auto = 'A_TIEMPO'
+                else:
+                    estado_auto = 'RETARDO'
+        
+        # Obtener clasificación guardada si existe
+        clasificacion_info = clasificaciones_guardadas.get(fecha_actual, {})
+        
+        incidencia_dict = {
+            'fecha': fecha_actual,
+            'dia_semana': dia_semana,
+            'tipo_dia': tipo_dia,
+            'primer_registro': primer_registro,
+            'estado_auto': estado_auto,
+            'minutos_diferencia': minutos_diferencia,
+            'hora_entrada_esperada': hora_entrada_default,
+            'hora_limite': hora_limite,
+            'clasificacion': clasificacion_info.get('clasificacion'),
+            'motivo_auto': clasificacion_info.get('motivo_auto'),
+            'con_goce_sueldo': clasificacion_info.get('con_goce_sueldo', True),
+            'justificado': clasificacion_info.get('justificado', True)
+        }
+        
+        # Agregar nombre del día inhábil si aplica
+        if estado_auto == 'INHABIL':
+            incidencia_dict['nombre_inhabil'] = nombre_inhabil
+        
+        incidencias.append(incidencia_dict)
+        
+        fecha_actual += timedelta(days=1)
+    
+    return incidencias
+
+# ============================================================================
+# RUTAS
+# ============================================================================
+
+@mobper_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """
+    Página de login para usuarios existentes.
+    """
+    if request.method == 'POST':
+        numero_socio = request.form.get('numero_socio', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        if not numero_socio or not password:
+            return render_template('mobper_login_new.html', 
+                                 error='Ingresa tu número de empleado y contraseña',
+                                 numero_socio=numero_socio)
+        
+        # Buscar usuario
+        user = MobPerUser.query.filter_by(numero_socio=numero_socio).first()
+        
+        if not user:
+            return render_template('mobper_login_new.html', 
+                                 error='Usuario no encontrado. ¿Necesitas registrarte?',
+                                 numero_socio=numero_socio)
+        
+        if not user.check_password(password):
+            return render_template('mobper_login_new.html', 
+                                 error='Contraseña incorrecta',
+                                 numero_socio=numero_socio)
+        
+        # Login exitoso
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+        
+        session['mobper_user_id'] = user.id
+        session['mobper_numero_socio'] = user.numero_socio
+        
+        return redirect(url_for('mobper.checklist'))
+    
+    return render_template('mobper_login_new.html')
+
+@mobper_bp.route('/register', methods=['GET'])
+def register_page():
+    """Página de registro"""
+    return render_template('mobper_register.html')
+
+@mobper_bp.route('/register', methods=['POST'])
+def register():
+    """Procesar registro de nuevo usuario"""
+    numero_socio = request.form.get('numero_socio', '').strip()
+    nombre = request.form.get('nombre', '').strip()
+    password = request.form.get('password', '').strip()
+    password_confirm = request.form.get('password_confirm', '').strip()
+    
+    if not numero_socio or not nombre or not password:
+        return render_template('mobper_register.html', 
+                             error='Completa todos los campos',
+                             numero_socio=numero_socio,
+                             nombre=nombre)
+    
+    if password != password_confirm:
+        return render_template('mobper_register.html', 
+                             error='Las contraseñas no coinciden',
+                             numero_socio=numero_socio,
+                             nombre=nombre)
+    
+    # Verificar si ya existe
+    if MobPerUser.query.filter_by(numero_socio=numero_socio).first():
+        return render_template('mobper_register.html', 
+                             error='Este número de empleado ya está registrado. Inicia sesión.',
+                             numero_socio=numero_socio)
+    
+    # Validar con BioStar
+    try:
+        config = Config()
+        biostar_cfg = config.biostar_config
+        client = BioStarAPIClient(
+            host=biostar_cfg['host'],
+            username=biostar_cfg['username'],
+            password=biostar_cfg['password']
+        )
+        
+        if not client.login():
+            return render_template('mobper_register.html', 
+                                 error='Error conectando con BioStar. Intenta más tarde.',
+                                 numero_socio=numero_socio,
+                                 nombre=nombre)
+        
+        # Buscar usuario en BioStar
+        print(f"[MOBPER] Buscando usuario {numero_socio} en BioStar...")
+        usuarios = client.get_all_users(limit=3000)
+        print(f"[MOBPER] Total usuarios obtenidos: {len(usuarios)}")
+        
+        usuario_biostar = None
+        
+        for u in usuarios:
+            if u.get('user_id') == numero_socio:
+                usuario_biostar = u
+                print(f"[MOBPER] Usuario encontrado: {u.get('name')}")
+                break
+        
+        if not usuario_biostar:
+            print(f"[MOBPER] Usuario {numero_socio} NO encontrado")
+            return render_template('mobper_register.html', 
+                                 error=f'Número de empleado {numero_socio} no encontrado en BioStar. Verifica que sea correcto.',
+                                 numero_socio=numero_socio,
+                                 nombre=nombre)
+        
+        # Validar nombre (primer nombre + apellido)
+        nombre_biostar = usuario_biostar.get('name', '').lower()
+        nombre_ingresado = nombre.lower()
+        
+        # Verificar que al menos coincida parcialmente
+        palabras_biostar = nombre_biostar.split()
+        palabras_ingresadas = nombre_ingresado.split()
+        
+        coincide = False
+        if len(palabras_ingresadas) >= 2:
+            # Verificar primer nombre + apellido
+            primer_nombre = palabras_ingresadas[0]
+            apellido = palabras_ingresadas[1]
+            
+            if primer_nombre in palabras_biostar and apellido in palabras_biostar:
+                coincide = True
+        
+        if not coincide:
+            return render_template('mobper_register.html', 
+                                 error=f'El nombre no coincide. En BioStar apareces como: {usuario_biostar.get("name")}',
+                                 numero_socio=numero_socio,
+                                 nombre=nombre)
+        
+        # Crear nuevo usuario
+        nuevo_user = MobPerUser(
+            numero_socio=numero_socio,
+            nombre_completo=usuario_biostar.get('name')
+        )
+        nuevo_user.set_password(password)
+        
+        db.session.add(nuevo_user)
+        db.session.commit()
+        
+        # Crear sesión automáticamente
+        session['mobper_user_id'] = nuevo_user.id
+        session['mobper_numero_socio'] = nuevo_user.numero_socio
+        
+        return redirect(url_for('mobper.checklist'))
+        
+    except Exception as e:
+        print(f"[MOBPER] Error en registro: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('mobper_register.html', 
+                             error=f'Error validando con BioStar: {str(e)}',
+                             numero_socio=numero_socio,
+                             nombre=nombre)
+
+@mobper_bp.route('/logout')
+def logout():
+    """Cerrar sesión de MobPer"""
+    session.pop('mobper_user_id', None)
+    session.pop('mobper_numero_socio', None)
+    return redirect(url_for('mobper.login'))
+
+@mobper_bp.route('/config', methods=['GET', 'POST'])
+@mobper_login_required
+def config():
+    """Configuración de horarios y preset del usuario"""
+    user = get_current_mobper_user()
+    preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+    
+    if request.method == 'POST':
+        try:
+            # Obtener datos del formulario
+            nombre_formato = request.form.get('nombre_formato', '').strip()
+            departamento_formato = request.form.get('departamento_formato', '').strip()
+            jefe_directo_nombre = request.form.get('jefe_directo_nombre', '').strip()
+            
+            hora_entrada_str = request.form.get('hora_entrada_default', '09:00')
+            hora_entrada = datetime.strptime(hora_entrada_str, '%H:%M').time()
+            
+            tolerancia_minutos = int(request.form.get('tolerancia_minutos', 10))
+            tolerancia_segundos = tolerancia_minutos * 60
+            
+            # Días de descanso
+            dias_descanso = [int(d) for d in request.form.getlist('dias_descanso')]
+            
+            # Días inhábiles
+            lista_inhabiles_str = request.form.get('lista_inhabiles', '[]')
+            lista_inhabiles = json.loads(lista_inhabiles_str)
+            
+            # Crear o actualizar preset
+            if not preset:
+                preset = PresetUsuario(
+                    user_id=user.id,
+                    nombre_formato=nombre_formato,
+                    departamento_formato=departamento_formato,
+                    jefe_directo_nombre=jefe_directo_nombre,
+                    hora_entrada_default=hora_entrada,
+                    tolerancia_segundos=tolerancia_segundos,
+                    dias_descanso=dias_descanso,
+                    lista_inhabiles=lista_inhabiles,
+                    vigente_desde=date.today()
+                )
+                db.session.add(preset)
+            else:
+                preset.nombre_formato = nombre_formato
+                preset.departamento_formato = departamento_formato
+                preset.jefe_directo_nombre = jefe_directo_nombre
+                preset.hora_entrada_default = hora_entrada
+                preset.tolerancia_segundos = tolerancia_segundos
+                preset.dias_descanso = dias_descanso
+                preset.lista_inhabiles = lista_inhabiles
+            
+            db.session.commit()
+            
+            # Redirigir a la misma página con mensaje de éxito
+            return redirect(url_for('mobper.config', saved=1))
+        
+        except Exception as e:
+            db.session.rollback()
+            return render_template('mobper_config.html', 
+                                 user=user, 
+                                 preset=preset,
+                                 error=f'Error al guardar configuración: {str(e)}')
+    
+    # Si viene de guardar exitosamente
+    success_msg = 'Configuración guardada exitosamente' if request.args.get('saved') else None
+    return render_template('mobper_config.html', user=user, preset=preset, success=success_msg)
+
+@mobper_bp.route('/api/clasificar-dia', methods=['POST'])
+@mobper_login_required
+def api_clasificar_dia():
+    """Guardar clasificación de un día específico"""
+    try:
+        user = get_current_mobper_user()
+        data = request.get_json()
+        
+        print(f"[MOBPER API] Datos recibidos: {data}")
+        
+        fecha_str = data.get('fecha')
+        clasificacion = data.get('clasificacion')
+        estado_auto = data.get('estado_auto')
+        numero_dia = data.get('numero_dia', 1)
+        
+        print(f"[MOBPER API] Procesando: fecha={fecha_str}, clasificacion={clasificacion}, estado_auto={estado_auto}, numero_dia={numero_dia}")
+        
+        if not fecha_str or not clasificacion:
+            print(f"[MOBPER API] Error: Datos incompletos")
+            return jsonify({'success': False, 'error': 'Datos incompletos'}), 400
+        
+        # Parsear fecha
+        from datetime import datetime as dt
+        fecha = dt.strptime(fecha_str, '%Y-%m-%d').date()
+        
+        # Buscar o crear incidencia
+        incidencia = IncidenciaDia.query.filter_by(
+            user_id=user.id,
+            fecha=fecha
+        ).first()
+        
+        if not incidencia:
+            print(f"[MOBPER API] Creando nueva incidencia para {fecha}")
+            incidencia = IncidenciaDia(
+                user_id=user.id,
+                fecha=fecha,
+                estado_auto=estado_auto
+            )
+            db.session.add(incidencia)
+        else:
+            print(f"[MOBPER API] Actualizando incidencia existente para {fecha}")
+        
+        incidencia.clasificacion = clasificacion
+        incidencia.motivo_auto = generar_motivo_auto(estado_auto, clasificacion, numero_dia)
+        incidencia.updated_at = datetime.utcnow()
+        
+        print(f"[MOBPER API] Guardando: clasificacion={incidencia.clasificacion}, motivo={incidencia.motivo_auto}")
+        
+        db.session.commit()
+        
+        print(f"[MOBPER API] Guardado exitoso")
+        
+        return jsonify({
+            'success': True,
+            'motivo': incidencia.motivo_auto
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"[MOBPER API] Error en api_clasificar_dia: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@mobper_bp.route('/api/clasificar-multiple', methods=['POST'])
+@mobper_login_required
+def api_clasificar_multiple():
+    """Aplicar clasificación a múltiples días (atajos rápidos)"""
+    try:
+        user = get_current_mobper_user()
+        data = request.get_json()
+        
+        items = data.get('items', [])  # Lista de {fecha, estado_auto, numero_dia}
+        clasificacion = data.get('clasificacion')
+        
+        if not items or not clasificacion:
+            return jsonify({'success': False, 'error': 'Datos incompletos'}), 400
+        
+        from datetime import datetime as dt
+        count = 0
+        
+        for item in items:
+            fecha = dt.strptime(item['fecha'], '%Y-%m-%d').date()
+            estado_auto = item.get('estado_auto', 'FALTA')
+            numero_dia = item.get('numero_dia', count + 1)
+            
+            incidencia = IncidenciaDia.query.filter_by(
+                user_id=user.id,
+                fecha=fecha
+            ).first()
+            
+            if not incidencia:
+                incidencia = IncidenciaDia(
+                    user_id=user.id,
+                    fecha=fecha,
+                    estado_auto=estado_auto
+                )
+                db.session.add(incidencia)
+            
+            incidencia.clasificacion = clasificacion
+            incidencia.motivo_auto = generar_motivo_auto(estado_auto, clasificacion, numero_dia)
+            incidencia.updated_at = datetime.utcnow()
+            count += 1
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'count': count})
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"[MOBPER] Error en api_clasificar_multiple: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@mobper_bp.route('/api/check-user', methods=['POST'])
+def api_check_user():
+    """Verifica si un número de socio ya está registrado"""
+    data = request.get_json()
+    numero_socio = data.get('numero_socio', '').strip()
+    
+    if not numero_socio:
+        return jsonify({'exists': False})
+    
+    user = MobPerUser.query.filter_by(numero_socio=numero_socio).first()
+    return jsonify({'exists': user is not None})
+
+@mobper_bp.route('/checklist', methods=['GET'])
+@mobper_bp.route('/checklist/<int:year>/<int:month>/<int:quincena_num>', methods=['GET'])
+@mobper_login_required
+def checklist(year=None, month=None, quincena_num=None):
+    """
+    Pantalla principal del checklist de incidencias.
+    Mobile-first con código de colores.
+    Soporta navegación entre quincenas.
+    """
+    user = get_current_mobper_user()
+    
+    # Calcular quincena (actual o especificada)
+    if year and month and quincena_num:
+        quincena = calcular_quincena(year, month, quincena_num)
+    else:
+        # Por defecto, mostrar la quincena ANTERIOR (la que se debe justificar)
+        # ya que la actual aún está en curso
+        quincena_actual = calcular_quincena_actual()
+        quincena = obtener_quincena_anterior(quincena_actual)
+    
+    # Calcular quincenas para navegación
+    quincena_anterior = obtener_quincena_anterior(quincena)
+    quincena_siguiente = obtener_quincena_siguiente(quincena)
+    
+    # Calcular incidencias automáticas
+    incidencias = calcular_incidencias_quincena(user, quincena)
+    
+    # Calcular resumen
+    resumen = {
+        'a_tiempo': sum(1 for i in incidencias if i['estado_auto'] == 'A_TIEMPO'),
+        'retardos': sum(1 for i in incidencias if i['estado_auto'] == 'RETARDO'),
+        'faltas': sum(1 for i in incidencias if i['estado_auto'] == 'FALTA'),
+        'inhabiles': sum(1 for i in incidencias if i['estado_auto'] == 'INHABIL'),
+        'descansos': sum(1 for i in incidencias if i['estado_auto'] == 'DESCANSO'),
+        'total': len(incidencias)
+    }
+    
+    # Determinar si la quincena siguiente ya inició (para habilitar navegación)
+    from datetime import date as date_type
+    hoy = date_type.today()
+    puede_ir_siguiente = quincena_siguiente['inicio'] <= hoy
+    
+    return render_template(
+        'mobper_checklist_v3.html',
+        quincena=quincena,
+        incidencias=incidencias,
+        resumen=resumen,
+        user=user,
+        formatear_fecha=formatear_fecha_espanol,
+        obtener_nombre_clasificacion=obtener_nombre_clasificacion,
+        quincena_anterior=quincena_anterior,
+        quincena_siguiente=quincena_siguiente,
+        puede_ir_siguiente=puede_ir_siguiente
+    )
+
+@mobper_bp.route('/api/calcular-quincena', methods=['POST'])
+@mobper_login_required
+def api_calcular_quincena():
+    """
+    API para calcular incidencias de una quincena específica.
+    """
+    user = get_current_mobper_user()
+    data = request.get_json()
+    
+    # Obtener fecha de referencia
+    if 'fecha' in data:
+        fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+    else:
+        fecha = now_cdmx().date()
+    
+    # Calcular quincena
+    quincena = calcular_quincena_actual(fecha)
+    
+    # Calcular incidencias
+    incidencias = calcular_incidencias_quincena(user, quincena)
+    
+    # Serializar para JSON
+    incidencias_json = []
+    for inc in incidencias:
+        incidencias_json.append({
+            'fecha': inc['fecha'].isoformat(),
+            'dia_semana': inc['dia_semana'],
+            'tipo_dia': inc['tipo_dia'],
+            'primer_registro': inc['primer_registro'].isoformat() if inc['primer_registro'] else None,
+            'estado_auto': inc['estado_auto'],
+            'minutos_diferencia': inc['minutos_diferencia'],
+            'hora_entrada_esperada': inc['hora_entrada_esperada'].strftime('%H:%M:%S'),
+            'hora_limite': inc['hora_limite'].strftime('%H:%M:%S')
+        })
+    
+    return jsonify({
+        'success': True,
+        'quincena': {
+            'numero': quincena['numero'],
+            'inicio': quincena['inicio'].isoformat(),
+            'fin': quincena['fin'].isoformat(),
+            'nombre': quincena['nombre'],
+            'dias_totales': quincena['dias_totales']
+        },
+        'incidencias': incidencias_json
+    })
+
+@mobper_bp.route('/api/exportar-excel', methods=['POST'])
+@mobper_login_required
+def api_exportar_excel():
+    """
+    Exporta el formato Excel prellenado con las incidencias.
+    Usa win32com para preservar formatos y shapes.
+    """
+    from webapp.mobper_excel import generar_formato_excel
+    
+    user = get_current_mobper_user()
+    data = request.get_json()
+    
+    # Calcular quincena
+    if 'fecha' in data:
+        fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+    else:
+        fecha = now_cdmx().date()
+    
+    quincena = calcular_quincena_actual(fecha)
+    incidencias = calcular_incidencias_quincena(user, quincena)
+    
+    # Obtener preset del usuario
+    preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+    
+    # Determinar si es con goce de sueldo (por defecto sí)
+    con_goce = data.get('con_goce', True)
+    
+    try:
+        # Generar Excel con win32com
+        output_path, output_filename = generar_formato_excel(
+            user=user,
+            preset=preset,
+            incidencias=incidencias,
+            quincena=quincena,
+            con_goce=con_goce
+        )
+        
+        # Enviar archivo al cliente
+        return send_file(
+            output_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=output_filename
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False, 
+            'message': f'Error al generar Excel: {str(e)}'
+        }), 500
+
+
+@mobper_bp.route('/api/previsualizar', methods=['POST'])
+@mobper_login_required
+def api_previsualizar():
+    """
+    Genera una vista previa del formato en HTML.
+    """
+    user = get_current_mobper_user()
+    data = request.get_json()
+    
+    # Calcular quincena
+    if 'fecha' in data:
+        fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+    else:
+        fecha = now_cdmx().date()
+    
+    quincena = calcular_quincena_actual(fecha)
+    incidencias = calcular_incidencias_quincena(user, quincena)
+    
+    # Filtrar incidencias
+    dias_con_incidencias = [
+        inc for inc in incidencias
+        if inc['estado_auto'] in ['RETARDO', 'FALTA']
+    ]
+    
+    return render_template(
+        'mobper_preview.html',
+        user=user,
+        quincena=quincena,
+        incidencias=dias_con_incidencias
+    )
+
+# ============================================================================
+# UTILIDADES
+# ============================================================================
+
+def generar_fecha_aplicacion(dias, quincena):
+    """
+    Genera el texto de fecha de aplicación según las reglas.
+    
+    Ejemplos:
+    - [1] → "1 de enero"
+    - [13, 14] → "13 y 14 de enero"
+    - [1,2,5,6,7,8,9,12,13,14,15] → "1,2,5,6,7,8,9,12,13,14,15 de enero"
+    """
+    meses = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ]
+    nombre_mes = meses[quincena['mes'] - 1]
+    
+    if len(dias) == 0:
+        return ""
+    
+    if len(dias) == 1:
+        return f"{dias[0]} de {nombre_mes}"
+    
+    if len(dias) == 2:
+        return f"{dias[0]} y {dias[1]} de {nombre_mes}"
+    
+    # 3 o más días: formato compacto sin espacios
+    dias_str = ",".join(str(d) for d in dias)
+    return f"{dias_str} de {nombre_mes}"
+
+
+# =============================================================================
+# NUEVAS RUTAS: Generación de Excel, Preview, Toggle Justificación
+# =============================================================================
+
+@mobper_bp.route('/api/toggle-justificacion', methods=['POST'])
+@mobper_login_required
+def toggle_justificacion():
+    """Alternar justificación de un retardo."""
+    try:
+        data = request.get_json()
+        fecha_str = data.get('fecha')
+        justificado = data.get('justificado', True)
+        
+        user = get_current_mobper_user()
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        
+        # Buscar o crear registro de incidencia
+        incidencia = IncidenciaDia.query.filter_by(
+            user_id=user.id,
+            fecha=fecha
+        ).first()
+        
+        if not incidencia:
+            incidencia = IncidenciaDia(
+                user_id=user.id,
+                fecha=fecha,
+                estado_auto='RETARDO'
+            )
+            db.session.add(incidencia)
+        
+        incidencia.justificado = justificado
+        if justificado:
+            incidencia.motivo_auto = 'Retardo justificado'
+        else:
+            incidencia.motivo_auto = 'Retardo NO justificado'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'justificado': justificado,
+            'fecha': fecha_str
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/generar-excel')
+@mobper_login_required
+def generar_excel():
+    """Genera el formato Excel de movimiento de personal."""
+    try:
+        from webapp.mobper_excel import generar_formato_excel
+        
+        user = get_current_mobper_user()
+        preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+        
+        # Obtener quincena especificada o la anterior (la que se está justificando)
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        quincena_num = request.args.get('quincena', type=int)
+        
+        if year and month and quincena_num:
+            quincena = calcular_quincena(year, month, quincena_num)
+        else:
+            # Por defecto usar la quincena ANTERIOR (la que se justifica en el checklist)
+            quincena_actual = calcular_quincena_actual()
+            quincena = obtener_quincena_anterior(quincena_actual)
+        
+        # Calcular incidencias dinámicamente (igual que el checklist)
+        incidencias_dict = calcular_incidencias_quincena(user, quincena)
+        
+        # Leer con_goce del parámetro del UI (1 = con goce, 0 = sin goce)
+        con_goce_param = request.args.get('con_goce', '1')
+        con_goce = con_goce_param == '1'
+        
+        print(f"[MOBPER ROUTES] Llamando a generar_formato_excel")
+        print(f"[MOBPER ROUTES] User: {user.nombre_completo}")
+        print(f"[MOBPER ROUTES] Preset: {preset}")
+        print(f"[MOBPER ROUTES] Incidencias: {len(incidencias_dict)}")
+        print(f"[MOBPER ROUTES] Quincena: {quincena}")
+        print(f"[MOBPER ROUTES] Con goce: {con_goce} (param: {con_goce_param})")
+        
+        # Generar Excel
+        output_path, filename = generar_formato_excel(
+            user=user,
+            preset=preset,
+            incidencias=incidencias_dict,
+            quincena=quincena,
+            con_goce=con_goce
+        )
+        
+        # Descargar archivo directamente
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/download/<filename>')
+@mobper_login_required
+def download_excel(filename):
+    """Descarga el archivo Excel generado."""
+    from webapp.mobper_excel import OUTPUT_DIR
+    
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
+@mobper_bp.route('/preview/<filename>')
+@mobper_login_required
+def preview_excel(filename):
+    """Vista previa del formato Excel como HTML."""
+    from webapp.mobper_excel import excel_to_html_preview, OUTPUT_DIR
+    from flask import render_template_string
+    
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    
+    if not os.path.exists(filepath):
+        return "Archivo no encontrado", 404
+    
+    try:
+        html_content = excel_to_html_preview(filepath)
+    except Exception as e:
+        html_content = f"<div class='error'>Error al generar vista previa: {str(e)}</div>"
+    
+    # Template wrapper con estilos
+    wrapper = '''
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Vista Previa - MobPer</title>
+        <style>
+            * { box-sizing: border-box; }
+            body {
+                font-family: 'Segoe UI', Tahoma, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 20px;
+                margin: 0;
+                min-height: 100vh;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            .preview-header {
+                background: rgba(255,255,255,0.95);
+                color: #333;
+                padding: 20px 30px;
+                border-radius: 12px 12px 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 -2px 20px rgba(0,0,0,0.1);
+            }
+            .preview-header h2 {
+                margin: 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .preview-content {
+                background: white;
+                padding: 30px;
+                border-radius: 0 0 12px 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                overflow-x: auto;
+            }
+            .actions {
+                display: flex;
+                gap: 12px;
+            }
+            .btn {
+                padding: 12px 24px;
+                border-radius: 8px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.2s;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+            }
+            .btn-secondary {
+                background: #f0f0f0;
+                color: #333;
+            }
+            .btn-secondary:hover {
+                background: #e0e0e0;
+            }
+            .error {
+                background: #fee2e2;
+                color: #b91c1c;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #fca5a5;
+            }
+            /* Estilos para las tablas del Excel */
+            table { border-collapse: collapse; width: 100%; }
+            td, th { border: 1px solid #ddd; padding: 6px 10px; }
+            th { background: #f5f5f5; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="preview-header">
+                <h2>📋 Vista Previa - Formato de Movimiento de Personal</h2>
+                <div class="actions">
+                    <a href="{{ url_for('mobper.download_excel', filename=filename) }}" class="btn btn-primary">
+                        ⬇️ Descargar Excel
+                    </a>
+                    <a href="{{ url_for('mobper.checklist') }}" class="btn btn-secondary">
+                        ← Volver al Checklist
+                    </a>
+                </div>
+            </div>
+            <div class="preview-content">
+                {{ excel_html | safe }}
+            </div>
+        </div>
+    </body>
+    </html>
+    '''
+    
+    return render_template_string(wrapper, excel_html=html_content, filename=filename)
+
+
+@mobper_bp.route('/formatos')
+@mobper_login_required
+def listar_formatos():
+    """Lista los formatos Excel generados para el usuario."""
+    from webapp.mobper_excel import obtener_formatos_generados
+    
+    user = get_current_mobper_user()
+    formatos = obtener_formatos_generados(user.id)
+    
+    return render_template('mobper_formatos.html', 
+                         user=user, 
+                         formatos=formatos)
+
+
+# Helper para navegación de quincenas
+def obtener_quincena_anterior(quincena):
+    """Obtiene la quincena anterior a la dada."""
+    if quincena['numero'] == 1:
+        # Primera quincena -> ir a segunda quincena del mes anterior
+        mes_anterior = quincena['mes'] - 1
+        anio = quincena['anio']
+        if mes_anterior < 1:
+            mes_anterior = 12
+            anio -= 1
+        return calcular_quincena(anio, mes_anterior, 2)
+    else:
+        # Segunda quincena -> ir a primera del mismo mes
+        return calcular_quincena(quincena['anio'], quincena['mes'], 1)
+
+
+def obtener_quincena_siguiente(quincena):
+    """Obtiene la quincena siguiente a la dada."""
+    if quincena['numero'] == 1:
+        # Primera quincena -> ir a segunda del mismo mes
+        return calcular_quincena(quincena['anio'], quincena['mes'], 2)
+    else:
+        # Segunda quincena -> ir a primera del mes siguiente
+        mes_siguiente = quincena['mes'] + 1
+        anio = quincena['anio']
+        if mes_siguiente > 12:
+            mes_siguiente = 1
+            anio += 1
+        return calcular_quincena(anio, mes_siguiente, 1)
+
+
+def calcular_quincena(anio, mes, numero):
+    """Calcula los límites de una quincena específica."""
+    if numero == 1:
+        inicio = date(anio, mes, 1)
+        fin = date(anio, mes, 15)
+    else:
+        inicio = date(anio, mes, 16)
+        ultimo_dia = monthrange(anio, mes)[1]
+        fin = date(anio, mes, ultimo_dia)
+    
+    nombre = f"{'1ra' if numero == 1 else '2da'} Quincena de {MESES[mes]} {anio}"
+    
+    return {
+        'inicio': inicio,
+        'fin': fin,
+        'nombre': nombre,
+        'numero': numero,
+        'mes': mes,
+        'anio': anio
+    }
+
+
+# ============================================================
+# RUTAS DE PRUEBA WIN32COM EXCEL
+# ============================================================
+
+@mobper_bp.route('/test-excel', methods=['GET'])
+def test_excel_page():
+    """Página de prueba para métodos de edición Excel (DEPRECATED)."""
+    # Redirigir a la nueva página
+    return redirect(url_for('mobper.test_win32_page'))
+
+
+@mobper_bp.route('/test-win32', methods=['GET'])
+def test_win32_page():
+    """Nueva página de prueba solo con Win32COM."""
+    return render_template('excel_win32_test.html')
+
+
+@mobper_bp.route('/test-win32/<test_id>', methods=['POST'])
+def run_win32_test(test_id):
+    """Ejecutar un escenario de prueba Win32COM."""
+    from webapp.excel_win32_tests import (
+        test_solo_retardo,
+        test_solo_falta,
+        test_falta_y_retardo,
+        test_sin_goce_sueldo,
+        test_olvido_checar,
+        test_retirarse_temprano,
+        test_formato_quincena_completa,
+        test_salir_y_regresar,
+    )
+    
+    tests_map = {
+        'solo_retardo': test_solo_retardo,
+        'solo_falta': test_solo_falta,
+        'falta_y_retardo': test_falta_y_retardo,
+        'sin_goce_sueldo': test_sin_goce_sueldo,
+        'olvido_checar': test_olvido_checar,
+        'retirarse_temprano': test_retirarse_temprano,
+        'quincena_completa': test_formato_quincena_completa,
+        'salir_regresar': test_salir_y_regresar,
+    }
+    
+    if test_id not in tests_map:
+        return jsonify({'success': False, 'error': f'Test no encontrado: {test_id}'})
+    
+    try:
+        result = tests_map[test_id]()
+        
+        if result['success']:
+            filename = os.path.basename(result['output_file'])
+            return jsonify({
+                'success': True,
+                'filename': filename,
+                'test_name': result['test_name'],
+                'output_file': result['output_file']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Error desconocido'),
+                'test_name': result['test_name']
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'test_name': test_id
+        })
+
+
+@mobper_bp.route('/download-win32/<test_id>', methods=['GET'])
+def download_win32_file(test_id):
+    """Descargar archivo generado por un test Win32COM."""
+    import glob
+    
+    output_dir = r"C:\Users\raulc\Downloads\debug biostar para checadores\webapp\output\excel_tests"
+    
+    # Buscar el archivo más reciente para este test
+    pattern = os.path.join(output_dir, f"{test_id}_*.xlsx")
+    files = glob.glob(pattern)
+    
+    if not files:
+        return jsonify({'success': False, 'error': 'Archivo no encontrado'}), 404
+    
+    latest_file = max(files, key=os.path.getmtime)
+    filename = os.path.basename(latest_file)
+    
+    return send_file(
+        latest_file,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
+@mobper_bp.route('/output-folder', methods=['GET'])
+def open_output_folder():
+    """Abrir la carpeta de salida en el explorador."""
+    import subprocess
+    output_dir = r"C:\Users\raulc\Downloads\debug biostar para checadores\webapp\output\excel_tests"
+    try:
+        subprocess.Popen(f'explorer "{output_dir}"')
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+

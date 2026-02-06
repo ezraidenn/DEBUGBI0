@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"="width=device-width, initial-scale=1.0">
+    <title>MobPer - Checklist</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            padding-bottom: 80px;
+        }
+
+        .header {
+            background: #5D4037;
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-bottom: 3px solid #4E342E;
+        }
+
+        .header-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .user-info {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .user-info div {
+            display: inline-block;
+            margin-right: 20px;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+            border: 1px solid #EFEBE9;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #3E2723;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+        }
+
+        .resumen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+        }
+
+        .resumen-item {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .resumen-item.verde {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+        }
+
+        .resumen-item.amarillo {
+            background: #fff9e6;
+            border: 2px solid #ffc107;
+        }
+
+        .resumen-item.rojo {
+            background: #ffebee;
+            border: 2px solid #f44336;
+        }
+
+        .resumen-item.azul {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+        }
+
+        .resumen-item.gris {
+            background: #f5f5f5;
+            border: 2px solid #9e9e9e;
+        }
+
+        .resumen-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .resumen-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .resumen-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .atajos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-atajo {
+            padding: 12px 16px;
+            border: 1px solid #8D6E63;
+            background: white;
+            color: #5D4037;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn-atajo:hover {
+            background: #5D4037;
+            color: white;
+            border-color: #5D4037;
+            box-shadow: 0 2px 8px rgba(93, 64, 55, 0.2);
+        }
+
+        .incidencia-card {
+            background: white;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid #ccc;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+            transition: all 0.2s ease;
+            border: 1px solid #EFEBE9;
+        }
+
+        .incidencia-card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .incidencia-card.retardo {
+            border-left-color: #ffc107;
+            background: #fffef7;
+        }
+
+        .incidencia-card.falta {
+            border-left-color: #f44336;
+            background: #fffafa;
+        }
+
+        .incidencia-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .incidencia-fecha {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .incidencia-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-retardo {
+            background: #fff9e6;
+            color: #f57c00;
+        }
+
+        .badge-falta {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .incidencia-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .incidencia-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-small:hover {
+            background: #f5f5f5;
+            border-color: #667eea;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 30px 0 15px 0;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-count {
+            background: #5D4037;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .floating-actions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .btn-primary {
+            padding: 16px 32px;
+            background: #5D4037;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            background: #4E342E;
+            box-shadow: 0 6px 16px rgba(93, 64, 55, 0.4);
+        }
+
+        .btn-secondary {
+            padding: 16px 32px;
+            background: white;
+            color: #5D4037;
+            border: 2px solid #8D6E63;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-secondary:hover {
+            background: #EFEBE9;
+            border-color: #5D4037;
+        }
+
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.active {
+            max-height: 2000px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .resumen-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .atajos {
+                grid-template-columns: 1fr;
+            }
+
+            .floating-actions {
+                flex-direction: column;
+                width: calc(100% - 40px);
+                max-width: 400px;
+            }
+
+            .btn-primary, .btn-secondary {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>📋 Movimiento de Personal</h1>
+            <p class="subtitle">{{ quincena.nombre }}</p>
+            <div class="user-info">
+                <div>👤 {{ user.nombre_completo }}</div>
+                <div style="display: flex; gap: 15px;">
+                    <a href="{{ url_for('mobper.config') }}" style="color: white; text-decoration: none; opacity: 0.9;">⚙️ Configuración</a>
+                    <a href="{{ url_for('mobper.logout') }}" style="color: white; text-decoration: none; opacity: 0.9;">Cerrar sesión →</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Resumen -->
+        <div class="card">
+            <div class="card-title">📊 Resumen de Quincena</div>
+            <div class="resumen-grid">
+                <div class="resumen-item verde">
+                    <div class="resumen-icon">🟢</div>
+                    <div class="resumen-label">A tiempo</div>
+                    <div class="resumen-value">{{ resumen.a_tiempo }}</div>
+                </div>
+                <div class="resumen-item amarillo">
+                    <div class="resumen-icon">🟡</div>
+                    <div class="resumen-label">Retardos</div>
+                    <div class="resumen-value">{{ resumen.retardos }}</div>
+                </div>
+                <div class="resumen-item rojo">
+                    <div class="resumen-icon">🔴</div>
+                    <div class="resumen-label">Faltas</div>
+                    <div class="resumen-value">{{ resumen.faltas }}</div>
+                </div>
+                <div class="resumen-item azul">
+                    <div class="resumen-icon">🔵</div>
+                    <div class="resumen-label">Inhábiles</div>
+                    <div class="resumen-value">{{ resumen.inhabiles }}</div>
+                </div>
+                <div class="resumen-item gris">
+                    <div class="resumen-icon">⚪</div>
+                    <div class="resumen-label">Descansos</div>
+                    <div class="resumen-value">{{ resumen.descansos }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atajos Rápidos -->
+        <div class="card">
+            <div class="card-title">⚡ Atajos Rápidos</div>
+            <div class="atajos">
+                <button class="btn-atajo" onclick="justificarTodosRetardos()">
+                    ✅ Justificar todos los retardos
+                </button>
+                <button class="btn-atajo" onclick="todasFaltasRemoto()">
+                    🏠 Todas las faltas → Remoto
+                </button>
+                <button class="btn-atajo" onclick="todasFaltasGuardia()">
+                    📞 Todas las faltas → Guardia
+                </button>
+                <button class="btn-atajo" onclick="restablecerValores()">
+                    🔄 Restablecer valores
+                </button>
+            </div>
+        </div>
+
+        <!-- Retardos -->
+        {% if resumen.retardos > 0 %}
+        <div class="section-title">
+            🟡 RETARDOS
+            <span class="section-count">{{ resumen.retardos }}</span>
+        </div>
+        {% for inc in incidencias %}
+            {% if inc.estado_auto == 'RETARDO' %}
+            <div class="incidencia-card retardo">
+                <div class="incidencia-header">
+                    <div class="incidencia-fecha">
+                        📅 {{ inc.fecha.strftime('%d %b') }}
+                    </div>
+                    <span class="incidencia-badge badge-retardo">
+                        +{{ inc.minutos_diferencia }} min
+                    </span>
+                </div>
+                <div class="incidencia-info">
+                    ⏱️ Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
+                    (límite: {{ inc.hora_limite.strftime('%H:%M') }})
+                </div>
+                <div class="incidencia-actions">
+                    <button class="btn-small" onclick="clasificarIncidencia('{{ inc.fecha.isoformat() }}')">
+                        Clasificar
+                    </button>
+                    <button class="btn-small" onclick="agregarExcepcion('{{ inc.fecha.isoformat() }}')">
+                        Agregar excepción
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+        {% endif %}
+
+        <!-- Faltas -->
+        {% if resumen.faltas > 0 %}
+        <div class="section-title">
+            🔴 FALTAS
+            <span class="section-count">{{ resumen.faltas }}</span>
+        </div>
+        {% for inc in incidencias %}
+            {% if inc.estado_auto == 'FALTA' %}
+            <div class="incidencia-card falta">
+                <div class="incidencia-header">
+                    <div class="incidencia-fecha">
+                        📅 {{ inc.fecha.strftime('%d %b') }}
+                    </div>
+                    <span class="incidencia-badge badge-falta">
+                        Sin checada
+                    </span>
+                </div>
+                <div class="incidencia-info">
+                    ❌ Inasistencia - No se detectó registro
+                </div>
+                <div class="incidencia-actions">
+                    <button class="btn-small" onclick="clasificarIncidencia('{{ inc.fecha.isoformat() }}')">
+                        Clasificar
+                    </button>
+                    <button class="btn-small" onclick="marcarInhabil('{{ inc.fecha.isoformat() }}')">
+                        Marcar como inhábil
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+        {% endif %}
+
+        <!-- A Tiempo (Colapsable) -->
+        {% if resumen.a_tiempo > 0 %}
+        <div class="section-title collapsible" onclick="toggleCollapsible('a-tiempo')">
+            🟢 A TIEMPO
+            <span class="section-count">{{ resumen.a_tiempo }}</span>
+            <span style="margin-left: auto; font-size: 14px;">▼</span>
+        </div>
+        <div id="a-tiempo" class="collapsible-content">
+            {% for inc in incidencias %}
+                {% if inc.estado_auto == 'A_TIEMPO' %}
+                <div class="incidencia-card" style="border-left-color: #4caf50;">
+                    <div class="incidencia-header">
+                        <div class="incidencia-fecha">
+                            📅 {{ inc.fecha.strftime('%d %b') }}
+                        </div>
+                        <span class="incidencia-badge" style="background: #e8f5e9; color: #2e7d32;">
+                            A tiempo
+                        </span>
+                    </div>
+                    <div class="incidencia-info">
+                        ✅ Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Botones Flotantes -->
+    <div class="floating-actions">
+        <button class="btn-secondary" onclick="previsualizar()">
+            👁️ Previsualizar
+        </button>
+        <button class="btn-primary" onclick="exportarExcel()">
+            📄 Generar Excel
+        </button>
+    </div>
+
+    <script>
+        function toggleCollapsible(id) {
+            const content = document.getElementById(id);
+            content.classList.toggle('active');
+        }
+
+        function clasificarIncidencia(fecha) {
+            alert('Clasificar incidencia del ' + fecha);
+            // TODO: Abrir modal de clasificación
+        }
+
+        function agregarExcepcion(fecha) {
+            alert('Agregar excepción para ' + fecha);
+            // TODO: Abrir modal de excepción
+        }
+
+        function marcarInhabil(fecha) {
+            alert('Marcar como inhábil: ' + fecha);
+            // TODO: Implementar
+        }
+
+        function justificarTodosRetardos() {
+            if (confirm('¿Justificar todos los retardos?')) {
+                alert('Todos los retardos han sido justificados');
+                // TODO: Implementar
+            }
+        }
+
+        function todasFaltasRemoto() {
+            if (confirm('¿Marcar todas las faltas como trabajo remoto?')) {
+                alert('Todas las faltas marcadas como remoto');
+                // TODO: Implementar
+            }
+        }
+
+        function todasFaltasGuardia() {
+            if (confirm('¿Marcar todas las faltas como guardia telefónica?')) {
+                alert('Todas las faltas marcadas como guardia');
+                // TODO: Implementar
+            }
+        }
+
+        function restablecerValores() {
+            if (confirm('¿Restablecer todos los valores a los automáticos?')) {
+                location.reload();
+            }
+        }
+
+        async function previsualizar() {
+            try {
+                const response = await fetch('/mobper/api/previsualizar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                if (response.ok) {
+                    const html = await response.text();
+                    const newWindow = window.open('', '_blank');
+                    newWindow.document.write(html);
+                    newWindow.document.close();
+                } else {
+                    alert('Error al generar previsualización');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al generar previsualización');
+            }
+        }
+
+        async function exportarExcel() {
+            try {
+                const response = await fetch('/mobper/api/exportar-excel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'MobPer_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    alert('Error al exportar Excel');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al exportar Excel');
+            }
+        }
+    </script>
+</body>
+</html>
