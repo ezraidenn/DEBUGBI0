@@ -1,0 +1,327 @@
+﻿============================================================
+AN┴LISIS COMPLETO DEL TEMPLATE (via win32com)
+============================================================
+
+--- CELDAS CON CONTENIDO (filas 1-60) ---
+Fila 4: B4='MOVIMIENTO DE PERSONAL'
+Fila 8: C8='Nombre', E8='Raul Abel Cetina Pool', O8='Departamento', Q8='TI'
+Fila 10: C10='Fecha de Autorizacion', H10='2026-01-19 00:00:00+00:00', M10='Fecha de Aplicaci≤n', P10='1,2,5,6,7,8,9,12,13,14,15 de e'
+Fila 13: B13='SOLICITUD DE PERMISO'
+Fila 15: C15='                  PARA FALTAR', L15='                     PARA RETI'
+Fila 16: C16='                  PARA SALIR Y', L16='                     OLVIDO CH'
+Fila 17: C17='                  PARA LLEGAR ', K17='GOCE DE SUELDO', O17='SI', Q17='NO'
+Fila 20: C20='MOTIVO', G20=' 2,5,6,7,8,9,12,15 retardo jus'
+Fila 23: B23='MODIFICACIONES'
+Fila 25: I25='Modificaci≤n', L25='Promoci≤n', P25='Baja'
+Fila 27: C27='Departamento', K27='A Departamento'
+Fila 29: C29='Motivo'
+Fila 32: C32='Puesto Actual', K32='Puesto Nuevo'
+Fila 35: C35='Sueldo Anterior', J35='Mensual', K35='Sueldo Nuevo:', R35='Mensual'
+Fila 37: C37='NOTA', P37='NETO', R37='BRUTO'
+Fila 39: B39='AVISO DE VACACIONES'
+Fila 41: C41='Fecha de ingreso', J41='Antigⁿedad', O41='Perφodo'
+Fila 43: C43='Dφas Corresponden', I43='Dφas Efectivos', N43='Dφas Pendientes'
+Fila 45: C45='Fecha de Salida', L45='Fecha de Regreso'
+Fila 47: C47='Nombre Suplente:', N47='Departamento'
+Fila 49: C49='NOTA'
+Fila 52: D52='Solicit≤', I52='Autoriz≤', N52='Recibi≤'
+Fila 55: C55='Firma:', I55='Firma:', N55='Firma:'
+Fila 56: C56='Nombre:', E56='Raul Abel Cetina Pool', I56='Nombre:', J56='Carlos Medina', N56='Nombre:'
+Fila 57: D57='Puesto', I57='Puesto', N57='Recursos Humanos'
+Fila 59: A59='  F-RH-18-MIT    VER.2    FECH'
+
+============================================================
+--- SHAPES (FORMAS) EN LA HOJA ---
+============================================================
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 149.6999969482422, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 10.5
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: -1
+  TopLeftCell: $C$15
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 164.25, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 10.5
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $C$16
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 164.25, Left: 277.95001220703125
+  Width: 13.5, Height: 10.5
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: -1
+  TopLeftCell: $M$16
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 147.89999389648438, Left: 276.6000061035156
+  Width: 14.100000381469727, Height: 10.050000190734863
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: -1
+  TopLeftCell: $L$14
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 178.0500030517578, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 10.5
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: -1
+  TopLeftCell: $C$17
+
+Shape: 8 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 693.5999755859375, Left: 35.400001525878906
+  Width: 111.0, Height: 0.12503936886787415
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $D$56
+
+Shape: 9 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 693.5999755859375, Left: 157.64999389648438
+  Width: 121.80000305175781, Height: 0.12503936886787415
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $I$56
+
+Shape: 10 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 693.5999755859375, Left: 332.8500061035156
+  Width: 117.0, Height: 0.12503936886787415
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $N$56
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 177.3000030517578, Left: 375.6000061035156
+  Width: 13.5, Height: 10.5
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: -1
+  TopLeftCell: $P$17
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 177.3000030517578, Left: 439.3500061035156
+  Width: 13.5, Height: 10.5
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $R$17
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $C$79
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $C$80
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 277.95001220703125
+  Width: 13.5, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: -1
+  TopLeftCell: $M$80
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 276.6000061035156
+  Width: 14.100000381469727, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: -1
+  TopLeftCell: $L$78
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 23.850000381469727
+  Width: 13.800000190734863, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $C$81
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 446.1000061035156
+  Width: 29.25, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $R$90
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 447.6000061035156
+  Width: 29.25, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $R$107
+
+Shape: 8 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 825.0, Left: 35.400001525878906
+  Width: 111.0, Height: 0.0
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $D$123
+
+Shape: 9 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 825.0, Left: 157.64999389648438
+  Width: 121.80000305175781, Height: 0.0
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $I$123
+
+Shape: 10 Conector recto
+  Type: 9
+  AutoShapeType: -2
+  Top: 825.0, Left: 332.8500061035156
+  Width: 117.0, Height: 0.0
+  Fill.ForeColor: RGB(0)
+  Fill.Visible: 0
+  TopLeftCell: $N$123
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 446.1000061035156
+  Width: 29.25, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $R$77
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 149.39999389648438
+  Width: 14.25, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: -1
+  TopLeftCell: $H$81
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 375.6000061035156
+  Width: 13.5, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $P$81
+
+Shape: Oval 16
+  Type: 1
+  AutoShapeType: 9
+  Top: 825.0, Left: 439.3500061035156
+  Width: 13.5, Height: 0.0
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $R$81
+
+Shape: Picture 12
+  Type: 13
+  AutoShapeType: 1
+  Top: 13.5, Left: 9.600000381469727
+  Width: 83.4000015258789, Height: 45.13905334472656
+  Fill.ForeColor: RGB(16777215)
+  Fill.Visible: 0
+  TopLeftCell: $C$3
+
+Shape: Check Box 3
+  Type: 8
+  AutoShapeType: -2
+  Top: 438.0, Left: 402.6000061035156
+  Width: 22.799999237060547, Height: 24.0
+  Fill.ForeColor: RGB(17)
+  Fill.Visible: 0
+  TopLeftCell: $Q$37
+
+Shape: Check Box 6
+  Type: 8
+  AutoShapeType: -2
+  Top: 438.0, Left: 453.6000061035156
+  Width: 24.0, Height: 23.399999618530273
+  Fill.ForeColor: RGB(17)
+  Fill.Visible: 0
+  TopLeftCell: $R$37
+
+Shape: Check Box 7
+  Type: 8
+  AutoShapeType: -2
+  Top: 475.79998779296875, Left: 440.3999938964844
+  Width: 16.200000762939453, Height: 18.0
+  Fill.ForeColor: RGB(17)
+  Fill.Visible: 0
+  TopLeftCell: $R$39
+
+Shape: Check Box 9
+  Type: 8
+  AutoShapeType: -2
+  Top: 255.0, Left: 443.3999938964844
+  Width: 17.399999618530273, Height: 16.200000762939453
+  Fill.ForeColor: RGB(17)
+  Fill.Visible: 0
+  TopLeftCell: $R$22
+
+Shape: Check Box 11
+  Type: 8
+  AutoShapeType: -2
+  Top: 124.80000305175781, Left: 445.79998779296875
+  Width: 15.600000381469727, Height: 17.399999618530273
+  Fill.ForeColor: RGB(17)
+  Fill.Visible: 0
+  TopLeftCell: $R$12
+
+============================================================
+--- CELDAS DE FIRMAS (filas 52-58) ---
+============================================================
+  D52: 'Solicit≤'
+  I52: 'Autoriz≤'
+  N52: 'Recibi≤'
+  C55: 'Firma:'
+  I55: 'Firma:'
+  N55: 'Firma:'
+  C56: 'Nombre:'
+  E56: 'Raul Abel Cetina Pool'
+  I56: 'Nombre:'
+  J56: 'Carlos Medina'
+  N56: 'Nombre:'
+  D57: 'Puesto'
+  I57: 'Puesto'
+  N57: 'Recursos Humanos'
+
+============================================================
+AN┴LISIS COMPLETADO
+============================================================

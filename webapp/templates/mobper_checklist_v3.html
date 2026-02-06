@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobPer - Checklist</title>
+    <!-- Critical CSS inline para LCP óptimo según Google Web.dev -->
+    <style>
+        /* Critical CSS - Solo above-the-fold */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f3f4f6;
+            color: #3E2723;
+            line-height: 1.5;
+            padding-bottom: 80px
+        }
+
+        .header {
+            background: linear-gradient(135deg, #5D4037 0%, #3E2723 100%);
+            color: #fff;
+            padding: .75rem 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, .1);
+            position: sticky;
+            top: 0;
+            z-index: 100
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-weight: 700;
+            font-size: 1.125rem
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            font-size: .875rem
+        }
+
+        .user-info a {
+            color: #fff;
+            text-decoration: none;
+            padding: .375rem .75rem;
+            border-radius: .375rem;
+            background: rgba(255, 255, 255, .1)
+        }
+
+        .nav-container {
+            background: #fff;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+            margin-bottom: 1.5rem
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem
+        }
+
+        .period-title {
+            font-weight: 600;
+            color: #3E2723;
+            font-size: .75rem
+        }
+
+        .nav-btn {
+            padding: .5rem 1rem;
+            border-radius: .5rem;
+            text-decoration: none;
+            font-size: .875rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem
+        }
+
+        .nav-btn.prev {
+            background: #f3f4f6;
+            color: #3E2723
+        }
+
+        .nav-btn.next {
+            background: #5D4037;
+            color: #fff
+        }
+
+        .nav-btn.disabled {
+            opacity: .5;
+            pointer-events: none
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem
+        }
+
+        .stats {
+            display: flex;
+            gap: .5rem;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+            padding: .5rem 0
+        }
+    </style>
+    <!-- Non-critical CSS loaded asynchronously -->
+    <style>
+        :root {
+            --primary: #5D4037;
+            --primary-dark: #3E2723;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --gray: #6b7280;
+            --gray-light: #f3f4f6;
+            --gray-dark: #3E2723;
+            --brown: #5D4037;
+            --brown-dark: #3E2723;
+            --white: #ffffff;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        html {
+            font-display: swap;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-light);
+            color: var(--gray-dark);
+            line-height: 1.5;
+            padding-bottom: 80px;
+        }
+
+        /* Header Moderno */
+        .header {
+            background: linear-gradient(135deg, var(--brown) 0%, var(--brown-dark) 100%);
+            color: white;
+            padding: 0.75rem 1rem;
+            box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .user-info a {
+            color: white;
+            text-decoration: none;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+
+        .user-info a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Navegación Quincena */
+        .nav-period {
+            background: white;
+            padding: 1rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 1rem;
+        }
+
+        .nav-period-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .period-title {
+            font-weight: 600;
+            color: var(--brown-dark);
+            font-size: 0.75rem;
+        }
+
+        .nav-btn:hover:not(.disabled) {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+
+        /* Stats Cards - Diseño Horizontal Compacto */
+        .stats {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+            padding: 0.5rem 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--shadow);
+            min-width: fit-content;
+            border-left: 3px solid;
+        }
+
+        .stat-card.success {
+            border-left-color: var(--success);
+        }
+
+        .stat-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .stat-card.danger {
+            border-left-color: var(--danger);
+        }
+
+        .stat-card.info {
+            border-left-color: var(--info);
+        }
+
+        .stat-card.gray {
+            border-left-color: var(--gray);
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-card.success .stat-number {
+            color: var(--success);
+        }
+
+        .stat-card.warning .stat-number {
+            color: var(--warning);
+        }
+
+        .stat-card.danger .stat-number {
+            color: var(--danger);
+        }
+
+        .stat-card.info .stat-number {
+            color: var(--info);
+        }
+
+        .stat-card.gray .stat-number {
+            color: var(--gray);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+            font-weight: 500;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Estilos para iconos Font Awesome */
+        .fas,
+        .far {
+            margin-right: 0.35rem;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
+        /* Colores de iconos según contexto */
+        .stat-card.success .fas {
+            color: var(--success);
+        }
+
+        .stat-card.warning .fas {
+            color: var(--warning);
+        }
+
+        .stat-card.danger .fas {
+            color: var(--danger);
+        }
+
+        .stat-card.info .fas {
+            color: var(--info);
+        }
+
+        .stat-card.gray .fas {
+            color: var(--gray);
+        }
+
+        .section-icon .fas,
+        .section-icon .far {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .section-icon.danger .fas {
+            color: var(--danger);
+        }
+
+        .section-icon.warning .fas {
+            color: var(--warning);
+        }
+
+        .section-icon.success .fas {
+            color: var(--success);
+        }
+
+        .section-icon.gray .far {
+            color: var(--gray);
+        }
+
+        .just-label .fas {
+            font-size: 0.875rem;
+        }
+
+        .goce-label .fas {
+            font-size: 1.25rem;
+            color: var(--brown);
+        }
+
+        .toggle-status .fas {
+            font-size: 0.875rem;
+        }
+
+        .dias-resumen-title .fas {
+            color: var(--brown);
+        }
+
+        .header .fas {
+            font-size: 1.25rem;
+        }
+
+        .user-info .fas {
+            font-size: 1rem;
+        }
+
+        .period-title .far {
+            color: var(--brown);
+            margin-right: 0.5rem;
+        }
+
+        /* Cards Grid para incidencias */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 0.75rem;
+            contain: layout;
+        }
+
+        /* Toggle Switch Compacto */
+        .goce-toggle {
+            background: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 1.5rem;
+        }
+
+        .goce-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--brown-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 56px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--danger);
+            border-radius: 28px;
+            transition: 0.3s;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background-color: var(--success);
+        }
+
+        .toggle-switch input:not(:checked)+.toggle-slider {
+            background-color: var(--danger);
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 2px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(28px);
+        }
+
+        .toggle-status {
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .toggle-status.con-goce {
+            color: var(--success);
+        }
+
+        .toggle-status.sin-goce {
+            color: var(--danger);
+        }
+
+        /* Resumen de Días a Justificar */
+        .dias-resumen {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #fff9e6;
+            border-left: 4px solid var(--warning);
+            border-radius: 0.5rem;
+            contain: layout style paint;
+            min-height: 70px;
+        }
+
+        .dias-resumen-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--brown-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .dias-resumen-content {
+            font-size: 0.875rem;
+            color: var(--gray-dark);
+            line-height: 1.6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .dias-resumen-content strong {
+            color: var(--brown-dark);
+            font-weight: 700;
+        }
+
+        .dias-resumen-count {
+            display: inline-block;
+            background: var(--warning);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-weight: 700;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+
+        /* Secciones */
+        .section {
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .section-icon {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .section-icon.danger {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .section-icon.warning {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .section-icon.success {
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .section-icon.gray {
+            background: rgba(107, 114, 128, 0.1);
+        }
+
+        .section-info h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--brown-dark);
+            margin: 0;
+        }
+
+        .count {
+            font-size: 0.75rem;
+            color: var(--gray);
+            line-height: 1.2;
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        /* Incidence Card Compacta */
+        .inc-card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            border-left: 4px solid;
+        }
+
+        .inc-card.danger {
+            border-left-color: var(--danger);
+        }
+
+        .inc-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .inc-card.success {
+            border-left-color: var(--success);
+        }
+
+        .inc-card.gray {
+            border-left-color: var(--gray);
+        }
+
+        .inc-card.info {
+            border-left-color: var(--info);
+        }
+
+        .inc-header {
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--gray-light);
+        }
+
+        .inc-date {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--gray-dark);
+        }
+
+        .inc-day {
+            font-size: 0.75rem;
+            color: var(--gray);
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .badge.warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .badge.success {
+            background: var(--success);
+            color: white;
+        }
+
+        .badge.gray {
+            background: var(--gray);
+            color: white;
+        }
+
+        .badge.info {
+            background: var(--info);
+            color: white;
+        }
+
+        .inc-body {
+            padding: 1rem;
+        }
+
+        .inc-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--gray-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .inc-info:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Select Moderno */
+        .select-wrapper {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--gray-light);
+        }
+
+        .select-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .select-modern {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--gray-light);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            background: white;
+            color: var(--gray-dark);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .select-modern:focus {
+            outline: none;
+            border-color: var(--brown);
+        }
+
+        /* Tag de Clasificación */
+        .class-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .class-tag.remoto {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .class-tag.guardia {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+
+        .class-tag.permiso {
+            background: #e9d5ff;
+            color: #6b21a8;
+        }
+
+        .class-tag.vacaciones {
+            background: #ccfbf1;
+            color: #115e59;
+        }
+
+        .class-tag.incapacidad {
+            background: #fce7f3;
+            color: #9f1239;
+        }
+
+        /* Nota de Incapacidad */
+        .nota-incapacidad {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: #fef3c7;
+            border-left: 3px solid #f59e0b;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            color: #92400e;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .nota-incapacidad.show {
+            display: block;
+        }
+
+        .nota-incapacidad strong {
+            font-weight: 700;
+            color: #78350f;
+        }
+
+        /* Toggle Justificación Compacto */
+        .just-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: var(--gray-light);
+            border-radius: 0.5rem;
+        }
+
+        .just-toggle .toggle-switch {
+            width: 44px;
+            height: 24px;
+        }
+
+        .just-toggle .toggle-slider:before {
+            height: 18px;
+            width: 18px;
+        }
+
+        .just-toggle input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .just-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .just-label.yes {
+            color: var(--success);
+        }
+
+        .just-label.no {
+            color: var(--danger);
+        }
+
+        /* Botón Flotante */
+        .fab {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--brown);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: var(--shadow-lg);
+            border: none;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            z-index: 50;
+        }
+
+        .fab:hover {
+            background: var(--brown-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 5rem;
+            right: 1.5rem;
+            background: var(--gray-dark);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-lg);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
+            .stats {
+                grid-template-columns: repeat(5, 1fr);
+            }
+
+            .cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .nav-period-content {
+                flex-direction: row;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .cards-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .user-info span:not(:last-child) {
+                display: none;
+            }
+
+            .logo {
+                font-size: 1rem;
+            }
+
+            .fab {
+                padding: 0.75rem 1rem;
+                font-size: 0.75rem;
+            }
+
+            .fab span {
+                display: none;
+            }
+
+            .stats {
+                gap: 0.375rem;
+            }
+
+            .stat-card {
+                padding: 0.375rem 0.5rem;
+            }
+
+            .stat-number {
+                font-size: 1.25rem;
+            }
+
+            .stat-label {
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+    <!-- Font Awesome - Iconos profesionales (jsDelivr CDN) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-clipboard-check"></i>
+                <span>MOBPER</span>
+            </div>
+            <div class="user-info">
+                <span>{{ user.nombre_completo }}</span>
+                <a href="{{ url_for('mobper.config') }}"><i class="fas fa-cog"></i></a>
+                <a href="{{ url_for('mobper.logout') }}"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegación Período -->
+    <div class="nav-period">
+        <div class="nav-period-content">
+            <a href="{{ url_for('mobper.checklist', year=quincena_anterior.anio, month=quincena_anterior.mes, quincena_num=quincena_anterior.numero) }}"
+                class="nav-btn prev">
+                ← Anterior
+            </a>
+            <div class="period-title"><i class="far fa-calendar-alt"></i> {{ quincena.nombre }}</div>
+            {% if puede_ir_siguiente %}
+            <a href="{{ url_for('mobper.checklist', year=quincena_siguiente.anio, month=quincena_siguiente.mes, quincena_num=quincena_siguiente.numero) }}"
+                class="nav-btn next">
+                Siguiente →
+            </a>
+            {% else %}
+            <span class="nav-btn next disabled">Siguiente →</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats - Diseño Horizontal Compacto -->
+        <div class="stats">
+            <div class="stat-card success">
+                <div class="stat-number">{{ resumen.a_tiempo }}</div>
+                <div class="stat-label"><i class="fas fa-check-circle"></i> A Tiempo</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-number">{{ resumen.retardos }}</div>
+                <div class="stat-label"><i class="fas fa-clock"></i> Retardos</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-number">{{ resumen.faltas }}</div>
+                <div class="stat-label"><i class="fas fa-times-circle"></i> Faltas</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-number">{{ resumen.inhabiles }}</div>
+                <div class="stat-label"><i class="fas fa-calendar-times"></i> Inhábiles</div>
+            </div>
+            <div class="stat-card gray">
+                <div class="stat-number">{{ resumen.descansos }}</div>
+                <div class="stat-label"><i class="fas fa-mug-hot"></i> Descansos</div>
+            </div>
+        </div>
+
+        <!-- Toggle Goce de Sueldo -->
+        <div class="goce-toggle">
+            <div class="goce-label">
+                <i class="fas fa-wallet"></i>
+                <span>Tipo de Movimiento</span>
+            </div>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="goceToggle" checked onchange="updateGoceStatus()">
+                    <span class="toggle-slider"></span>
+                </label>
+                <div class="toggle-status con-goce" id="goceStatus">
+                    <i class="fas fa-check" id="goceIcon"></i> Con Goce de Sueldo
+                </div>
+            </div>
+
+            <!-- Resumen de Días a Justificar -->
+            <div class="dias-resumen">
+                <div class="dias-resumen-title"><i class="fas fa-clipboard-list"></i> Resumen de Justificación</div>
+                <div class="dias-resumen-content" id="diasResumen">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando resumen...
+                </div>
+            </div>
+        </div>
+
+        {% set retardos = [] %}
+        {% set faltas = [] %}
+        {% set a_tiempo = [] %}
+        {% set descansos = [] %}
+        {% set inhabiles = [] %}
+
+        {% for inc in incidencias %}
+        {% if inc.estado_auto == 'RETARDO' %}
+        {% set _ = retardos.append(inc) %}
+        {% elif inc.estado_auto == 'FALTA' %}
+        {% set _ = faltas.append(inc) %}
+        {% elif inc.estado_auto == 'A_TIEMPO' %}
+        {% set _ = a_tiempo.append(inc) %}
+        {% elif inc.estado_auto == 'DESCANSO' %}
+        {% set _ = descansos.append(inc) %}
+        {% elif inc.estado_auto == 'INHABIL' %}
+        {% set _ = inhabiles.append(inc) %}
+        {% endif %}
+        {% endfor %}
+
+        <!-- FALTAS -->
+        {% if faltas %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-icon danger"><i class="fas fa-times-circle"></i></div>
+                <div class="section-info">
+                    <h3>Faltas - Requieren Clasificación</h3>
+                    <div class="count">{{ faltas|length }} incidencias</div>
+                </div>
+            </div>
+            <div class="cards-grid">
+                {% for inc in faltas %}
+                <div class="inc-card danger" data-fecha="{{ inc.fecha }}">
+                    <div class="inc-header">
+                        <div>
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                        </div>
+                        <span class="badge danger">Falta</span>
+                    </div>
+                    <div class="inc-body">
+                        <div class="inc-info">
+                            <span>❌</span>
+                            <span>Sin registro de entrada</span>
+                        </div>
+
+                        <div class="select-wrapper">
+                            <div class="select-label">Clasificar:</div>
+                            <select class="select-modern" data-fecha="{{ inc.fecha }}" data-numero="{{ loop.index }}"
+                                onchange="clasificarFalta(this)">
+                                <option value="">Seleccionar...</option>
+                                <option value="REMOTO" {% if inc.clasificacion=='REMOTO' %}selected{% endif %}>🏠
+                                    Trabajo Remoto</option>
+                                <option value="GUARDIA" {% if inc.clasificacion=='GUARDIA' %}selected{% endif %}>📞
+                                    Guardia</option>
+                                <option value="PERMISO" {% if inc.clasificacion=='PERMISO' %}selected{% endif %}>📝
+                                    Permiso</option>
+                                <option value="VACACIONES" {% if inc.clasificacion=='VACACIONES' %}selected{% endif %}>
+                                    🏖️ Vacaciones</option>
+                                <option value="INCAPACIDAD" {% if inc.clasificacion=='INCAPACIDAD' %}selected{% endif
+                                    %}>🏥 Incapacidad</option>
+                            </select>
+
+                            {% if inc.clasificacion %}
+                            <div class="class-tag {{ inc.clasificacion|lower }}">
+                                {% if inc.clasificacion == 'REMOTO' %}🏠 Trabajo Remoto
+                                {% elif inc.clasificacion == 'GUARDIA' %}📞 Guardia
+                                {% elif inc.clasificacion == 'PERMISO' %}📝 Permiso
+                                {% elif inc.clasificacion == 'VACACIONES' %}🏖️ Vacaciones
+                                {% elif inc.clasificacion == 'INCAPACIDAD' %}🏥 Incapacidad
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <div class="nota-incapacidad" id="nota-{{ inc.fecha }}" {% if
+                                inc.clasificacion=='INCAPACIDAD' %}style="display: block;" {% endif %}>
+                                <strong>ℹ️ Nota:</strong> Las incapacidades médicas no se incluyen en el formato MobPer.
+                                Este día no aparecerá en el documento de justificación.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- RETARDOS -->
+        {% if retardos %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-icon warning"><i class="fas fa-clock"></i></div>
+                <div class="section-info">
+                    <h3>Retardos</h3>
+                    <div class="count">{{ retardos|length }} incidencias</div>
+                </div>
+            </div>
+            <div class="cards-grid">
+                {% for inc in retardos %}
+                <div class="inc-card warning" data-fecha="{{ inc.fecha }}">
+                    <div class="inc-header">
+                        <div>
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                        </div>
+                        <span class="badge warning">+{{ inc.minutos_diferencia }} min</span>
+                    </div>
+                    <div class="inc-body">
+                        <div class="inc-info">
+                            <span>🕐</span>
+                            <span>Entrada: {{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
+                        </div>
+                        <div class="inc-info">
+                            <span>⏱️</span>
+                            <span>Límite: {{ inc.hora_limite.strftime('%H:%M') }}</span>
+                        </div>
+
+                        <div class="just-toggle">
+                            <label class="toggle-switch">
+                                <input type="checkbox" {% if inc.justificado is not defined or inc.justificado
+                                    %}checked{% endif %}
+                                    onchange="toggleJustificacion('{{ inc.fecha }}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span
+                                class="just-label {% if inc.justificado is not defined or inc.justificado %}yes{% else %}no{% endif %}"
+                                id="label-{{ inc.fecha }}">
+                                {% if inc.justificado is not defined or inc.justificado %}
+                                <i class="fas fa-check"></i> Justificado
+                                {% else %}
+                                <i class="fas fa-times"></i> No Justificado
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- A TIEMPO -->
+        {% if a_tiempo %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-icon success"><i class="fas fa-check-circle"></i></div>
+                <div class="section-info">
+                    <h3>Asistencias Puntuales</h3>
+                    <div class="count">{{ a_tiempo|length }} días</div>
+                </div>
+            </div>
+            <div class="cards-grid">
+                {% for inc in a_tiempo %}
+                <div class="inc-card success">
+                    <div class="inc-header">
+                        <div>
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                        </div>
+                        <span class="badge success">A Tiempo</span>
+                    </div>
+                    <div class="inc-body">
+                        <div class="inc-info">
+                            <span>✅</span>
+                            <span>{{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- DESCANSOS E INHÁBILES -->
+        {% if descansos or inhabiles %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-icon gray"><i class="far fa-calendar"></i></div>
+                <div class="section-info">
+                    <h3>Días No Laborables</h3>
+                    <div class="count">{{ (descansos|length) + (inhabiles|length) }} días</div>
+                </div>
+            </div>
+            <div class="cards-grid">
+                {% for inc in descansos %}
+                <div class="inc-card gray">
+                    <div class="inc-header">
+                        <div>
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                        </div>
+                        <span class="badge gray">Descanso</span>
+                    </div>
+                </div>
+                {% endfor %}
+                {% for inc in inhabiles %}
+                <div class="inc-card info">
+                    <div class="inc-header">
+                        <div>
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+                        </div>
+                        <span class="badge info">{{ inc.nombre_inhabil or 'Inhábil' }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Botón Flotante -->
+    <button class="fab" onclick="generarFormatoExcel()">
+        <span>📄</span>
+        <span>Generar Excel</span>
+    </button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let conGoceSueldo = true;
+
+        // Calcular y mostrar resumen de días que ESTOY justificando
+        function calcularResumenDias() {
+            const incidencias = [];
+
+            // Optimización: cachear selectores
+            const retardosCards = document.querySelectorAll('.inc-card.warning');
+            const faltasCards = document.querySelectorAll('.inc-card.danger');
+
+            // Recopilar SOLO las incidencias que YA están justificadas/clasificadas
+            // Retardos: solo los que tienen el toggle de justificación activado
+            retardosCards.forEach(card => {
+                const fecha = card.dataset.fecha;
+                const toggleInput = card.querySelector('input[type="checkbox"]');
+
+                // Solo incluir si el toggle está marcado (justificado)
+                if (fecha && toggleInput && toggleInput.checked) {
+                    const fechaObj = new Date(fecha + 'T00:00:00');
+                    const dia = fechaObj.getDate();
+                    incidencias.push({
+                        fecha: fechaObj,
+                        dia: dia,
+                        tipo: 'retardo'
+                    });
+                }
+            });
+
+            // Faltas: solo las que tienen clasificación (excepto incapacidad)
+            faltasCards.forEach(card => {
+                const fecha = card.dataset.fecha;
+                const select = card.querySelector('select');
+
+                if (fecha && select && select.value && select.value !== 'INCAPACIDAD') {
+                    const fechaObj = new Date(fecha + 'T00:00:00');
+                    const dia = fechaObj.getDate();
+                    incidencias.push({
+                        fecha: fechaObj,
+                        dia: dia,
+                        tipo: 'falta'
+                    });
+                }
+            });
+
+            if (incidencias.length === 0) {
+                document.getElementById('diasResumen').innerHTML =
+                    '<i class="fas fa-clipboard"></i> No hay días justificados aún. Clasifica las faltas para verlas aquí.';
+                return;
+            }
+
+            // Ordenar por fecha
+            incidencias.sort((a, b) => a.fecha - b.fecha);
+
+            // Obtener mes y año
+            const primeraFecha = incidencias[0].fecha;
+            const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+            const mes = meses[primeraFecha.getMonth()];
+            const anio = primeraFecha.getFullYear();
+
+            // Crear lista de días
+            const dias = incidencias.map(inc => inc.dia).join('/');
+            const total = incidencias.length;
+
+            // Contar por tipo
+            const faltas = incidencias.filter(inc => inc.tipo === 'falta').length;
+            const retardos = incidencias.filter(inc => inc.tipo === 'retardo').length;
+
+            let detalle = '';
+            if (faltas > 0 && retardos > 0) {
+                detalle = ` (${faltas} falta${faltas > 1 ? 's' : ''}, ${retardos} retardo${retardos > 1 ? 's' : ''})`;
+            } else if (faltas > 0) {
+                detalle = ` (${faltas} falta${faltas > 1 ? 's' : ''})`;
+            } else if (retardos > 0) {
+                detalle = ` (${retardos} retardo${retardos > 1 ? 's' : ''})`;
+            }
+
+            document.getElementById('diasResumen').innerHTML =
+                `<i class="fas fa-file-alt"></i> Estoy justificando días <strong>${dias}</strong> de ${mes} ${anio}${detalle} <span class="dias-resumen-count">${total} día${total > 1 ? 's' : ''}</span>`;
+        }
+
+        // Ejecutar después del renderizado crítico para mejorar LCP
+        // Usar requestIdleCallback para no bloquear el hilo principal
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(function () {
+                calcularResumenDias();
+            }, { timeout: 2000 });
+        } else {
+            // Fallback para navegadores que no soportan requestIdleCallback
+            setTimeout(function () {
+                calcularResumenDias();
+            }, 100);
+        }
+
+        function updateGoceStatus() {
+            const toggle = document.getElementById('goceToggle');
+            const status = document.getElementById('goceStatus');
+            conGoceSueldo = toggle.checked;
+
+            if (toggle.checked) {
+                status.innerHTML = '<i class="fas fa-check"></i> Con Goce de Sueldo';
+                status.className = 'toggle-status con-goce';
+            } else {
+                status.innerHTML = '<i class="fas fa-times"></i> Sin Goce de Sueldo';
+                status.className = 'toggle-status sin-goce';
+            }
+        }
+
+        function clasificarFalta(select) {
+            const fecha = select.dataset.fecha;
+            const numero = select.dataset.numero;
+            const clasificacion = select.value;
+
+            console.log('Clasificando falta:', { fecha, numero, clasificacion });
+
+            // Mostrar/ocultar nota de incapacidad
+            const nota = document.getElementById(`nota-${fecha}`);
+            if (nota) {
+                if (clasificacion === 'INCAPACIDAD') {
+                    nota.style.display = 'block';
+                } else {
+                    nota.style.display = 'none';
+                }
+            }
+
+            if (!clasificacion) {
+                console.log('Sin clasificación, abortando');
+                return;
+            }
+
+            const payload = {
+                fecha: fecha,
+                clasificacion: clasificacion,
+                estado_auto: 'FALTA',
+                numero_dia: numero
+            };
+
+            console.log('Enviando payload:', payload);
+
+            fetch('/mobper/api/clasificar-dia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(res => {
+                    console.log('Response status:', res.status);
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.success) {
+                        showToast('✅ Clasificación guardada', 'success');
+                        // Actualizar resumen antes de recargar
+                        setTimeout(() => {
+                            calcularResumenDias();
+                            location.reload();
+                        }, 500);
+                    } else {
+                        showToast('❌ ' + (data.error || 'Error al guardar'), 'error');
+                        console.error('Error en respuesta:', data);
+                    }
+                })
+                .catch(error => {
+                    showToast('❌ Error de conexión', 'error');
+                    console.error('Error en clasificarFalta:', error);
+                });
+        }
+
+        function toggleJustificacion(fecha, justificado) {
+            const label = document.getElementById(`label-${fecha}`);
+
+            if (label) {
+                if (justificado) {
+                    label.innerHTML = '<i class="fas fa-check"></i> Justificado';
+                    label.className = 'just-label yes';
+                } else {
+                    label.innerHTML = '<i class="fas fa-times"></i> No Justificado';
+                    label.className = 'just-label no';
+                }
+            }
+
+            fetch('/mobper/api/toggle-justificacion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fecha: fecha, justificado: justificado })
+            })
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showToast('✅ Actualizado', 'success');
+                        // Actualizar el resumen inmediatamente
+                        calcularResumenDias();
+                    } else {
+                        showToast('❌ ' + (data.error || 'Error al actualizar'), 'error');
+                        console.error('Error:', data);
+                    }
+                })
+                .catch(error => {
+                    showToast('❌ Error de conexión', 'error');
+                    console.error('Error en toggleJustificacion:', error);
+                });
+        }
+
+        function generarFormatoExcel() {
+            // Pasar el toggle de goce de sueldo como parámetro
+            const goceToggle = document.getElementById('goceToggle');
+            const conGoce = goceToggle ? (goceToggle.checked ? '1' : '0') : '1';
+            window.location.href = `/mobper/generar-excel?con_goce=${conGoce}`;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+
+</html>

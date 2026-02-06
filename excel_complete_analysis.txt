@@ -1,0 +1,237 @@
+============================================================
+ANALISIS COMPLETO DEL TEMPLATE (via win32com)
+============================================================
+
+--- CELDAS IMPORTANTES ---
+  E8 (Nombre): 'Raul Abel Cetina Pool'
+  O8 (Departamento (arriba)): 'Departamento'
+  H10 (Fecha Autorizacion): '2026-01-19 00:00:00+00:00'
+  P10 (Fecha Aplicacion): '1,2,5,6,7,8,9,12,13,14,15 de enero'
+  G20 (Motivo): ' 2,5,6,7,8,9,12,15 retardo justificado. 1ro falta justificada, Guardia telefónico. 13 y 14 falta justificada, trabajo remoto.'
+  F27 (Departamento (modificaciones)): 'None'
+  C56 (Nombre Solicitó): 'Nombre:'
+  G56 (Nombre Autorizó): 'None'
+  L56 (Nombre Recibió): 'None'
+
+--- BUSCANDO 'TI' EN CELDAS ---
+  Encontrado 'TI' en: Q8
+
+--- SHAPES (CIRCULOS/FORMAS) ---
+Total shapes: 30
+
+  Shape #1: Oval 16
+    Type: 1
+    Position: Top=149.7, Left=23.9
+    TopLeftCell: $C$15
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: -1
+
+  Shape #2: Oval 16
+    Type: 1
+    Position: Top=164.2, Left=23.9
+    TopLeftCell: $C$16
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #3: Oval 16
+    Type: 1
+    Position: Top=164.2, Left=278.0
+    TopLeftCell: $M$16
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: -1
+
+  Shape #4: Oval 16
+    Type: 1
+    Position: Top=147.9, Left=276.6
+    TopLeftCell: $L$14
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: -1
+
+  Shape #5: Oval 16
+    Type: 1
+    Position: Top=178.1, Left=23.9
+    TopLeftCell: $C$17
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: -1
+
+  Shape #6: 8 Conector recto
+    Type: 9
+    Position: Top=693.6, Left=35.4
+    TopLeftCell: $D$56
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #7: 9 Conector recto
+    Type: 9
+    Position: Top=693.6, Left=157.6
+    TopLeftCell: $I$56
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #8: 10 Conector recto
+    Type: 9
+    Position: Top=693.6, Left=332.9
+    TopLeftCell: $N$56
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #9: Oval 16
+    Type: 1
+    Position: Top=177.3, Left=375.6
+    TopLeftCell: $P$17
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: -1
+
+  Shape #10: Oval 16
+    Type: 1
+    Position: Top=177.3, Left=439.4
+    TopLeftCell: $R$17
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #11: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=23.9
+    TopLeftCell: $C$79
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #12: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=23.9
+    TopLeftCell: $C$80
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #13: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=278.0
+    TopLeftCell: $M$80
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: -1
+
+  Shape #14: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=276.6
+    TopLeftCell: $L$78
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: -1
+
+  Shape #15: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=23.9
+    TopLeftCell: $C$81
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #16: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=446.1
+    TopLeftCell: $R$90
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #17: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=447.6
+    TopLeftCell: $R$107
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #18: 8 Conector recto
+    Type: 9
+    Position: Top=825.0, Left=35.4
+    TopLeftCell: $D$123
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #19: 9 Conector recto
+    Type: 9
+    Position: Top=825.0, Left=157.6
+    TopLeftCell: $I$123
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #20: 10 Conector recto
+    Type: 9
+    Position: Top=825.0, Left=332.9
+    TopLeftCell: $N$123
+    FillColor RGB: R=0, G=0, B=0
+    Fill Visible: 0
+
+  Shape #21: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=446.1
+    TopLeftCell: $R$77
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #22: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=149.4
+    TopLeftCell: $H$81
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: -1
+
+  Shape #23: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=375.6
+    TopLeftCell: $P$81
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #24: Oval 16
+    Type: 1
+    Position: Top=825.0, Left=439.4
+    TopLeftCell: $R$81
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #25: Picture 12
+    Type: 13
+    Position: Top=13.5, Left=9.6
+    TopLeftCell: $C$3
+    FillColor RGB: R=255, G=255, B=255
+    Fill Visible: 0
+
+  Shape #26: Check Box 3
+    Type: 8
+    Position: Top=438.0, Left=402.6
+    TopLeftCell: $Q$37
+    FillColor RGB: R=17, G=0, B=0
+    Fill Visible: 0
+
+  Shape #27: Check Box 6
+    Type: 8
+    Position: Top=438.0, Left=453.6
+    TopLeftCell: $R$37
+    FillColor RGB: R=17, G=0, B=0
+    Fill Visible: 0
+
+  Shape #28: Check Box 7
+    Type: 8
+    Position: Top=475.8, Left=440.4
+    TopLeftCell: $R$39
+    FillColor RGB: R=17, G=0, B=0
+    Fill Visible: 0
+
+  Shape #29: Check Box 9
+    Type: 8
+    Position: Top=255.0, Left=443.4
+    TopLeftCell: $R$22
+    FillColor RGB: R=17, G=0, B=0
+    Fill Visible: 0
+
+  Shape #30: Check Box 11
+    Type: 8
+    Position: Top=124.8, Left=445.8
+    TopLeftCell: $R$12
+    FillColor RGB: R=17, G=0, B=0
+    Fill Visible: 0
+
+--- CELDAS DE FIRMAS (filas 52-60) ---
+  Fila 52: D52='Solicitó', I52='Autorizó', N52='Recibió'
+  Fila 55: C55='Firma:', I55='Firma:', N55='Firma:'
+  Fila 56: C56='Nombre:', E56='Raul Abel Cetina Pool', I56='Nombre:', J56='Carlos Medina', N56='Nombre:'
+  Fila 57: D57='Puesto', I57='Puesto', N57='Recursos Humanos'
+  Fila 59: A59='  F-RH-18-MIT    VER.2   '

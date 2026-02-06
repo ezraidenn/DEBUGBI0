@@ -18,7 +18,11 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytz
 
-from webapp.models import db, User, DeviceCategory, DeviceConfig, UserDevicePermission, init_db, get_or_create_device_config
+from webapp.models import (
+    db, User, DeviceCategory, DeviceConfig, UserDevicePermission, 
+    init_db, get_or_create_device_config,
+    MobPerUser, PresetUsuario, IncidenciaDia
+)
 from webapp.realtime_monitor import RealtimeMonitor
 from webapp.realtime_sse import RealtimeSSE, create_sse_response
 from webapp.cache_manager import init_cache, cache_manager, cached
@@ -1871,6 +1875,12 @@ def get_panic_status():
 from webapp.emergency_routes import emergency_bp
 app.register_blueprint(emergency_bp)
 logger.info("✓ Sistema de emergencias registrado")
+
+# REGISTRAR BLUEPRINT DE MOBPER
+# ============================================
+from webapp.mobper_routes import mobper_bp
+app.register_blueprint(mobper_bp)
+logger.info("✓ Sistema MobPer registrado")
 
 
 if __name__ == '__main__':

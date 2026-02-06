@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobPer - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+            max-width: 440px;
+            width: 100%;
+            padding: 48px;
+            border-top: 4px solid #5D4037;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: #5D4037;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 16px;
+        }
+
+        h1 {
+            color: #3E2723;
+            font-size: 26px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: center;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: #6D4C41;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 32px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #3E2723;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #D7CCC8;
+            border-radius: 4px;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            background: #FAFAFA;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #5D4037;
+            box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.1);
+            background: white;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: #5D4037;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 13px;
+        }
+
+        .btn-login:hover {
+            background: #4E342E;
+            box-shadow: 0 4px 12px rgba(93, 64, 55, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-error {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF9A9A;
+        }
+
+        .alert-success {
+            background: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #A5D6A7;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #8D6E63;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-icon">�</div>
+            <h1>MobPer</h1>
+            <p class="subtitle">Movimiento de Personal</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success">
+            {{ success }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('mobper.login_page') }}">
+            <div class="form-group">
+                <label for="numero_socio">Número de Socio</label>
+                <input type="text" id="numero_socio" name="numero_socio" 
+                       value="{{ numero_socio or '' }}" 
+                       required autofocus 
+                       placeholder="Ej: 8490"
+                       {% if registered or needs_password %}readonly{% endif %}>
+            </div>
+
+            <div class="form-group" id="nombre-group" {% if registered or needs_password %}style="display: none;"{% endif %}>
+                <label for="nombre">Nombre (Primer nombre + Apellido)</label>
+                <input type="text" id="nombre" name="nombre" 
+                       placeholder="Ej: Raul Cetina"
+                       {% if nombre_completo %}value="{{ nombre_completo }}"{% endif %}>
+                <small style="color: #8D6E63; font-size: 11px; display: block; margin-top: 5px;">
+                    Solo para primer registro. Debe coincidir con BioStar.
+                </small>
+            </div>
+
+            <div class="form-group" id="password-group" {% if not registered and not needs_password %}style="display: none;"{% endif %}>
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password">
+                {% if needs_password %}
+                <small style="color: #8D6E63; font-size: 11px; display: block; margin-top: 5px;">
+                    Crea tu contraseña (mínimo 8 caracteres)
+                </small>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn-login" id="submit-btn">
+                {% if needs_password %}
+                    Crear Contraseña
+                {% elif registered %}
+                    Iniciar Sesión
+                {% else %}
+                    Continuar
+                {% endif %}
+            </button>
+        </form>
+
+        <script>
+            // Detectar si usuario ya está registrado al escribir número de socio
+            const numeroSocioInput = document.getElementById('numero_socio');
+            const nombreGroup = document.getElementById('nombre-group');
+            const passwordGroup = document.getElementById('password-group');
+            const submitBtn = document.getElementById('submit-btn');
+            const passwordInput = document.getElementById('password');
+            const nombreInput = document.getElementById('nombre');
+
+            // Si ya hay valores precargados, no hacer nada
+            {% if not registered and not needs_password %}
+            numeroSocioInput.addEventListener('blur', async function() {
+                const numeroSocio = this.value.trim();
+                if (!numeroSocio) return;
+
+                // Verificar si el usuario existe
+                try {
+                    const response = await fetch('/mobper/api/check-user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ numero_socio: numeroSocio })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.exists) {
+                        // Usuario registrado - mostrar campo de contraseña
+                        nombreGroup.style.display = 'none';
+                        passwordGroup.style.display = 'block';
+                        passwordInput.required = true;
+                        nombreInput.required = false;
+                        submitBtn.textContent = 'INICIAR SESIÓN';
+                    } else {
+                        // Usuario nuevo - mostrar campo de nombre
+                        nombreGroup.style.display = 'block';
+                        passwordGroup.style.display = 'none';
+                        passwordInput.required = false;
+                        nombreInput.required = true;
+                        submitBtn.textContent = 'CONTINUAR';
+                    }
+                } catch (error) {
+                    console.error('Error verificando usuario:', error);
+                }
+            });
+            {% endif %}
+        </script>
+
+        <div class="footer">
+            Sistema de Regularización de Asistencias Quincenal<br>
+            Versión 2.0 - 2026
+        </div>
+    </div>
+</body>
+</html>

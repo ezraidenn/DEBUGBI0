@@ -1,0 +1,147 @@
+============================================================
+ANALISIS DEL TEMPLATE MOBPER
+============================================================
+
+Hoja activa: ALTAS
+Dimensiones: A2:AB126
+Max row: 126, Max col: 28
+
+------------------------------------------------------------
+CELDAS FUSIONADAS (MERGED):
+------------------------------------------------------------
+  B39:S39
+  M100:R101
+  B23:S23
+  F109:H109
+  I119:L119
+  B13:S13
+  D52:H52
+  C84:E88
+  K27:M27
+  D124:H124
+  D61:E61
+  P111:Q111
+  O41:P41
+  F63:L63
+  C105:D105
+  N111:O111
+  L109:M109
+  N103:O103
+  D62:E62
+  O8:P8
+  L45:O45
+  P43:Q43
+  N124:R124
+  F62:L62
+  K100:L101
+  K94:M94
+  I52:L52
+  C94:E94
+  I123:L123
+  B77:S77
+  F41:H41
+  D119:H119
+  F61:L61
+  N51:O51
+  E105:J105
+  N56:R56
+  B69:S69
+  D57:H57
+  N115:O115
+  N35:Q35
+  G115:M115
+  H10:K10
+  E100:I101
+  B6:S6
+  K105:L105
+  K43:L43
+  M105:N105
+  I57:L57
+  N57:R57
+  E56:G56
+  P45:R45
+  N123:R123
+  C8:D8
+  Q105:R105
+  F103:H103
+  M61:T61
+  M62:T62
+  B90:S90
+  K35:M35
+  D63:E63
+  N94:R94
+  B107:S107
+  E96:R98
+  N43:O43
+  G45:I45
+  Q72:R72
+  G113:I113
+  I124:L124
+  A59:S59
+  K111:L111
+  Q109:R109
+  E72:M72
+  B5:S5
+  H74:K74
+  P74:R74
+  N119:R119
+  O109:P109
+  B4:S4
+  K32:L33
+  F27:J27
+  C29:D30
+  E29:R30
+  G84:R88
+  N118:O118
+  Q41:R41
+  M63:T63
+  N27:R27
+  C96:D98
+  C49:D49
+  B70:S70
+  P115:R115
+  L113:O113
+  N47:O47
+  G47:M47
+  Q8:R8
+  C27:E27
+  C32:D33
+  F94:J94
+  P47:R47
+  N52:R52
+  C20:E21
+  B68:S68
+  J41:K41
+  L41:M41
+  E49:R49
+  J109:K109
+  P113:R113
+  P10:R10
+  F35:I35
+  C72:D72
+  G20:R21
+  C37:D37
+  O72:P72
+  E8:M8
+  E37:O37
+  C100:D101
+
+------------------------------------------------------------
+CONTENIDO DE CELDAS (primeras 35 filas):
+------------------------------------------------------------
+Fila 4: B4='MOVIMIENTO DE PERSONAL'
+Fila 8: C8='Nombre', E8='Raul Abel Cetina Pool'
+Fila 10: C10='Fecha de Autorizacion', H10='2026-01-19 00:00:00', M10='Fecha de Aplicación'
+Fila 13: B13='SOLICITUD DE PERMISO'
+Fila 15: C15='                  PARA FALTAR', L15='                     PARA RETIRARSE TEMP'
+Fila 16: C16='                  PARA SALIR Y REGRESAR', L16='                     OLVIDO CHECAR TARJE'
+Fila 17: C17='                  PARA LLEGAR TARDE', K17='GOCE DE SUELDO'
+Fila 20: C20='MOTIVO', G20=' 2,5,6,7,8,9,12,15 retardo justificado. '
+Fila 23: B23='MODIFICACIONES'
+Fila 25: I25='Modificación', L25='Promoción'
+Fila 27: C27='Departamento', K27='A Departamento'
+Fila 29: C29='Motivo'
+Fila 32: C32='Puesto Actual', K32='Puesto Nuevo'
+Fila 35: C35='Sueldo Anterior', J35='Mensual', K35='Sueldo Nuevo:'
+
+============================================================
