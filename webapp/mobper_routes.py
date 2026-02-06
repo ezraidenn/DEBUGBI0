@@ -1194,12 +1194,18 @@ def generar_excel():
         con_goce_param = request.args.get('con_goce', '1')
         con_goce = con_goce_param == '1'
         
-        print(f"[MOBPER ROUTES] Llamando a generar_formato_excel")
+        print(f"[MOBPER ROUTES] === GENERAR EXCEL ===")
+        print(f"[MOBPER ROUTES] Params recibidos: year={year}, month={month}, quincena_num={quincena_num}, con_goce={con_goce_param}")
         print(f"[MOBPER ROUTES] User: {user.nombre_completo}")
         print(f"[MOBPER ROUTES] Preset: {preset}")
-        print(f"[MOBPER ROUTES] Incidencias: {len(incidencias_dict)}")
-        print(f"[MOBPER ROUTES] Quincena: {quincena}")
-        print(f"[MOBPER ROUTES] Con goce: {con_goce} (param: {con_goce_param})")
+        print(f"[MOBPER ROUTES] Quincena calculada: {quincena}")
+        print(f"[MOBPER ROUTES] Incidencias totales: {len(incidencias_dict)}")
+        print(f"[MOBPER ROUTES] Con goce: {con_goce}")
+        
+        # Log detallado de incidencias para debug
+        for inc in incidencias_dict:
+            if inc.get('estado_auto') in ('RETARDO', 'FALTA'):
+                print(f"[MOBPER ROUTES]   {inc['fecha']} - {inc['estado_auto']} | clasificacion={inc.get('clasificacion')} | justificado={inc.get('justificado')} | motivo={inc.get('motivo_auto')}")
         
         # Generar Excel
         output_path, filename = generar_formato_excel(

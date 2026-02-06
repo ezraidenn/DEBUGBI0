@@ -283,8 +283,10 @@ def generar_formato_excel(
         sheet.Range(CELDAS['DEPARTAMENTO']).Font.Size = tamano_depto
         print(f"[MOBPER EXCEL] Tamaño letra departamento: {tamano_depto}")
         
-        # Fecha de autorización (hoy) en formato dd/mm/yyyy
-        fecha_auth = datetime.now().strftime('%d/%m/%Y')
+        # Fecha de autorización (hoy) en formato dd-mmm-yy con mes en español
+        now = datetime.now()
+        mes_corto = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic'}
+        fecha_auth = f"{now.day:02d}-{mes_corto[now.month]}-{now.strftime('%y')}"
         print(f"[MOBPER EXCEL] Escribiendo fecha auth en {CELDAS['FECHA_AUTORIZACION']}: {fecha_auth}")
         sheet.Range(CELDAS['FECHA_AUTORIZACION']).Value = fecha_auth
         
@@ -310,7 +312,9 @@ def generar_formato_excel(
         
         # Marcar los círculos correspondientes según tipos encontrados
         print(f"[MOBPER EXCEL] Marcando círculos según incidencias...")
-        if tipos['faltas']:
+        # PARA FALTAR: cualquier tipo de falta (genérica, remoto, guardia, permiso, vacaciones)
+        tiene_faltas = tipos['faltas'] or tipos['remotos'] or tipos['guardias'] or tipos['permisos'] or tipos['vacaciones']
+        if tiene_faltas:
             set_circle_color(sheet, SHAPES['PARA_FALTAR'], True)
         if tipos['retardos']:
             set_circle_color(sheet, SHAPES['PARA_LLEGAR_TARDE'], True)
@@ -416,41 +420,44 @@ def construir_fechas_aplicacion(incidencias: List[Dict], quincena: Dict) -> str:
 def analizar_tipos_incidencias(incidencias: List[Dict]) -> Dict:
     """
     Analiza las incidencias y agrupa por tipo.
+    Usa estado_auto para retardos y clasificacion para faltas.
+    Las faltas se agrupan por su clasificación específica (REMOTO, GUARDIA, etc.)
     """
     tipos = {
-        'faltas': [],
+        'faltas': [],           # Faltas sin clasificar o clasificadas como FALTA genérica
         'retardos': [],
-        'remotos': [],
-        'guardias': [],
-        'permisos': [],
-        'vacaciones': [],
-        'incapacidades': [],
+        'remotos': [],          # Faltas clasificadas como TRABAJO_REMOTO/REMOTO
+        'guardias': [],         # Faltas clasificadas como GUARDIA/GUARDIA_TELEFONICA
+        'permisos': [],         # Faltas clasificadas como PERMISO
+        'vacaciones': [],       # Faltas clasificadas como VACACIONES
+        'incapacidades': [],    # Faltas clasificadas como INCAPACIDAD (no se usa en motivo)
         'olvido_checar': [],
         'salir_regresar': [],
         'retirarse_temprano': [],
     }
     
     for inc in incidencias:
-        clasificacion = inc.get('clasificacion') or inc.get('estado_auto') or ''
+        estado_auto = inc.get('estado_auto', '')
+        clasificacion = inc.get('clasificacion', '')
         fecha = inc.get('fecha')
         dia = fecha.day if fecha else 0
         
-        if clasificacion == 'FALTA':
-            tipos['faltas'].append(dia)
-        elif clasificacion == 'RETARDO':
+        if estado_auto == 'RETARDO':
             tipos['retardos'].append(dia)
-        elif clasificacion in ('REMOTO', 'TRABAJO_REMOTO'):
-            tipos['remotos'].append(dia)
-        elif clasificacion in ('GUARDIA', 'GUARDIA_TELEFONICA'):
-            tipos['guardias'].append(dia)
-        elif clasificacion == 'PERMISO':
-            tipos['permisos'].append(dia)
-        elif clasificacion == 'VACACIONES':
-            tipos['vacaciones'].append(dia)
-        elif clasificacion == 'INCAPACIDAD':
-            tipos['incapacidades'].append(dia)
-        elif clasificacion == 'OLVIDO_CHECAR':
-            tipos['olvido_checar'].append(dia)
+        elif estado_auto == 'FALTA':
+            # Agrupar faltas por su clasificación específica
+            if clasificacion in ('REMOTO', 'TRABAJO_REMOTO'):
+                tipos['remotos'].append(dia)
+            elif clasificacion in ('GUARDIA', 'GUARDIA_TELEFONICA'):
+                tipos['guardias'].append(dia)
+            elif clasificacion == 'PERMISO':
+                tipos['permisos'].append(dia)
+            elif clasificacion == 'VACACIONES':
+                tipos['vacaciones'].append(dia)
+            elif clasificacion == 'INCAPACIDAD':
+                tipos['incapacidades'].append(dia)
+            else:
+                tipos['faltas'].append(dia)
     
     return tipos
 
@@ -458,8 +465,10 @@ def analizar_tipos_incidencias(incidencias: List[Dict]) -> Dict:
 def generar_texto_motivo(incidencias: List[Dict], tipos: Dict) -> str:
     """
     Genera el texto del motivo agrupando por tipo.
-    Ejemplo: "2,5,6,7,8,9,12,15 retardo justificado. 1ro falta justificada, 
-             Guardia telefónico. 13 y 14 falta justificada, trabajo remoto."
+    Cada categoría es independiente y no se mezcla.
+    
+    Ejemplo: "1,2,3,4,5,6 retardo justificado. 7 falta justificada, trabajo remoto. 
+              8 falta justificada, guardia telefónico."
     """
     partes = []
     
@@ -468,52 +477,32 @@ def generar_texto_motivo(incidencias: List[Dict], tipos: Dict) -> str:
         dias_str = agrupar_dias_consecutivos(tipos['retardos'])
         partes.append(f"{dias_str} retardo justificado")
     
-    # Faltas justificadas con motivo
-    faltas_con_motivo = []
-    for inc in incidencias:
-        if (inc.get('clasificacion') == 'FALTA' or inc.get('estado_auto') == 'FALTA') and inc.get('motivo_auto'):
-            dia = inc['fecha'].day if inc.get('fecha') else 0
-            faltas_con_motivo.append((dia, inc['motivo_auto']))
-    
-    if faltas_con_motivo:
-        # Agrupar por motivo
-        por_motivo = {}
-        for dia, motivo in faltas_con_motivo:
-            if motivo not in por_motivo:
-                por_motivo[motivo] = []
-            por_motivo[motivo].append(dia)
-        
-        for motivo, dias in por_motivo.items():
-            dias_str = agrupar_dias_consecutivos(dias)
-            partes.append(f"{dias_str} falta justificada, {motivo}")
-    elif tipos['faltas']:
+    # Faltas genéricas (sin clasificación específica)
+    if tipos['faltas']:
         dias_str = agrupar_dias_consecutivos(tipos['faltas'])
         partes.append(f"{dias_str} falta justificada")
     
-    # Trabajo remoto
+    # Faltas por trabajo remoto
     if tipos['remotos']:
         dias_str = agrupar_dias_consecutivos(tipos['remotos'])
-        partes.append(f"{dias_str} trabajo remoto")
+        partes.append(f"{dias_str} falta justificada, trabajo remoto")
     
-    # Guardia telefónica
+    # Faltas por guardia telefónica
     if tipos['guardias']:
         dias_str = agrupar_dias_consecutivos(tipos['guardias'])
-        partes.append(f"{dias_str} guardia telefónica")
+        partes.append(f"{dias_str} falta justificada, guardia telefónico")
     
-    # Vacaciones
-    if tipos['vacaciones']:
-        dias_str = agrupar_dias_consecutivos(tipos['vacaciones'])
-        partes.append(f"{dias_str} vacaciones")
-    
-    # Incapacidad
-    if tipos['incapacidades']:
-        dias_str = agrupar_dias_consecutivos(tipos['incapacidades'])
-        partes.append(f"{dias_str} incapacidad médica")
-    
-    # Permisos
+    # Faltas por permiso
     if tipos['permisos']:
         dias_str = agrupar_dias_consecutivos(tipos['permisos'])
-        partes.append(f"{dias_str} permiso")
+        partes.append(f"{dias_str} falta justificada, permiso")
+    
+    # Faltas por vacaciones
+    if tipos['vacaciones']:
+        dias_str = agrupar_dias_consecutivos(tipos['vacaciones'])
+        partes.append(f"{dias_str} falta justificada, vacaciones")
+    
+    # NOTA: Incapacidades NO se incluyen en el motivo del MobPer
     
     return ". ".join(partes) + "." if partes else ""
 
