@@ -127,6 +127,45 @@ def formatear_fecha_espanol(fecha):
     mes = MESES[fecha.month]
     return f"{dia_semana} {fecha.day} de {mes}"
 
+def normalizar_nombre_biostar(nombre_biostar: str) -> str:
+    """
+    Convierte nombre de BioStar (APELLIDO1 APELLIDO2 NOMBRE1 NOMBRE2)
+    a formato normal (Nombre1 Nombre2 Apellido1 Apellido2) con Title Case.
+    
+    BioStar guarda: CETINA POOL RAUL ABEL
+    Resultado: Raúl Abel Cetina Pool
+    """
+    if not nombre_biostar:
+        return ''
+    
+    partes = nombre_biostar.strip().split()
+    
+    if len(partes) == 4:
+        # APELLIDO1 APELLIDO2 NOMBRE1 NOMBRE2 → NOMBRE1 NOMBRE2 APELLIDO1 APELLIDO2
+        nombre_reordenado = f"{partes[2]} {partes[3]} {partes[0]} {partes[1]}"
+    elif len(partes) == 3:
+        # APELLIDO1 NOMBRE1 NOMBRE2 o APELLIDO1 APELLIDO2 NOMBRE1
+        # Asumimos: APELLIDO1 APELLIDO2 NOMBRE1 → NOMBRE1 APELLIDO1 APELLIDO2
+        nombre_reordenado = f"{partes[2]} {partes[0]} {partes[1]}"
+    elif len(partes) == 2:
+        # APELLIDO NOMBRE → NOMBRE APELLIDO
+        nombre_reordenado = f"{partes[1]} {partes[0]}"
+    else:
+        nombre_reordenado = nombre_biostar
+    
+    return aplicar_title_case(nombre_reordenado)
+
+def aplicar_title_case(texto: str) -> str:
+    """
+    Aplica Title Case respetando acentos.
+    'RAUL ABEL CETINA POOL' → 'Raul Abel Cetina Pool'
+    'raul abel' → 'Raul Abel'
+    'MARÍA JOSÉ' → 'María José'
+    """
+    if not texto:
+        return ''
+    return ' '.join(palabra.capitalize() for palabra in texto.lower().split())
+
 def obtener_nombre_clasificacion(codigo):
     """Retorna el nombre en español de una clasificación"""
     nombres = {
@@ -733,21 +772,42 @@ def register():
                                  numero_socio=numero_socio,
                                  nombre=nombre)
         
+        # Reordenar nombre de BioStar y aplicar Title Case
+        nombre_normalizado = normalizar_nombre_biostar(usuario_biostar.get('name', ''))
+        print(f"[MOBPER] Nombre BioStar original: {usuario_biostar.get('name')}")
+        print(f"[MOBPER] Nombre normalizado: {nombre_normalizado}")
+        
         # Crear nuevo usuario
         nuevo_user = MobPerUser(
             numero_socio=numero_socio,
-            nombre_completo=usuario_biostar.get('name')
+            nombre_completo=nombre_normalizado
         )
         nuevo_user.set_password(password)
         
         db.session.add(nuevo_user)
         db.session.commit()
         
+        # Crear preset inicial con nombre normalizado
+        preset_inicial = PresetUsuario(
+            user_id=nuevo_user.id,
+            nombre_formato=nombre_normalizado,
+            departamento_formato='',
+            jefe_directo_nombre='',
+            hora_entrada_default=datetime.strptime('09:00:00', '%H:%M:%S').time(),
+            tolerancia_segundos=600,
+            dias_descanso=[5, 6],
+            lista_inhabiles=[],
+            vigente_desde=date.today()
+        )
+        db.session.add(preset_inicial)
+        db.session.commit()
+        
         # Crear sesión automáticamente
         session['mobper_user_id'] = nuevo_user.id
         session['mobper_numero_socio'] = nuevo_user.numero_socio
         
-        return redirect(url_for('mobper.checklist'))
+        # Redirigir a config para completar info inicial (única vez)
+        return redirect(url_for('mobper.config'))
         
     except Exception as e:
         print(f"[MOBPER] Error en registro: {e}")
@@ -775,9 +835,9 @@ def config():
     if request.method == 'POST':
         try:
             # Obtener datos del formulario
-            nombre_formato = request.form.get('nombre_formato', '').strip()
-            departamento_formato = request.form.get('departamento_formato', '').strip()
-            jefe_directo_nombre = request.form.get('jefe_directo_nombre', '').strip()
+            nombre_formato = aplicar_title_case(request.form.get('nombre_formato', '').strip())
+            departamento_formato = request.form.get('departamento_formato', '').strip().upper()
+            jefe_directo_nombre = aplicar_title_case(request.form.get('jefe_directo_nombre', '').strip())
             
             hora_entrada_str = request.form.get('hora_entrada_default', '09:00')
             hora_entrada = datetime.strptime(hora_entrada_str, '%H:%M').time()
@@ -788,11 +848,7 @@ def config():
             # Días de descanso
             dias_descanso = [int(d) for d in request.form.getlist('dias_descanso')]
             
-            # Días inhábiles
-            lista_inhabiles_str = request.form.get('lista_inhabiles', '[]')
-            lista_inhabiles = json.loads(lista_inhabiles_str)
-            
-            # Crear o actualizar preset
+            # Crear o actualizar preset (días inhábiles se manejan globalmente)
             if not preset:
                 preset = PresetUsuario(
                     user_id=user.id,
@@ -802,7 +858,7 @@ def config():
                     hora_entrada_default=hora_entrada,
                     tolerancia_segundos=tolerancia_segundos,
                     dias_descanso=dias_descanso,
-                    lista_inhabiles=lista_inhabiles,
+                    lista_inhabiles=[],
                     vigente_desde=date.today()
                 )
                 db.session.add(preset)
@@ -813,7 +869,6 @@ def config():
                 preset.hora_entrada_default = hora_entrada
                 preset.tolerancia_segundos = tolerancia_segundos
                 preset.dias_descanso = dias_descanso
-                preset.lista_inhabiles = lista_inhabiles
             
             db.session.commit()
             

@@ -191,58 +191,7 @@
             border: 1px solid #EF9A9A;
         }
 
-        .inhabiles-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .inhabil-tag {
-            background: #EFEBE9;
-            color: #5D4037;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .inhabil-tag button {
-            background: none;
-            border: none;
-            color: #5D4037;
-            cursor: pointer;
-            font-size: 16px;
-            line-height: 1;
-            padding: 0;
-        }
-
-        .add-inhabil {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .add-inhabil input {
-            flex: 1;
-        }
-
-        .add-inhabil button {
-            padding: 12px 20px;
-            background: #8D6E63;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .add-inhabil button:hover {
-            background: #6D4C41;
-        }
+        
     </style>
 </head>
 <body>
@@ -358,79 +307,17 @@
                 </small>
             </div>
 
-            <!-- Días Inhábiles -->
-            <div class="card">
-                <h2 class="card-title">📅 Días Inhábiles (Festivos)</h2>
-                
-                <div class="inhabiles-list" id="inhabiles-list">
-                    {% if preset and preset.lista_inhabiles %}
-                        {% for fecha in preset.lista_inhabiles %}
-                        <div class="inhabil-tag">
-                            {{ fecha }}
-                            <button type="button" onclick="removeInhabil('{{ fecha }}')">×</button>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <small style="color: #8D6E63;">No hay días inhábiles configurados</small>
-                    {% endif %}
-                </div>
-
-                <div class="add-inhabil">
-                    <input type="date" id="nueva_fecha_inhabil" placeholder="Agregar día inhábil">
-                    <button type="button" onclick="addInhabil()">Agregar</button>
-                </div>
-
-                <input type="hidden" id="lista_inhabiles" name="lista_inhabiles" 
-                       value="{{ preset.lista_inhabiles|tojson if preset else '[]' }}">
-            </div>
-
             <button type="submit" class="btn-primary">Guardar Configuración</button>
         </form>
     </div>
 
     <script>
-        let inhabiles = {{ preset.lista_inhabiles|tojson if preset else '[]' }};
-
-        function addInhabil() {
-            const input = document.getElementById('nueva_fecha_inhabil');
-            const fecha = input.value;
-            
-            if (!fecha) {
-                alert('Selecciona una fecha');
-                return;
-            }
-
-            if (inhabiles.includes(fecha)) {
-                alert('Esta fecha ya está agregada');
-                return;
-            }
-
-            inhabiles.push(fecha);
-            updateInhabilesList();
-            input.value = '';
-        }
-
-        function removeInhabil(fecha) {
-            inhabiles = inhabiles.filter(f => f !== fecha);
-            updateInhabilesList();
-        }
-
-        function updateInhabilesList() {
-            const container = document.getElementById('inhabiles-list');
-            const hiddenInput = document.getElementById('lista_inhabiles');
-            
-            hiddenInput.value = JSON.stringify(inhabiles);
-            
-            if (inhabiles.length === 0) {
-                container.innerHTML = '<small style="color: #8D6E63;">No hay días inhábiles configurados</small>';
-            } else {
-                container.innerHTML = inhabiles.map(fecha => `
-                    <div class="inhabil-tag">
-                        ${fecha}
-                        <button type="button" onclick="removeInhabil('${fecha}')">×</button>
-                    </div>
-                `).join('');
-            }
+        // Auto-uppercase departamento en tiempo real
+        const deptoInput = document.getElementById('departamento_formato');
+        if (deptoInput) {
+            deptoInput.addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
+            });
         }
     </script>
 </body>
