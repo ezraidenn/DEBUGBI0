@@ -1,5 +1,5 @@
 """
-Módulo de generación de formato Excel para MobPer
+Módulo de generación de formato Excel para MovPer
 Usa win32com (pywin32) para llenar el template Excel preservando completamente el formato y shapes.
 """
 
@@ -133,9 +133,9 @@ def set_circle_color(sheet, shape_index: int, is_selected: bool):
         else:
             shape.Fill.ForeColor.RGB = COLOR_BLANCO
             shape.Fill.Visible = False  # Solo contorno
-        print(f"[MOBPER EXCEL] Shape {shape_index}: {'NEGRO' if is_selected else 'BLANCO'}")
+        print(f"[MOVPER EXCEL] Shape {shape_index}: {'NEGRO' if is_selected else 'BLANCO'}")
     except Exception as e:
-        print(f"[MOBPER EXCEL] Error en shape {shape_index}: {e}")
+        print(f"[MOVPER EXCEL] Error en shape {shape_index}: {e}")
 
 
 def agrupar_dias_consecutivos(dias: List[int]) -> str:
@@ -172,12 +172,12 @@ def agrupar_dias_consecutivos(dias: List[int]) -> str:
 
 def filtrar_incidencias_a_justificar(incidencias: List[Dict]) -> List[Dict]:
     """
-    Filtra las incidencias que deben aparecer en el formato MobPer.
+    Filtra las incidencias que deben aparecer en el formato MovPer.
     
     Incluye:
     - Retardos que tienen justificado=True (o no definido, por defecto True)
     - Faltas que tienen clasificacion (REMOTO, GUARDIA, PERMISO, VACACIONES) 
-      EXCEPTO INCAPACIDAD (las incapacidades no van en MobPer)
+      EXCEPTO INCAPACIDAD (las incapacidades no van en MovPer)
     
     Excluye:
     - A_TIEMPO, INHABIL, DESCANSO
@@ -215,7 +215,7 @@ def generar_formato_excel(
     Genera el formato de movimiento de personal editando la plantilla Excel.
     
     Args:
-        user: MobPerUser - Usuario actual
+        user: MovPerUser - Usuario actual
         preset: PresetUsuario - Configuración del usuario
         incidencias: List[Dict] - Lista de incidencias clasificadas
         quincena: Dict - Info de la quincena {inicio, fin, nombre}
@@ -230,17 +230,17 @@ def generar_formato_excel(
     
     # Generar nombre de archivo único
     fecha_str = quincena['inicio'].strftime('%Y%m%d')
-    output_filename = f"MobPer_{user.numero_socio}_{fecha_str}.xlsx"
+    output_filename = f"MovPer_{user.numero_socio}_{fecha_str}.xlsx"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
     
-    print(f"[MOBPER EXCEL] Iniciando generación de Excel con win32com")
-    print(f"[MOBPER EXCEL] Template: {TEMPLATE_PATH}")
-    print(f"[MOBPER EXCEL] Output: {output_path}")
-    print(f"[MOBPER EXCEL] Usuario: {user.nombre_completo}")
-    print(f"[MOBPER EXCEL] Incidencias: {len(incidencias)}")
+    print(f"[MOVPER EXCEL] Iniciando generación de Excel con win32com")
+    print(f"[MOVPER EXCEL] Template: {TEMPLATE_PATH}")
+    print(f"[MOVPER EXCEL] Output: {output_path}")
+    print(f"[MOVPER EXCEL] Usuario: {user.nombre_completo}")
+    print(f"[MOVPER EXCEL] Incidencias: {len(incidencias)}")
     
     # IMPORTANTE: Copiar template PRIMERO, luego abrir la copia
-    print(f"[MOBPER EXCEL] Copiando template a output...")
+    print(f"[MOVPER EXCEL] Copiando template a output...")
     shutil.copy(TEMPLATE_PATH, output_path)
     
     # Inicializar COM
@@ -255,15 +255,15 @@ def generar_formato_excel(
         # Abrir la COPIA (no el template original)
         wb = excel.Workbooks.Open(os.path.abspath(output_path))
         sheet = wb.ActiveSheet
-        print(f"[MOBPER EXCEL] Archivo abierto con win32com")
+        print(f"[MOVPER EXCEL] Archivo abierto con win32com")
         
         # =============================================================
         # FILTRAR INCIDENCIAS QUE VAN A JUSTIFICARSE
         # =============================================================
         # Solo incluir: retardos justificados + faltas clasificadas (excepto INCAPACIDAD)
         incidencias_justificadas = filtrar_incidencias_a_justificar(incidencias)
-        print(f"[MOBPER EXCEL] Incidencias totales: {len(incidencias)}")
-        print(f"[MOBPER EXCEL] Incidencias a justificar: {len(incidencias_justificadas)}")
+        print(f"[MOVPER EXCEL] Incidencias totales: {len(incidencias)}")
+        print(f"[MOVPER EXCEL] Incidencias a justificar: {len(incidencias_justificadas)}")
         
         # =============================================================
         # LLENAR DATOS DEL ENCABEZADO
@@ -271,33 +271,33 @@ def generar_formato_excel(
         
         # Nombre del empleado
         nombre = preset.nombre_formato if preset and preset.nombre_formato else user.nombre_completo
-        print(f"[MOBPER EXCEL] Escribiendo nombre en {CELDAS['NOMBRE']}: {nombre}")
+        print(f"[MOVPER EXCEL] Escribiendo nombre en {CELDAS['NOMBRE']}: {nombre}")
         sheet.Range(CELDAS['NOMBRE']).Value = nombre.upper()
         
         # Departamento con tamaño de letra dinámico
         departamento = preset.departamento_formato if preset and preset.departamento_formato else "Sin departamento"
-        print(f"[MOBPER EXCEL] Escribiendo departamento en {CELDAS['DEPARTAMENTO']}: {departamento}")
+        print(f"[MOVPER EXCEL] Escribiendo departamento en {CELDAS['DEPARTAMENTO']}: {departamento}")
         sheet.Range(CELDAS['DEPARTAMENTO']).Value = departamento.upper()
         # Ajustar tamaño de letra según longitud
         tamano_depto = calcular_tamano_letra(departamento, max_size=12, min_size=8)
         sheet.Range(CELDAS['DEPARTAMENTO']).Font.Size = tamano_depto
-        print(f"[MOBPER EXCEL] Tamaño letra departamento: {tamano_depto}")
+        print(f"[MOVPER EXCEL] Tamaño letra departamento: {tamano_depto}")
         
         # Fecha de autorización (hoy) en formato dd-mmm-yy con mes en español
         now = datetime.now()
         mes_corto = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic'}
         fecha_auth = f"{now.day:02d}-{mes_corto[now.month]}-{now.strftime('%y')}"
-        print(f"[MOBPER EXCEL] Escribiendo fecha auth en {CELDAS['FECHA_AUTORIZACION']}: {fecha_auth}")
+        print(f"[MOVPER EXCEL] Escribiendo fecha auth en {CELDAS['FECHA_AUTORIZACION']}: {fecha_auth}")
         sheet.Range(CELDAS['FECHA_AUTORIZACION']).Value = fecha_auth
         
         # Fecha de aplicación (días del periodo) con tamaño dinámico
         dias_periodo = construir_fechas_aplicacion(incidencias_justificadas, quincena)
-        print(f"[MOBPER EXCEL] Escribiendo fechas aplicación en {CELDAS['FECHA_APLICACION']}: {dias_periodo}")
+        print(f"[MOVPER EXCEL] Escribiendo fechas aplicación en {CELDAS['FECHA_APLICACION']}: {dias_periodo}")
         sheet.Range(CELDAS['FECHA_APLICACION']).Value = dias_periodo
         # Ajustar tamaño según longitud
         tamano_fechas = calcular_tamano_letra(dias_periodo, max_size=12, min_size=8)
         sheet.Range(CELDAS['FECHA_APLICACION']).Font.Size = tamano_fechas
-        print(f"[MOBPER EXCEL] Tamaño letra fechas: {tamano_fechas}")
+        print(f"[MOVPER EXCEL] Tamaño letra fechas: {tamano_fechas}")
         
         # =============================================================
         # ANALIZAR TIPOS DE INCIDENCIAS Y MARCAR CÍRCULOS REALES
@@ -306,12 +306,12 @@ def generar_formato_excel(
         tipos = analizar_tipos_incidencias(incidencias_justificadas)
         
         # Primero, poner todos los círculos en blanco (no seleccionado)
-        print(f"[MOBPER EXCEL] Reseteando todos los círculos a blanco...")
+        print(f"[MOVPER EXCEL] Reseteando todos los círculos a blanco...")
         for shape_name, shape_idx in SHAPES.items():
             set_circle_color(sheet, shape_idx, False)
         
         # Marcar los círculos correspondientes según tipos encontrados
-        print(f"[MOBPER EXCEL] Marcando círculos según incidencias...")
+        print(f"[MOVPER EXCEL] Marcando círculos según incidencias...")
         # PARA FALTAR: cualquier tipo de falta (genérica, remoto, guardia, permiso, vacaciones)
         tiene_faltas = tipos['faltas'] or tipos['remotos'] or tipos['guardias'] or tipos['permisos'] or tipos['vacaciones']
         if tiene_faltas:
@@ -338,7 +338,7 @@ def generar_formato_excel(
         # =============================================================
         
         motivo = generar_texto_motivo(incidencias_justificadas, tipos)
-        print(f"[MOBPER EXCEL] Escribiendo motivo en {CELDAS['MOTIVO']}: {motivo[:50]}...")
+        print(f"[MOVPER EXCEL] Escribiendo motivo en {CELDAS['MOTIVO']}: {motivo[:50]}...")
         sheet.Range(CELDAS['MOTIVO']).Value = motivo
         
         # =============================================================
@@ -346,37 +346,37 @@ def generar_formato_excel(
         # =============================================================
         
         # Solicitó (el empleado)
-        print(f"[MOBPER EXCEL] Escribiendo solicitó en {CELDAS['SOLICITO_NOMBRE']}: {nombre}")
+        print(f"[MOVPER EXCEL] Escribiendo solicitó en {CELDAS['SOLICITO_NOMBRE']}: {nombre}")
         sheet.Range(CELDAS['SOLICITO_NOMBRE']).Value = nombre
         
         # Autorizó (jefe directo)
         jefe = preset.jefe_directo_nombre if preset and preset.jefe_directo_nombre else "PENDIENTE"
-        print(f"[MOBPER EXCEL] Escribiendo autorizó en {CELDAS['AUTORIZO_NOMBRE']}: {jefe}")
+        print(f"[MOVPER EXCEL] Escribiendo autorizó en {CELDAS['AUTORIZO_NOMBRE']}: {jefe}")
         sheet.Range(CELDAS['AUTORIZO_NOMBRE']).Value = jefe
         
         # Recibió (RH)
-        print(f"[MOBPER EXCEL] Escribiendo recibió en {CELDAS['RECIBIO_NOMBRE']}: Recursos Humanos")
+        print(f"[MOVPER EXCEL] Escribiendo recibió en {CELDAS['RECIBIO_NOMBRE']}: Recursos Humanos")
         sheet.Range(CELDAS['RECIBIO_NOMBRE']).Value = "Recursos Humanos"
         
         # =============================================================
         # GUARDAR Y CERRAR
         # =============================================================
         
-        print(f"[MOBPER EXCEL] Guardando archivo...")
+        print(f"[MOVPER EXCEL] Guardando archivo...")
         wb.Save()
         
-        print(f"[MOBPER EXCEL] Cerrando workbook...")
+        print(f"[MOVPER EXCEL] Cerrando workbook...")
         wb.Close(SaveChanges=False)  # Ya guardamos con Save()
         
-        print(f"[MOBPER EXCEL] Archivo guardado exitosamente: {output_path}")
-        print(f"[MOBPER EXCEL] Verificando que el archivo existe...")
+        print(f"[MOVPER EXCEL] Archivo guardado exitosamente: {output_path}")
+        print(f"[MOVPER EXCEL] Verificando que el archivo existe...")
         if os.path.exists(output_path):
-            print(f"[MOBPER EXCEL] ✓ Archivo confirmado: {os.path.getsize(output_path)} bytes")
+            print(f"[MOVPER EXCEL] ✓ Archivo confirmado: {os.path.getsize(output_path)} bytes")
         else:
-            print(f"[MOBPER EXCEL] ✗ ERROR: Archivo no existe después de guardar")
+            print(f"[MOVPER EXCEL] ✗ ERROR: Archivo no existe después de guardar")
         
     except Exception as e:
-        print(f"[MOBPER EXCEL] ERROR durante generación: {e}")
+        print(f"[MOVPER EXCEL] ERROR durante generación: {e}")
         import traceback
         traceback.print_exc()
         try:
@@ -385,10 +385,10 @@ def generar_formato_excel(
             pass
         raise
     finally:
-        print(f"[MOBPER EXCEL] Cerrando Excel...")
+        print(f"[MOVPER EXCEL] Cerrando Excel...")
         excel.Quit()
         pythoncom.CoUninitialize()
-        print(f"[MOBPER EXCEL] Excel cerrado")
+        print(f"[MOVPER EXCEL] Excel cerrado")
     
     return output_path, output_filename
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"="width=device-width, initial-scale=1.0">
-    <title>MobPer - Checklist</title>
+    <title>MovPer - Checklist</title>
     <style>
         * {
             margin: 0;
@@ -611,7 +611,7 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'MobPer_' + new Date().toISOString().split('T')[0] + '.xlsx';
+                    a.download = 'MovPer_' + new Date().toISOString().split('T')[0] + '.xlsx';
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
