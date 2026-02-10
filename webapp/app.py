@@ -163,6 +163,7 @@ from webapp.security import (
     audit_logger,
     
     # Rate Limiting
+    login_limiter,
     check_login_rate_limit,
     record_login_success,
     record_login_failure,
@@ -330,38 +331,25 @@ def login():
         totp_code = request.form.get('totp_code', '')
         remember = request.form.get('remember', False)
         
-        # Rate limiting por IP y usuario
         client_ip = IPWhitelist.get_client_ip()
         rate_key = f"{client_ip}:{username}"
         
-        # Verificar bloqueo permanente
-        if AccountLockout.is_permanently_locked(username):
-            audit_logger.log_event('LOGIN_PERMANENT_BLOCK', {'user': username}, client_ip)
-            flash('Esta cuenta ha sido bloqueada permanentemente. Contacta al administrador.', 'danger')
-            return render_template('login.html')
-        
-        # Verificar rate limit
-        allowed, error_msg = check_login_rate_limit(rate_key)
-        if not allowed:
-            # Registrar lockout para posible bloqueo permanente
-            AccountLockout.record_lockout(username)
-            flash(error_msg, 'danger')
+        # Verificar rate limit en memoria (solo bloquea si ya se excedió)
+        blocked, remaining = login_limiter.is_blocked(rate_key)
+        if blocked:
+            flash(f'Demasiados intentos. Intenta en {remaining // 60 + 1} minutos.', 'danger')
             return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
-            # Si la contraseña es correcta, limpiar bloqueos temporales y failed attempts
-            if user.locked_until or user.failed_login_attempts > 0:
-                user.locked_until = None
-                user.failed_login_attempts = 0
-                db.session.commit()
-            
-            # Verificar si cuenta está bloqueada permanentemente
-            if user.is_permanently_locked:
-                flash('Tu cuenta ha sido bloqueada permanentemente. Contacta al administrador.', 'danger')
-                audit_logger.log_event('LOGIN_LOCKED', {'user': username}, client_ip)
-                return redirect(url_for('login'))
+            # ✅ Contraseña correcta → limpiar TODO: bloqueos DB + rate limiter
+            user.locked_until = None
+            user.failed_login_attempts = 0
+            user.last_failed_login = None
+            db.session.commit()
+            login_limiter.reset(rate_key)
+            AccountLockout.unlock(username)
             
             if not user.is_active:
                 flash('Tu cuenta está desactivada. Contacta al administrador.', 'danger')
@@ -371,7 +359,6 @@ def login():
             # Verificar 2FA si está habilitado
             if user.totp_enabled and TOTP_AVAILABLE:
                 if not totp_code:
-                    # Mostrar formulario de 2FA
                     session['pending_2fa_user'] = user.id
                     return render_template('login.html', require_2fa=True, username=username)
                 
@@ -383,37 +370,40 @@ def login():
             # Login exitoso
             login_user(user, remember=remember)
             user.update_last_login()
-            user.reset_failed_attempts()
             record_login_success(rate_key)
-            
-            # Guardar fingerprint de sesión
             SessionFingerprint.store()
+            
+            audit_logger.log_event('LOGIN_SUCCESS', {'user': username}, client_ip)
             
             # Verificar si debe cambiar contraseña
             if user.must_change_password or user.is_password_expired(SecurityConfig.PASSWORD_MAX_AGE_DAYS):
                 flash('Tu contraseña ha expirado. Debes cambiarla.', 'warning')
                 return redirect(url_for('change_password'))
             
-            # Verificar redirección segura
             next_page = request.args.get('next')
             if next_page and not next_page.startswith('/'):
-                next_page = None  # Prevenir open redirect
+                next_page = None
             
             return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         else:
-            # Login fallido
+            # ❌ Login fallido → registrar intento
+            attempts = login_limiter.record_attempt(rate_key, window_seconds=1800)
+            
             if user:
                 user.record_failed_login()
-                # Bloquear temporalmente si excede intentos
-                if user.failed_login_attempts >= SecurityConfig.LOGIN_MAX_ATTEMPTS:
-                    user.lock_temporarily(SecurityConfig.LOGIN_LOCKOUT_MINUTES)
-                    audit_logger.log_event('ACCOUNT_LOCKED', {
-                        'user': username,
-                        'attempts': user.failed_login_attempts
-                    }, client_ip)
+                audit_logger.log_event('LOGIN_FAIL', {
+                    'user': username,
+                    'attempts': attempts,
+                    'max_attempts': SecurityConfig.LOGIN_MAX_ATTEMPTS
+                }, client_ip)
             
-            record_login_failure(rate_key)
-            flash('Usuario o contraseña incorrectos.', 'danger')
+            # Bloquear si excede intentos (10 intentos, 30 min cooldown)
+            if attempts >= SecurityConfig.LOGIN_MAX_ATTEMPTS:
+                login_limiter.block(rate_key, SecurityConfig.LOGIN_LOCKOUT_MINUTES)
+                flash(f'Demasiados intentos. Cuenta bloqueada por {SecurityConfig.LOGIN_LOCKOUT_MINUTES} minutos.', 'danger')
+            else:
+                remaining_attempts = SecurityConfig.LOGIN_MAX_ATTEMPTS - attempts
+                flash(f'Usuario o contraseña incorrectos. ({remaining_attempts} intentos restantes)', 'danger')
     
     return render_template('login.html')
 
