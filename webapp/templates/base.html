@@ -120,112 +120,112 @@
 
 <body>
     {% if current_user.is_authenticated %}
-    <!-- Mobile Menu Button -->
-    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
-        <i class="bi bi-list"></i>
-    </button>
+    <!-- Mobile Top Bar -->
+    <header class="mobile-topbar" id="mobileTopbar">
+        <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()" aria-label="Menú">
+            <i class="bi bi-list"></i>
+        </button>
+        <div class="mobile-topbar-brand">
+            <img src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Logo" width="28" height="28">
+            <span>BioStar</span>
+        </div>
+    </header>
 
     <!-- Sidebar Overlay (Mobile) -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
 
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <nav class="sidebar" id="sidebar">
-                <div class="sidebar-header">
-                    <img src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Logo"
-                        style="width: 50px; height: 50px; object-fit: contain;">
-                    <h4>BioStar</h4>
-                    <small>Logs Monitor</small>
-                </div>
-
-                <ul class="nav flex-column" style="padding-top: 20px;">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
-                            href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-speedometer2"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-
-                    {% if current_user.is_admin or current_user.can_manage_devices or current_user.is_auditor %}
-                    <li class="nav-item">
-                        <div class="sidebar-heading">ADMINISTRACIÓN</div>
-                    </li>
-                    {% if current_user.is_admin %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}"
-                            href="{{ url_for('users_list') }}">
-                            <i class="bi bi-people-fill"></i>
-                            <span>Usuarios</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'emergency.config_page' %}active{% endif %}"
-                            href="{{ url_for('emergency.config_page') }}">
-                            <i class="bi bi-building"></i>
-                            <span>Zonas y Grupos</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if current_user.is_admin or current_user.is_auditor %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('emergency.emergency_page') }}">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                            <span class="nav-text">Emergencias</span>
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'emergency.history_page' %}active{% endif %}"
-                            href="{{ url_for('emergency.history_page') }}">
-                            <i class="bi bi-clock-history"></i>
-                            <span>Historial</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'config_devices' %}active{% endif %}"
-                            href="{{ url_for('config_devices') }}">
-                            <i class="bi bi-gear-fill"></i>
-                            <span>Configuración</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-
-                <div class="sidebar-user">
-                    <div class="sidebar-user-info">
-                        <i class="bi bi-person-circle" style="font-size: 20px; margin-right: 8px;"></i>
-                        {{ current_user.full_name or current_user.username }}
-                        <small>{{ current_user.email }}</small>
-                    </div>
-                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light w-100">
-                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                    </a>
-                </div>
-            </nav>
-
-            <!-- Main content -->
-            <main class="col-md-10 ms-sm-auto px-md-4 main-content">
-                <div class="py-4">
-                    <!-- Flash messages -->
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                    {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    {% endfor %}
-                    {% endif %}
-                    {% endwith %}
-
-                    {% block content %}{% endblock %}
-                </div>
-            </main>
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <!-- Header -->
+        <div class="sidebar-header">
+            <img src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Logo" width="42" height="42">
+            <div class="sidebar-brand">
+                <h4>BioStar</h4>
+                <small>Logs Monitor</small>
+            </div>
         </div>
-    </div>
+
+        <!-- Scrollable Navigation -->
+        <div class="sidebar-nav">
+            <a class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                href="{{ url_for('dashboard') }}">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
+            </a>
+
+            {% if current_user.is_admin or current_user.can_manage_devices or current_user.is_auditor %}
+            <div class="sidebar-section">ADMINISTRACIÓN</div>
+
+            {% if current_user.is_admin %}
+            <a class="sidebar-link {% if request.endpoint in ['users_list', 'user_create', 'user_edit'] %}active{% endif %}"
+                href="{{ url_for('users_list') }}">
+                <i class="bi bi-people-fill"></i>
+                <span>Usuarios</span>
+            </a>
+            <a class="sidebar-link {% if request.endpoint == 'emergency.config_page' %}active{% endif %}"
+                href="{{ url_for('emergency.config_page') }}">
+                <i class="bi bi-building"></i>
+                <span>Zonas y Grupos</span>
+            </a>
+            {% endif %}
+
+            {% if current_user.is_admin or current_user.is_auditor %}
+            <a class="sidebar-link {% if request.endpoint == 'emergency.emergency_page' %}active{% endif %}"
+                href="{{ url_for('emergency.emergency_page') }}">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <span>Emergencias</span>
+            </a>
+            {% endif %}
+
+            <a class="sidebar-link {% if request.endpoint == 'emergency.history_page' %}active{% endif %}"
+                href="{{ url_for('emergency.history_page') }}">
+                <i class="bi bi-clock-history"></i>
+                <span>Historial</span>
+            </a>
+            <a class="sidebar-link {% if request.endpoint == 'config_devices' %}active{% endif %}"
+                href="{{ url_for('config_devices') }}">
+                <i class="bi bi-gear-fill"></i>
+                <span>Configuración</span>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- User Footer -->
+        <div class="sidebar-footer">
+            <div class="sidebar-user-card">
+                <div class="sidebar-avatar">
+                    {{ (current_user.full_name or current_user.username)[0] | upper }}
+                </div>
+                <div class="sidebar-user-details">
+                    <span class="sidebar-user-name">{{ current_user.full_name or current_user.username }}</span>
+                    <span class="sidebar-user-email">{{ current_user.email }}</span>
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="sidebar-logout">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main-content">
+        <div class="main-inner">
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
     {% else %}
     {% block fullpage %}{% endblock %}
     {% endif %}
@@ -288,7 +288,7 @@
 
         // Cerrar menú al hacer click en un link (mobile)
         if (window.innerWidth <= 768) {
-            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            document.querySelectorAll('.sidebar-link, .sidebar-logout').forEach(link => {
                 link.addEventListener('click', () => {
                     toggleMobileMenu();
                 });
