@@ -1,51 +1,76 @@
-# BioStar Debug Monitor - Dependencias Python
+# ============================================================
+# BioStar Debug Monitor - Dependencias Python (Completo)
+# ============================================================
 
-# Framework Web
+# ==================== Framework Web ====================
 Flask==3.0.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+itsdangerous==2.2.0
+click==8.1.8
+blinker==1.9.0
+
+# ==================== Flask Extensions ====================
 Flask-Login==0.6.3
 Flask-SocketIO==5.3.5
 Flask-SQLAlchemy==3.1.1
 Flask-Caching==2.1.0
 Flask-Compress==1.14
 
-# WebSockets y Tiempo Real
+# ==================== WebSockets y Tiempo Real ====================
 python-socketio==5.10.0
 python-engineio==4.8.0
+bidict==0.23.1
+simple-websocket==1.1.0
 
-# Base de Datos
-SQLAlchemy>=2.0.45
+# ==================== Base de Datos ====================
+SQLAlchemy==2.0.23
+greenlet==3.1.1
 
-# Seguridad
+# ==================== Seguridad ====================
 Werkzeug==3.0.1
 
-# Seguridad NIVEL GOBIERNO
-cryptography>=41.0.0      # Encriptación de datos sensibles
-pyotp>=2.9.0              # 2FA - TOTP (Google Authenticator)
-qrcode[pil]>=7.4.2        # QR codes para configurar 2FA
+# ==================== Seguridad NIVEL GOBIERNO ====================
+cryptography>=41.0.0          # Encriptación de datos sensibles
+pyotp>=2.9.0                  # 2FA - TOTP (Google Authenticator)
+qrcode[pil]>=7.4.2           # QR codes para configurar 2FA
+pillow>=10.0.0                # Dependencia de qrcode[pil]
 
-# HTTP Requests
+# ==================== HTTP Requests ====================
 requests==2.31.0
 urllib3==2.1.0
+certifi>=2023.0.0
+charset-normalizer>=3.0.0
+idna>=3.0
 
-# Procesamiento de Datos
-pandas>=2.0.0
+# ==================== Procesamiento de Datos ====================
+pandas>=2.1.0
 numpy>=1.24.0
 openpyxl==3.1.2
 
-# Fecha y Hora
+# ==================== Excel con Win32COM (solo Windows) ====================
+pywin32==308                  # win32com.client, pythoncom para editar Excel preservando formato
+
+# ==================== Fecha y Hora ====================
 pytz==2023.3
 python-dateutil==2.8.2
+six>=1.16.0                   # Dependencia de python-dateutil
 
-# Utilidades
+# ==================== Utilidades ====================
 python-dotenv==1.0.0
-
-# Logging y Monitoreo
 colorama==0.4.6
+
+# ==================== Monitoreo y Health Checks ====================
 psutil>=5.9.0
+prometheus-client>=0.19.0    # Métricas Prometheus (opcional pero usado en monitoring.py)
 
-# Opcional: Redis para caché distribuido
-redis==5.0.1
+# ==================== Caché ====================
+redis==5.0.1                  # Opcional: Redis para caché distribuido (fallback a memoria si no disponible)
+cachelib>=0.9.0               # Backend de caché para Flask-Caching
 
-# Opcional: Servidor de producción
-gunicorn==21.2.0
-waitress==2.1.2
+# ==================== Servidor de Producción ====================
+gunicorn==21.2.0              # Linux/macOS
+waitress==2.1.2               # Windows
+
+# ==================== Desarrollo ====================
+watchdog>=4.0.0               # Auto-reload en modo debug
