@@ -321,6 +321,16 @@ def init_db(app):
                 admin.can_see_all_events = True
             if not admin.can_manage_devices:
                 admin.can_manage_devices = True
+            
+            # Siempre resetear contraseña y desbloquear admin en desarrollo
+            admin.set_password('admin123', save_history=False)
+            admin.is_active = True
+            admin.is_permanently_locked = False
+            admin.locked_until = None
+            admin.failed_login_attempts = 0
+            admin.must_change_password = False
+            admin.last_failed_login = None
+            print("[OK] Admin reseteado: admin / admin123")
         
         db.session.commit()
 

@@ -71,13 +71,13 @@ class SecurityConfig:
     """Configuración de seguridad NIVEL GOBIERNO desde variables de entorno."""
     
     # ==================== RATE LIMITING ====================
-    LOGIN_RATE_LIMIT = get_env_int('LOGIN_RATE_LIMIT', 5)
-    LOGIN_MAX_ATTEMPTS = get_env_int('LOGIN_MAX_ATTEMPTS', 5)
-    LOGIN_LOCKOUT_MINUTES = get_env_int('LOGIN_LOCKOUT_MINUTES', 15)
+    LOGIN_RATE_LIMIT = get_env_int('LOGIN_RATE_LIMIT', 10)
+    LOGIN_MAX_ATTEMPTS = get_env_int('LOGIN_MAX_ATTEMPTS', 10)  # 10 intentos antes de bloqueo
+    LOGIN_LOCKOUT_MINUTES = get_env_int('LOGIN_LOCKOUT_MINUTES', 30)  # 30 min de cooldown
     API_RATE_LIMIT = get_env_int('API_RATE_LIMIT', 60)
     
-    # Bloqueo permanente después de X lockouts
-    PERMANENT_LOCKOUT_AFTER = get_env_int('PERMANENT_LOCKOUT_AFTER', 3)
+    # Bloqueo permanente deshabilitado (estilo FB: solo bloqueos temporales)
+    PERMANENT_LOCKOUT_AFTER = get_env_int('PERMANENT_LOCKOUT_AFTER', 999)
     
     # ==================== PASSWORD POLICY ====================
     PASSWORD_MIN_LENGTH = get_env_int('PASSWORD_MIN_LENGTH', 8)  # Mínimo 8 caracteres
@@ -275,8 +275,8 @@ def check_login_rate_limit(identifier: str) -> Tuple[bool, str]:
         })
         return False, f'Cuenta bloqueada temporalmente. Intenta en {remaining // 60 + 1} minutos.'
     
-    # Registrar intento
-    attempts = login_limiter.record_attempt(identifier, window_seconds=60)
+    # Registrar intento (ventana de 30 min - después se resetean automáticamente)
+    attempts = login_limiter.record_attempt(identifier, window_seconds=1800)
     
     # Verificar si excede límite
     if attempts > SecurityConfig.LOGIN_MAX_ATTEMPTS:
