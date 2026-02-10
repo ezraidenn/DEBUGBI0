@@ -351,9 +351,15 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
-            # Verificar si cuenta está bloqueada en DB
-            if user.is_locked():
-                flash('Tu cuenta está bloqueada temporalmente. Intenta más tarde.', 'danger')
+            # Si la contraseña es correcta, limpiar bloqueos temporales y failed attempts
+            if user.locked_until or user.failed_login_attempts > 0:
+                user.locked_until = None
+                user.failed_login_attempts = 0
+                db.session.commit()
+            
+            # Verificar si cuenta está bloqueada permanentemente
+            if user.is_permanently_locked:
+                flash('Tu cuenta ha sido bloqueada permanentemente. Contacta al administrador.', 'danger')
                 audit_logger.log_event('LOGIN_LOCKED', {'user': username}, client_ip)
                 return redirect(url_for('login'))
             
