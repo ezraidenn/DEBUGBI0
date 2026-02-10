@@ -1876,12 +1876,12 @@ from webapp.emergency_routes import emergency_bp
 app.register_blueprint(emergency_bp)
 logger.info("✓ Sistema de emergencias registrado")
 
-# REGISTRAR BLUEPRINT DE MOBPER
+# REGISTRAR BLUEPRINT DE MOVPER
 # ============================================
 from webapp.mobper_routes import mobper_bp, prewarm_biostar_client
 app.register_blueprint(mobper_bp)
 prewarm_biostar_client()  # Pre-calentar conexión BioStar en background
-logger.info("✓ Sistema MobPer registrado")
+logger.info("✓ Sistema MovPer registrado")
 
 
 if __name__ == '__main__':

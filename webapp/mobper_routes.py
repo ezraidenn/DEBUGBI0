@@ -1,5 +1,5 @@
 """
-Módulo MobPer - Movimiento de Personal
+Módulo MovPer - Movimiento de Personal
 Sistema de regularización de asistencias quincenal
 
 Este módulo funciona como una aplicación independiente con su propio login.
@@ -16,6 +16,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment
 from sqlalchemy import and_, or_, func
+from sqlalchemy.orm.attributes import flag_modified
 from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia
 from src.api.biostar_client import BioStarAPIClient
 from webapp.dias_inhabiles import obtener_dias_inhabiles, obtener_nombre_dia_inhabil
@@ -63,10 +64,10 @@ def get_biostar_client():
     if client.login():
         cache['client'] = client
         cache['last_login'] = now
-        print(f"[MOBPER CACHE] BioStar login OK en {time_module.time()-t0:.2f}s (cached for {cache['ttl']}s)")
+        print(f"[MOVPER CACHE] BioStar login OK en {time_module.time()-t0:.2f}s (cached for {cache['ttl']}s)")
         return client
     else:
-        print(f"[MOBPER CACHE] BioStar login FAILED en {time_module.time()-t0:.2f}s")
+        print(f"[MOVPER CACHE] BioStar login FAILED en {time_module.time()-t0:.2f}s")
         cache['client'] = None
         return None
 
@@ -78,16 +79,16 @@ def get_cached_events(user_id, quincena_key, fetch_fn):
     if cache_key in _biostar_events_cache:
         entry = _biostar_events_cache[cache_key]
         if (now - entry['timestamp']) < _EVENTS_CACHE_TTL:
-            print(f"[MOBPER CACHE] HIT eventos para {cache_key} (age: {now - entry['timestamp']:.0f}s)")
+            print(f"[MOVPER CACHE] HIT eventos para {cache_key} (age: {now - entry['timestamp']:.0f}s)")
             return entry['data']
         else:
-            print(f"[MOBPER CACHE] EXPIRED eventos para {cache_key}")
+            print(f"[MOVPER CACHE] EXPIRED eventos para {cache_key}")
     
     # Cache miss - fetch
     t0 = time_module.time()
     data = fetch_fn()
     _biostar_events_cache[cache_key] = {'data': data, 'timestamp': now}
-    print(f"[MOBPER CACHE] MISS eventos para {cache_key} - fetched en {time_module.time()-t0:.2f}s")
+    print(f"[MOVPER CACHE] MISS eventos para {cache_key} - fetched en {time_module.time()-t0:.2f}s")
     return data
 
 def invalidate_events_cache(user_id=None):
@@ -104,14 +105,14 @@ def prewarm_biostar_client():
     import threading
     def _warm():
         try:
-            print("[MOBPER CACHE] Pre-calentando conexión BioStar en background...")
+            print("[MOVPER CACHE] Pre-calentando conexión BioStar en background...")
             client = get_biostar_client()
             if client:
-                print("[MOBPER CACHE] ✓ BioStar pre-calentado exitosamente")
+                print("[MOVPER CACHE] ✓ BioStar pre-calentado exitosamente")
             else:
-                print("[MOBPER CACHE] ✗ BioStar pre-warm falló")
+                print("[MOVPER CACHE] ✗ BioStar pre-warm falló")
         except Exception as e:
-            print(f"[MOBPER CACHE] ✗ Error en pre-warm: {e}")
+            print(f"[MOVPER CACHE] ✗ Error en pre-warm: {e}")
     
     t = threading.Thread(target=_warm, daemon=True)
     t.start()
@@ -199,11 +200,11 @@ def now_cdmx():
     return datetime.now(MEXICO_TZ)
 
 # ============================================================================
-# AUTENTICACIÓN PERSONALIZADA PARA MOBPER
+# AUTENTICACIÓN PERSONALIZADA PARA MOVPER
 # ============================================================================
 
 def mobper_login_required(f):
-    """Decorador para proteger rutas de MobPer"""
+    """Decorador para proteger rutas de MovPer"""
     from functools import wraps
     
     @wraps(f)
@@ -214,7 +215,7 @@ def mobper_login_required(f):
     return decorated_function
 
 def get_current_mobper_user():
-    """Obtiene el usuario actual de MobPer desde la sesión"""
+    """Obtiene el usuario actual de MovPer desde la sesión"""
     if 'mobper_user_id' not in session:
         return None
     return MobPerUser.query.get(session['mobper_user_id'])
@@ -343,7 +344,7 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
         datetime o None
     """
     try:
-        print(f"[MOBPER] Buscando eventos para usuario {biostar_user_id} en fecha {fecha}")
+        print(f"[MOVPER] Buscando eventos para usuario {biostar_user_id} en fecha {fecha}")
         
         # Inicializar cliente BioStar
         config = Config()
@@ -355,7 +356,7 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
         )
         
         if not client.login():
-            print(f"[MOBPER] Error: No se pudo autenticar con BioStar")
+            print(f"[MOVPER] Error: No se pudo autenticar con BioStar")
             return None
         
         # Calcular timestamps para el día completo
@@ -366,7 +367,7 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
         inicio_dia = MEXICO_TZ.localize(inicio_dia)
         fin_dia = MEXICO_TZ.localize(fin_dia)
         
-        print(f"[MOBPER] Rango: {inicio_dia} a {fin_dia}")
+        print(f"[MOVPER] Rango: {inicio_dia} a {fin_dia}")
         
         # Buscar eventos del usuario en ese día usando search_events
         # Usar estructura correcta: user_id.user_id y datetime con operador BETWEEN
@@ -388,10 +389,10 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
         
         eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
         
-        print(f"[MOBPER] Eventos encontrados: {len(eventos)}")
+        print(f"[MOVPER] Eventos encontrados: {len(eventos)}")
         
         if not eventos:
-            print(f"[MOBPER] No se encontraron eventos")
+            print(f"[MOVPER] No se encontraron eventos")
             return None
         
         # Filtrar solo eventos ACCESS_GRANTED y obtener el primero
@@ -407,18 +408,18 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
             if e.get('event_type_id', {}).get('code') in ACCESS_GRANTED_CODES
         ]
         
-        print(f"[MOBPER] Eventos ACCESS_GRANTED: {len(eventos_granted)}")
+        print(f"[MOVPER] Eventos ACCESS_GRANTED: {len(eventos_granted)}")
         
         if not eventos_granted:
             if eventos:
-                print(f"[MOBPER] Primer evento código: {eventos[0].get('event_type_id', {}).get('code')}")
+                print(f"[MOVPER] Primer evento código: {eventos[0].get('event_type_id', {}).get('code')}")
             return None
         
         # Ordenar por fecha y obtener el primero
         eventos_granted.sort(key=lambda x: x.get('datetime', ''))
         primer_evento = eventos_granted[0]
         
-        print(f"[MOBPER] Primer registro: {primer_evento.get('datetime')}")
+        print(f"[MOVPER] Primer registro: {primer_evento.get('datetime')}")
         
         # Parsear datetime
         from dateutil import parser
@@ -430,12 +431,12 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
         else:
             dt = dt.astimezone(MEXICO_TZ)
         
-        print(f"[MOBPER] Hora local: {dt.strftime('%H:%M:%S')}")
+        print(f"[MOVPER] Hora local: {dt.strftime('%H:%M:%S')}")
         
         return dt
         
     except Exception as e:
-        print(f"[MOBPER] Error: {e}")
+        print(f"[MOVPER] Error: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -446,7 +447,7 @@ def calcular_incidencias_quincena(user, quincena):
     OPTIMIZADO: Obtiene todos los registros en UNA sola llamada API.
     
     Args:
-        user: Usuario MobPer
+        user: Usuario MovPer
         quincena: Dict con 'inicio', 'fin', 'nombre', 'anio', 'mes', 'numero'
         
     Returns:
@@ -523,7 +524,7 @@ def calcular_incidencias_quincena(user, quincena):
         registros = {}
         client = get_biostar_client()
         if not client:
-            print(f"[MOBPER OPTIMIZADO] Error: No se pudo obtener cliente BioStar")
+            print(f"[MOVPER OPTIMIZADO] Error: No se pudo obtener cliente BioStar")
             return registros
         
         inicio_quincena = datetime.combine(quincena['inicio'], datetime.min.time())
@@ -540,7 +541,7 @@ def calcular_incidencias_quincena(user, quincena):
         ]
         
         eventos = client.search_events(conditions=conditions, limit=1000, descending=False)
-        print(f"[MOBPER OPTIMIZADO] Eventos encontrados: {len(eventos)}")
+        print(f"[MOVPER OPTIMIZADO] Eventos encontrados: {len(eventos)}")
         
         for evento in eventos:
             event_code = evento.get('event_type_id', {}).get('code')
@@ -555,13 +556,13 @@ def calcular_incidencias_quincena(user, quincena):
                     if fecha_evento not in registros or dt < registros[fecha_evento]:
                         registros[fecha_evento] = dt
         
-        print(f"[MOBPER OPTIMIZADO] Total días con registro: {len(registros)}")
+        print(f"[MOVPER OPTIMIZADO] Total días con registro: {len(registros)}")
         return registros
     
     try:
         registros_quincena = get_cached_events(user.id, quincena_key, fetch_events)
     except Exception as e:
-        print(f"[MOBPER OPTIMIZADO] Error obteniendo registros de quincena: {e}")
+        print(f"[MOVPER OPTIMIZADO] Error obteniendo registros de quincena: {e}")
         import traceback
         traceback.print_exc()
         registros_quincena = {}
@@ -730,20 +731,20 @@ def register():
                                  nombre=nombre)
         
         # Buscar usuario en BioStar
-        print(f"[MOBPER] Buscando usuario {numero_socio} en BioStar...")
+        print(f"[MOVPER] Buscando usuario {numero_socio} en BioStar...")
         usuarios = client.get_all_users(limit=3000)
-        print(f"[MOBPER] Total usuarios obtenidos: {len(usuarios)}")
+        print(f"[MOVPER] Total usuarios obtenidos: {len(usuarios)}")
         
         usuario_biostar = None
         
         for u in usuarios:
             if u.get('user_id') == numero_socio:
                 usuario_biostar = u
-                print(f"[MOBPER] Usuario encontrado: {u.get('name')}")
+                print(f"[MOVPER] Usuario encontrado: {u.get('name')}")
                 break
         
         if not usuario_biostar:
-            print(f"[MOBPER] Usuario {numero_socio} NO encontrado")
+            print(f"[MOVPER] Usuario {numero_socio} NO encontrado")
             return render_template('mobper_register.html', 
                                  error=f'Número de empleado {numero_socio} no encontrado en BioStar. Verifica que sea correcto.',
                                  numero_socio=numero_socio,
@@ -774,8 +775,8 @@ def register():
         
         # Reordenar nombre de BioStar y aplicar Title Case
         nombre_normalizado = normalizar_nombre_biostar(usuario_biostar.get('name', ''))
-        print(f"[MOBPER] Nombre BioStar original: {usuario_biostar.get('name')}")
-        print(f"[MOBPER] Nombre normalizado: {nombre_normalizado}")
+        print(f"[MOVPER] Nombre BioStar original: {usuario_biostar.get('name')}")
+        print(f"[MOVPER] Nombre normalizado: {nombre_normalizado}")
         
         # Crear nuevo usuario
         nuevo_user = MobPerUser(
@@ -813,7 +814,7 @@ def register():
         return redirect(url_for('mobper.config'))
         
     except Exception as e:
-        print(f"[MOBPER] Error en registro: {e}")
+        print(f"[MOVPER] Error en registro: {e}")
         import traceback
         traceback.print_exc()
         return render_template('mobper_register.html', 
@@ -872,8 +873,14 @@ def config():
                 preset.hora_entrada_default = hora_entrada
                 preset.tolerancia_segundos = tolerancia_segundos
                 preset.dias_descanso = dias_descanso
+                flag_modified(preset, 'dias_descanso')
             
+            print(f"[MOVPER CONFIG] Guardando dias_descanso={dias_descanso} para user_id={user.id}")
             db.session.commit()
+            
+            # Verificar que se guardó correctamente
+            db.session.refresh(preset)
+            print(f"[MOVPER CONFIG] Verificacion post-save: dias_descanso={preset.dias_descanso}")
             
             # Si es primera configuración (post-registro), ir al checklist
             if session.pop('mobper_first_config', False):
@@ -901,17 +908,17 @@ def api_clasificar_dia():
         user = get_current_mobper_user()
         data = request.get_json()
         
-        print(f"[MOBPER API] Datos recibidos: {data}")
+        print(f"[MOVPER API] Datos recibidos: {data}")
         
         fecha_str = data.get('fecha')
         clasificacion = data.get('clasificacion')
         estado_auto = data.get('estado_auto')
         numero_dia = data.get('numero_dia', 1)
         
-        print(f"[MOBPER API] Procesando: fecha={fecha_str}, clasificacion={clasificacion}, estado_auto={estado_auto}, numero_dia={numero_dia}")
+        print(f"[MOVPER API] Procesando: fecha={fecha_str}, clasificacion={clasificacion}, estado_auto={estado_auto}, numero_dia={numero_dia}")
         
         if not fecha_str or not clasificacion:
-            print(f"[MOBPER API] Error: Datos incompletos")
+            print(f"[MOVPER API] Error: Datos incompletos")
             return jsonify({'success': False, 'error': 'Datos incompletos'}), 400
         
         # Parsear fecha
@@ -925,7 +932,7 @@ def api_clasificar_dia():
         ).first()
         
         if not incidencia:
-            print(f"[MOBPER API] Creando nueva incidencia para {fecha}")
+            print(f"[MOVPER API] Creando nueva incidencia para {fecha}")
             incidencia = IncidenciaDia(
                 user_id=user.id,
                 fecha=fecha,
@@ -933,17 +940,17 @@ def api_clasificar_dia():
             )
             db.session.add(incidencia)
         else:
-            print(f"[MOBPER API] Actualizando incidencia existente para {fecha}")
+            print(f"[MOVPER API] Actualizando incidencia existente para {fecha}")
         
         incidencia.clasificacion = clasificacion
         incidencia.motivo_auto = generar_motivo_auto(estado_auto, clasificacion, numero_dia)
         incidencia.updated_at = datetime.utcnow()
         
-        print(f"[MOBPER API] Guardando: clasificacion={incidencia.clasificacion}, motivo={incidencia.motivo_auto}")
+        print(f"[MOVPER API] Guardando: clasificacion={incidencia.clasificacion}, motivo={incidencia.motivo_auto}")
         
         db.session.commit()
         
-        print(f"[MOBPER API] Guardado exitoso")
+        print(f"[MOVPER API] Guardado exitoso")
         
         return jsonify({
             'success': True,
@@ -952,7 +959,7 @@ def api_clasificar_dia():
     
     except Exception as e:
         db.session.rollback()
-        print(f"[MOBPER API] Error en api_clasificar_dia: {e}")
+        print(f"[MOVPER API] Error en api_clasificar_dia: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1003,7 +1010,7 @@ def api_clasificar_multiple():
     
     except Exception as e:
         db.session.rollback()
-        print(f"[MOBPER] Error en api_clasificar_multiple: {e}")
+        print(f"[MOVPER] Error en api_clasificar_multiple: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @mobper_bp.route('/api/check-user', methods=['POST'])
@@ -1046,7 +1053,7 @@ def checklist(year=None, month=None, quincena_num=None):
     # Calcular incidencias automáticas
     t_api = time_module.time()
     incidencias = calcular_incidencias_quincena(user, quincena)
-    print(f"[MOBPER PERF] calcular_incidencias_quincena: {time_module.time()-t_api:.2f}s")
+    print(f"[MOVPER PERF] calcular_incidencias_quincena: {time_module.time()-t_api:.2f}s")
     
     # Calcular resumen
     resumen = {
@@ -1063,7 +1070,7 @@ def checklist(year=None, month=None, quincena_num=None):
     hoy = date_type.today()
     puede_ir_siguiente = quincena_siguiente['inicio'] <= hoy
     
-    print(f"[MOBPER PERF] Total checklist route: {time_module.time()-t_start:.2f}s")
+    print(f"[MOVPER PERF] Total checklist route: {time_module.time()-t_start:.2f}s")
     
     return render_template(
         'mobper_checklist_v3.html',
@@ -1321,18 +1328,18 @@ def generar_excel():
         con_goce_param = request.args.get('con_goce', '1')
         con_goce = con_goce_param == '1'
         
-        print(f"[MOBPER ROUTES] === GENERAR EXCEL ===")
-        print(f"[MOBPER ROUTES] Params recibidos: year={year}, month={month}, quincena_num={quincena_num}, con_goce={con_goce_param}")
-        print(f"[MOBPER ROUTES] User: {user.nombre_completo}")
-        print(f"[MOBPER ROUTES] Preset: {preset}")
-        print(f"[MOBPER ROUTES] Quincena calculada: {quincena}")
-        print(f"[MOBPER ROUTES] Incidencias totales: {len(incidencias_dict)}")
-        print(f"[MOBPER ROUTES] Con goce: {con_goce}")
+        print(f"[MOVPER ROUTES] === GENERAR EXCEL ===")
+        print(f"[MOVPER ROUTES] Params recibidos: year={year}, month={month}, quincena_num={quincena_num}, con_goce={con_goce_param}")
+        print(f"[MOVPER ROUTES] User: {user.nombre_completo}")
+        print(f"[MOVPER ROUTES] Preset: {preset}")
+        print(f"[MOVPER ROUTES] Quincena calculada: {quincena}")
+        print(f"[MOVPER ROUTES] Incidencias totales: {len(incidencias_dict)}")
+        print(f"[MOVPER ROUTES] Con goce: {con_goce}")
         
         # Log detallado de incidencias para debug
         for inc in incidencias_dict:
             if inc.get('estado_auto') in ('RETARDO', 'FALTA'):
-                print(f"[MOBPER ROUTES]   {inc['fecha']} - {inc['estado_auto']} | clasificacion={inc.get('clasificacion')} | justificado={inc.get('justificado')} | motivo={inc.get('motivo_auto')}")
+                print(f"[MOVPER ROUTES]   {inc['fecha']} - {inc['estado_auto']} | clasificacion={inc.get('clasificacion')} | justificado={inc.get('justificado')} | motivo={inc.get('motivo_auto')}")
         
         # Generar Excel
         output_path, filename = generar_formato_excel(
@@ -1399,7 +1406,7 @@ def preview_excel(filename):
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Vista Previa - MobPer</title>
+        <title>Vista Previa - MovPer</title>
         <style>
             * { box-sizing: border-box; }
             body {

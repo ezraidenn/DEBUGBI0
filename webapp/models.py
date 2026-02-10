@@ -541,8 +541,8 @@ class PresetUsuario(db.Model):
     # Configuración de horario
     hora_entrada_default = db.Column(db.Time, default=datetime.strptime('09:00:00', '%H:%M:%S').time())
     tolerancia_segundos = db.Column(db.Integer, default=600)  # 10 minutos
-    dias_descanso = db.Column(db.JSON, default=[5, 6])  # Sábado y Domingo
-    lista_inhabiles = db.Column(db.JSON, default=[])
+    dias_descanso = db.Column(db.JSON, default=lambda: [5, 6])  # Sábado y Domingo
+    lista_inhabiles = db.Column(db.JSON, default=list)
     
     vigente_desde = db.Column(db.Date, default=datetime.utcnow)
     vigente_hasta = db.Column(db.Date)
