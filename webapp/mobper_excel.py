@@ -168,15 +168,15 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         # Límites de expansión
         max_height = mit_height           # Límite vertical = altura MIT
-        max_width = mit_width * 1.3       # Límite horizontal = ancho MIT × 1.3
+        max_width = mit_width * 1.5       # Límite horizontal = ancho MIT × 1.5
         
-        print(f"[MOVPER EXCEL] Límites: Height={max_height:.1f}, Width={max_width:.1f} (MIT × 1.3)")
+        print(f"[MOVPER EXCEL] Límites: Height={max_height:.1f}, Width={max_width:.1f} (MIT × 1.5)")
         
         # Eliminar logo existente
         original_logo.Delete()
         print(f"[MOVPER EXCEL] Logo anterior eliminado (Shape 25)")
         
-        # Insertar nuevo logo en la misma posición
+        # Insertar nuevo logo en la misma posición temporal
         picture = sheet.Shapes.AddPicture(
             Filename=logo_abs_path,
             LinkToFile=False,
@@ -206,6 +206,14 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         # Aplicar escala (con aspect ratio bloqueado, ambas dimensiones se ajustan proporcionalmente)
         picture.Width = original_width * scale_factor
+        
+        # Centrar verticalmente dentro del espacio disponible
+        final_height = picture.Height
+        vertical_space = max_height
+        vertical_offset = (vertical_space - final_height) / 2
+        picture.Top = logo_top + vertical_offset
+        
+        print(f"[MOVPER EXCEL] Centrado vertical: offset={vertical_offset:.1f}, Top={picture.Top:.1f}")
         
         print(f"[MOVPER EXCEL] Escalado aplicado: original=({original_width:.1f}x{original_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
         
