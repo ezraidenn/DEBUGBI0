@@ -439,7 +439,7 @@ def obtener_primer_registro_dia(biostar_user_id, fecha):
     except Exception as e:
         print(f"[MOVPER] Error: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         return None
 
 def calcular_incidencias_quincena(user, quincena):
@@ -565,7 +565,7 @@ def calcular_incidencias_quincena(user, quincena):
     except Exception as e:
         print(f"[MOVPER OPTIMIZADO] Error obteniendo registros de quincena: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         registros_quincena = {}
     
     while fecha_actual <= quincena['fin']:
@@ -829,7 +829,7 @@ def register():
     except Exception as e:
         print(f"[MOVPER] Error en registro: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         return render_template('mobper_register.html', 
                              error=f'Error validando con BioStar: {str(e)}',
                              numero_socio=numero_socio,
@@ -983,7 +983,7 @@ def api_clasificar_dia():
         db.session.rollback()
         print(f"[MOVPER API] Error en api_clasificar_dia: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @mobper_bp.route('/api/clasificar-multiple', methods=['POST'])
@@ -1210,7 +1210,7 @@ def api_exportar_excel():
         
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         return jsonify({
             'success': False, 
             'message': f'Error al generar Excel: {str(e)}'
@@ -1400,7 +1400,7 @@ def generar_excel():
         
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=__import__(" sys\).stderr)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

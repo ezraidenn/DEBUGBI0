@@ -225,13 +225,14 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         except:
             pass  # Algunos logos pueden no tener esta propiedad
         
-        print(f"[MOVPER EXCEL] ✓ Logo reemplazado: Width={picture.Width}, Height={picture.Height}")
+        print(f"[MOVPER EXCEL] Logo reemplazado: Width={picture.Width}, Height={picture.Height}")
         return True
         
     except Exception as e:
         print(f"[MOVPER EXCEL] Error reemplazando logo: {e}")
         import traceback
-        traceback.print_exc()
+        import sys
+        traceback.print_exc(file=sys.stderr)
         return False
 
 
@@ -492,9 +493,10 @@ def generar_formato_excel(
             print(f"[MOVPER EXCEL] [ERROR] Archivo no existe después de guardar")
         
     except Exception as e:
-        print(f"[MOVPER EXCEL] ERROR durante generación: {e}")
+        print(f"[MOVPER EXCEL] ERROR durante generacion: {e}")
         import traceback
-        traceback.print_exc()
+        import sys
+        traceback.print_exc(file=sys.stderr)
         try:
             wb.Close(SaveChanges=False)
         except:
