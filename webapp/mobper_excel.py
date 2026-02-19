@@ -186,17 +186,28 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         # Bloquear aspect ratio para que se mantenga la proporción original del logo
         picture.LockAspectRatio = -1  # True en COM
         
-        # Escalar para llenar el espacio disponible manteniendo aspect ratio
-        # Intentar ajustar primero por ancho
-        picture.Width = original_width
+        # Obtener dimensiones actuales del logo (originales del archivo)
+        current_width = picture.Width
+        current_height = picture.Height
         
-        # Si la altura resultante es menor que el espacio disponible, ajustar por altura
-        if picture.Height < original_height:
-            picture.Height = original_height
+        # Calcular factores de escala para ajustar al espacio disponible
+        scale_width = original_width / current_width
+        scale_height = original_height / current_height
         
-        # Si ahora el ancho excede el espacio, ajustar de nuevo por ancho
+        # Usar el factor de escala MAYOR para maximizar el tamaño del logo
+        # manteniendo que quepa dentro del espacio disponible
+        scale_factor = max(scale_width, scale_height)
+        
+        # Aplicar escala
+        picture.Width = current_width * scale_factor
+        
+        # Verificar que no exceda los límites (por aspect ratio puede pasar)
         if picture.Width > original_width:
             picture.Width = original_width
+        if picture.Height > original_height:
+            picture.Height = original_height
+        
+        print(f"[MOVPER EXCEL] Escalado aplicado: factor={scale_factor:.2f}, original=({current_width:.1f}x{current_height:.1f})")
         
         # Quitar bordes y sombras (como el original)
         picture.Line.Visible = 0  # Sin borde
