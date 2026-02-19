@@ -159,28 +159,21 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         print(f"[MOVPER EXCEL] Reemplazando logo con: {logo_abs_path}")
         
-        # Obtener propiedades del logo original (Shape 25) para posición
+        # Obtener propiedades del logo original MIT (Shape 25)
+        # Estas dimensiones son las correctas que queremos usar para todos los logos
         original_logo = sheet.Shapes(25)
         logo_left = original_logo.Left
         logo_top = original_logo.Top
+        target_width = original_logo.Width   # 83.4 puntos (espacio que usa MIT)
+        target_height = original_logo.Height  # 45.1 puntos (espacio que usa MIT)
         
-        # Calcular espacio REAL disponible basado en celdas
-        # El logo debe caber entre columna A y antes de columna E (donde empieza el texto)
-        # Y entre fila 4 y fila 8 (donde empieza "Nombre")
-        cell_a4 = sheet.Range('A4')
-        cell_e4 = sheet.Range('E4')
-        cell_a8 = sheet.Range('A8')
-        
-        max_width = cell_e4.Left - cell_a4.Left - 5  # -5 puntos de margen
-        max_height = cell_a8.Top - cell_a4.Top - 5   # -5 puntos de margen
-        
-        print(f"[MOVPER EXCEL] Espacio disponible: Width={max_width:.1f}, Height={max_height:.1f}")
+        print(f"[MOVPER EXCEL] Espacio objetivo (MIT): Width={target_width:.1f}, Height={target_height:.1f}")
         
         # Eliminar logo existente
         original_logo.Delete()
         print(f"[MOVPER EXCEL] Logo anterior eliminado (Shape 25)")
         
-        # Insertar nuevo logo en la misma posición con dimensiones temporales
+        # Insertar nuevo logo en la misma posición
         picture = sheet.Shapes.AddPicture(
             Filename=logo_abs_path,
             LinkToFile=False,
@@ -198,13 +191,13 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         current_width = picture.Width
         current_height = picture.Height
         
-        # Estrategia: Ajustar por ALTURA primero para llenar el espacio vertical
+        # Estrategia: Ajustar por ALTURA primero para llenar el espacio vertical (como MIT)
         # Esto hace que logos horizontales (como DRELEX, Ekogolf) se vean más grandes
-        picture.Height = max_height
+        picture.Height = target_height
         
-        # Si el ancho resultante excede el espacio, ajustar por ancho en su lugar
-        if picture.Width > max_width:
-            picture.Width = max_width
+        # Si el ancho resultante excede el espacio de MIT, ajustar por ancho en su lugar
+        if picture.Width > target_width:
+            picture.Width = target_width
         
         print(f"[MOVPER EXCEL] Escalado aplicado: original=({current_width:.1f}x{current_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
         
