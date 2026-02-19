@@ -190,24 +190,15 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         current_width = picture.Width
         current_height = picture.Height
         
-        # Calcular factores de escala para ajustar al espacio disponible
-        scale_width = original_width / current_width
-        scale_height = original_height / current_height
+        # Estrategia: Ajustar por ALTURA primero para llenar el espacio vertical
+        # Esto hace que logos horizontales (como DRELEX, Ekogolf) se vean más grandes
+        picture.Height = original_height
         
-        # Usar el factor de escala MAYOR para maximizar el tamaño del logo
-        # manteniendo que quepa dentro del espacio disponible
-        scale_factor = max(scale_width, scale_height)
-        
-        # Aplicar escala
-        picture.Width = current_width * scale_factor
-        
-        # Verificar que no exceda los límites (por aspect ratio puede pasar)
+        # Si el ancho resultante excede el espacio, ajustar por ancho en su lugar
         if picture.Width > original_width:
             picture.Width = original_width
-        if picture.Height > original_height:
-            picture.Height = original_height
         
-        print(f"[MOVPER EXCEL] Escalado aplicado: factor={scale_factor:.2f}, original=({current_width:.1f}x{current_height:.1f})")
+        print(f"[MOVPER EXCEL] Escalado aplicado: original=({current_width:.1f}x{current_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
         
         # Quitar bordes y sombras (como el original)
         picture.Line.Visible = 0  # Sin borde
