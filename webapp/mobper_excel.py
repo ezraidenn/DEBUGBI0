@@ -159,14 +159,22 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         print(f"[MOVPER EXCEL] Reemplazando logo con: {logo_abs_path}")
         
-        # Obtener propiedades del logo original (Shape 25)
+        # Obtener propiedades del logo original (Shape 25) para posición
         original_logo = sheet.Shapes(25)
-        original_left = original_logo.Left
-        original_top = original_logo.Top
-        original_width = original_logo.Width
-        original_height = original_logo.Height
+        logo_left = original_logo.Left
+        logo_top = original_logo.Top
         
-        print(f"[MOVPER EXCEL] Propiedades originales: Left={original_left}, Top={original_top}, Width={original_width}, Height={original_height}")
+        # Calcular espacio REAL disponible basado en celdas
+        # El logo debe caber entre columna A y antes de columna E (donde empieza el texto)
+        # Y entre fila 4 y fila 8 (donde empieza "Nombre")
+        cell_a4 = sheet.Range('A4')
+        cell_e4 = sheet.Range('E4')
+        cell_a8 = sheet.Range('A8')
+        
+        max_width = cell_e4.Left - cell_a4.Left - 5  # -5 puntos de margen
+        max_height = cell_a8.Top - cell_a4.Top - 5   # -5 puntos de margen
+        
+        print(f"[MOVPER EXCEL] Espacio disponible: Width={max_width:.1f}, Height={max_height:.1f}")
         
         # Eliminar logo existente
         original_logo.Delete()
@@ -177,8 +185,8 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
             Filename=logo_abs_path,
             LinkToFile=False,
             SaveWithDocument=True,
-            Left=original_left,
-            Top=original_top,
+            Left=logo_left,
+            Top=logo_top,
             Width=-1,  # -1 = usar dimensiones originales del archivo
             Height=-1
         )
@@ -192,11 +200,11 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         # Estrategia: Ajustar por ALTURA primero para llenar el espacio vertical
         # Esto hace que logos horizontales (como DRELEX, Ekogolf) se vean más grandes
-        picture.Height = original_height
+        picture.Height = max_height
         
         # Si el ancho resultante excede el espacio, ajustar por ancho en su lugar
-        if picture.Width > original_width:
-            picture.Width = original_width
+        if picture.Width > max_width:
+            picture.Width = max_width
         
         print(f"[MOVPER EXCEL] Escalado aplicado: original=({current_width:.1f}x{current_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
         
