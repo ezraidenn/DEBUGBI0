@@ -39,26 +39,26 @@ class RealtimeMonitor:
             self.is_running = True
             self.thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.thread.start()
-            logger.info("✓ Monitor en tiempo real iniciado")
+            logger.info("[OK] Monitor en tiempo real iniciado")
     
     def stop(self):
         """Detiene el monitoreo."""
         self.is_running = False
         if self.thread:
             self.thread.join(timeout=5)
-        logger.info("⏹ Monitor en tiempo real detenido")
+        logger.info("[STOPPED] Monitor en tiempo real detenido")
     
     def add_device(self, device_id: int):
         """Agrega un dispositivo para monitorear."""
         self.monitoring_devices.add(device_id)
-        logger.info(f"📍 Monitoreando dispositivo {device_id}")
+        logger.info(f"[ADDED] Monitoreando dispositivo {device_id}")
     
     def remove_device(self, device_id: int):
         """Remueve un dispositivo del monitoreo."""
         self.monitoring_devices.discard(device_id)
         if device_id in self.last_event_timestamp:
             del self.last_event_timestamp[device_id]
-        logger.info(f"📍 Dejó de monitorear dispositivo {device_id}")
+        logger.info(f"[REMOVED] Dejó de monitorear dispositivo {device_id}")
     
     def _get_or_create_monitor(self) -> Optional[object]:
         """Obtiene o crea una instancia de monitor (reutiliza para evitar logins constantes)."""
@@ -68,12 +68,12 @@ class RealtimeMonitor:
             self.monitor_instance = self.get_monitor()
             if self.monitor_instance:
                 self.last_login = now
-                logger.info("✓ Monitor autenticado/reautenticado")
+                logger.info("[OK] Monitor autenticado/reautenticado")
         return self.monitor_instance
     
     def _monitor_loop(self):
         """Loop principal de monitoreo."""
-        logger.info("🔄 Loop de monitoreo iniciado")
+        logger.info("[STARTED] Loop de monitoreo iniciado")
         
         while self.is_running:
             try:
@@ -105,10 +105,10 @@ class RealtimeMonitor:
                             # Guardar timestamp del evento más reciente
                             latest = max(events, key=lambda e: e.get('datetime', datetime.min))
                             self.last_event_timestamp[device_id] = latest.get('datetime', now)
-                            logger.info(f"✓ Inicializado dispositivo {device_id} - Último evento: {self.last_event_timestamp[device_id]}")
+                            logger.info(f"[OK] Inicializado dispositivo {device_id} - Ultimo evento: {self.last_event_timestamp[device_id]}")
                         else:
                             self.last_event_timestamp[device_id] = now
-                            logger.info(f"✓ Inicializado dispositivo {device_id} - Sin eventos recientes")
+                            logger.info(f"[OK] Inicializado dispositivo {device_id} - Sin eventos recientes")
                         continue
                     
                     # OPTIMIZACIÓN: Solo buscar eventos DESPUÉS del último timestamp

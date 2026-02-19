@@ -296,7 +296,7 @@ def init_monitoring(app):
     health_checker = HealthChecker(app)
     app.extensions['health_checker'] = health_checker
     
-    logger.info("✓ Sistema de monitoreo inicializado")
+    logger.info("[OK] Sistema de monitoreo inicializado")
     
     # Registrar rutas de monitoreo
     @app.route('/health')
@@ -351,6 +351,6 @@ def init_monitoring(app):
         from flask import jsonify
         return jsonify(health_checker.get_metrics())
     
-    logger.info("✓ Endpoints de monitoreo registrados: /health, /health/ready, /health/live, /metrics, /metrics/app")
+    logger.info("[OK] Endpoints de monitoreo registrados: /health, /health/ready, /health/live, /metrics, /metrics/app")
     
     return health_checker

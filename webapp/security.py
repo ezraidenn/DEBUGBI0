@@ -506,14 +506,14 @@ def configure_flask_security(app):
     if not secret_key or secret_key == 'CAMBIAR_POR_CLAVE_SEGURA_DE_64_CARACTERES':
         if os.environ.get('FLASK_ENV') == 'production':
             raise ValueError(
-                "⚠️ ERROR CRÍTICO: SECRET_KEY no configurada. "
+                "ERROR CRÍTICO: SECRET_KEY no configurada. "
                 "Genera una con: python -c \"import secrets; print(secrets.token_hex(32))\""
             )
         else:
             # En desarrollo, generar una temporal (no recomendado)
             import secrets
             secret_key = secrets.token_hex(32)
-            print("⚠️ ADVERTENCIA: Usando SECRET_KEY temporal. Configura una en .env para producción.")
+            print("[WARNING] Usando SECRET_KEY temporal. Configura una en .env para produccion.")
     
     app.config['SECRET_KEY'] = secret_key
     

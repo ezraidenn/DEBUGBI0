@@ -48,10 +48,6 @@ pandas>=2.1.0
 numpy>=1.24.0
 openpyxl==3.1.2
 
-# ==================== Excel con Win32COM (solo Windows) ====================
-pywin32==308                  # win32com.client, pythoncom para editar Excel preservando formato
-
-# ==================== Fecha y Hora ====================
 pytz==2023.3
 python-dateutil==2.8.2
 six>=1.16.0                   # Dependencia de python-dateutil
