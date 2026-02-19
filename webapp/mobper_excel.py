@@ -160,14 +160,17 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         print(f"[MOVPER EXCEL] Reemplazando logo con: {logo_abs_path}")
         
         # Obtener propiedades del logo original MIT (Shape 25)
-        # Estas dimensiones son las correctas que queremos usar para todos los logos
         original_logo = sheet.Shapes(25)
         logo_left = original_logo.Left
         logo_top = original_logo.Top
-        target_width = original_logo.Width   # 83.4 puntos (espacio que usa MIT)
-        target_height = original_logo.Height  # 45.1 puntos (espacio que usa MIT)
+        mit_width = original_logo.Width   # 83.4 puntos
+        mit_height = original_logo.Height  # 45.1 puntos
         
-        print(f"[MOVPER EXCEL] Espacio objetivo (MIT): Width={target_width:.1f}, Height={target_height:.1f}")
+        # Límites de expansión
+        max_height = mit_height           # Límite vertical = altura MIT
+        max_width = mit_width * 1.3       # Límite horizontal = ancho MIT × 1.3
+        
+        print(f"[MOVPER EXCEL] Límites: Height={max_height:.1f}, Width={max_width:.1f} (MIT × 1.3)")
         
         # Eliminar logo existente
         original_logo.Delete()
@@ -188,18 +191,23 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         picture.LockAspectRatio = -1  # True en COM
         
         # Obtener dimensiones actuales del logo (originales del archivo)
-        current_width = picture.Width
-        current_height = picture.Height
+        original_width = picture.Width
+        original_height = picture.Height
         
-        # Estrategia: Ajustar por ALTURA primero para llenar el espacio vertical (como MIT)
-        # Esto hace que logos horizontales (como DRELEX, Ekogolf) se vean más grandes
-        picture.Height = target_height
+        # Calcular factores de escala para cada límite
+        scale_by_height = max_height / original_height
+        scale_by_width = max_width / original_width
         
-        # Si el ancho resultante excede el espacio de MIT, ajustar por ancho en su lugar
-        if picture.Width > target_width:
-            picture.Width = target_width
+        # Usar el factor MENOR para que el logo quepa sin exceder ningún límite
+        # (expandir hasta tocar el primer límite)
+        scale_factor = min(scale_by_height, scale_by_width)
         
-        print(f"[MOVPER EXCEL] Escalado aplicado: original=({current_width:.1f}x{current_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
+        print(f"[MOVPER EXCEL] Factores: height={scale_by_height:.2f}, width={scale_by_width:.2f}, usando={scale_factor:.2f}")
+        
+        # Aplicar escala (con aspect ratio bloqueado, ambas dimensiones se ajustan proporcionalmente)
+        picture.Width = original_width * scale_factor
+        
+        print(f"[MOVPER EXCEL] Escalado aplicado: original=({original_width:.1f}x{original_height:.1f}) -> final=({picture.Width:.1f}x{picture.Height:.1f})")
         
         # Quitar bordes y sombras (como el original)
         picture.Line.Visible = 0  # Sin borde
