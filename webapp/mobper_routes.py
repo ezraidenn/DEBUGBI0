@@ -105,14 +105,14 @@ def prewarm_biostar_client():
     import threading
     def _warm():
         try:
-            print("[MOVPER CACHE] Pre-calentando conexión BioStar en background...")
+            print("[MOVPER CACHE] Pre-calentando conexion BioStar en background...")
             client = get_biostar_client()
             if client:
-                print("[MOVPER CACHE] ✓ BioStar pre-calentado exitosamente")
+                print("[MOVPER CACHE] [OK] BioStar pre-calentado exitosamente")
             else:
-                print("[MOVPER CACHE] ✗ BioStar pre-warm falló")
+                print("[MOVPER CACHE] [ERROR] BioStar pre-warm fallo")
         except Exception as e:
-            print(f"[MOVPER CACHE] ✗ Error en pre-warm: {e}")
+            print(f"[MOVPER CACHE] [ERROR] Error en pre-warm: {e}")
     
     t = threading.Thread(target=_warm, daemon=True)
     t.start()

@@ -1,5 +1,5 @@
 """
-Módulo de generación de formato Excel para MovPer
+Modulo de generacion de formato Excel para MovPer
 Usa win32com (pywin32) para llenar el template Excel preservando completamente el formato y shapes.
 """
 
@@ -13,14 +13,14 @@ import pythoncom
 # Directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Configuración de rutas
+# Configuracion de rutas
 TEMPLATE_PATH = os.path.join(BASE_DIR, 'templates', 'F-RH-18-MIT-FORMATO-DE-MOVIMIENTO-DE-PERSONAL-3(1).xlsx')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output', 'mobper')
 
 # =============================================================================
 # MAPEO DE CELDAS DEL TEMPLATE EXCEL
 # =============================================================================
-# Basado en análisis visual del formato F-RH-18-MIT
+# Basado en analisis visual del formato F-RH-18-MIT
 
 CELDAS = {
     # Encabezado - Coordenadas exactas confirmadas por el usuario
@@ -52,7 +52,7 @@ CELDAS = {
 # =============================================================================
 # MAPEO DE SHAPES (CÍRCULOS) DEL TEMPLATE
 # =============================================================================
-# Basado en análisis con win32com - índices de shapes
+# Basado en analisis con win32com - indices de shapes
 
 SHAPES = {
     'PARA_FALTAR': 1,           # Shape #1 en C15
@@ -85,7 +85,7 @@ MESES_ES = {
 
 def calcular_tamano_letra(texto: str, max_size: int = 12, min_size: int = 8) -> int:
     """
-    Calcula el tamaño de letra óptimo según la longitud del texto.
+    Calcula el tamano de letra optimo segun la longitud del texto.
     
     - Hasta 10 chars: max_size (12)
     - 11-15 chars: 11
@@ -108,7 +108,7 @@ def calcular_tamano_letra(texto: str, max_size: int = 12, min_size: int = 8) -> 
 
 def formatear_fechas_compactas(dias: List[int], mes: str) -> str:
     """
-    Formatea los días de forma compacta.
+    Formatea los dias de forma compacta.
     Si hay más de 4 días, usa formato sin espacios: 1,2,3,5,8
     Si hay 4 o menos, usa espacios: 1, 2, 3, 5
     """
@@ -140,7 +140,7 @@ def set_circle_color(sheet, shape_index: int, is_selected: bool):
 
 def agrupar_dias_consecutivos(dias: List[int]) -> str:
     """
-    Agrupa días consecutivos para mostrar de forma compacta.
+    Agrupa dias consecutivos para mostrar de forma compacta.
     Ejemplo: [1,2,3,5,7,8,9] -> "1-3, 5, 7-9"
     """
     if not dias:
@@ -161,7 +161,7 @@ def agrupar_dias_consecutivos(dias: List[int]) -> str:
                 grupos.append(f"{inicio}-{fin}" if fin - inicio > 1 else f"{inicio},{fin}")
             inicio = fin = dia
     
-    # Agregar último grupo
+    # Agregar ultimo grupo
     if inicio == fin:
         grupos.append(str(inicio))
     else:
@@ -216,7 +216,7 @@ def generar_formato_excel(
     
     Args:
         user: MovPerUser - Usuario actual
-        preset: PresetUsuario - Configuración del usuario
+        preset: PresetUsuario - Configuracion del usuario
         incidencias: List[Dict] - Lista de incidencias clasificadas
         quincena: Dict - Info de la quincena {inicio, fin, nombre}
         con_goce: bool - Si es con goce de sueldo
@@ -246,7 +246,7 @@ def generar_formato_excel(
     # Inicializar COM
     pythoncom.CoInitialize()
     
-    # Usar gencache.EnsureDispatch (más estable que Dispatch)
+    # Usar gencache.EnsureDispatch (mas estable que Dispatch)
     excel = win32.gencache.EnsureDispatch('Excel.Application')
     excel.Visible = False  # NO mostrar Excel
     excel.DisplayAlerts = False
@@ -274,43 +274,43 @@ def generar_formato_excel(
         print(f"[MOVPER EXCEL] Escribiendo nombre en {CELDAS['NOMBRE']}: {nombre}")
         sheet.Range(CELDAS['NOMBRE']).Value = nombre.upper()
         
-        # Departamento con tamaño de letra dinámico
+        # Departamento con tamano de letra dinamico
         departamento = preset.departamento_formato if preset and preset.departamento_formato else "Sin departamento"
         print(f"[MOVPER EXCEL] Escribiendo departamento en {CELDAS['DEPARTAMENTO']}: {departamento}")
         sheet.Range(CELDAS['DEPARTAMENTO']).Value = departamento.upper()
-        # Ajustar tamaño de letra según longitud
+        # Ajustar tamano de letra segun longitud
         tamano_depto = calcular_tamano_letra(departamento, max_size=12, min_size=8)
         sheet.Range(CELDAS['DEPARTAMENTO']).Font.Size = tamano_depto
-        print(f"[MOVPER EXCEL] Tamaño letra departamento: {tamano_depto}")
+        print(f"[MOVPER EXCEL] Tamano letra departamento: {tamano_depto}")
         
-        # Fecha de autorización (hoy) en formato dd-mmm-yy con mes en español
+        # Fecha de autorizacion (hoy) en formato dd-mmm-yy con mes en espanol
         now = datetime.now()
         mes_corto = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic'}
         fecha_auth = f"{now.day:02d}-{mes_corto[now.month]}-{now.strftime('%y')}"
         print(f"[MOVPER EXCEL] Escribiendo fecha auth en {CELDAS['FECHA_AUTORIZACION']}: {fecha_auth}")
         sheet.Range(CELDAS['FECHA_AUTORIZACION']).Value = fecha_auth
         
-        # Fecha de aplicación (días del periodo) con tamaño dinámico
+        # Fecha de aplicacion (dias del periodo) con tamano dinamico
         dias_periodo = construir_fechas_aplicacion(incidencias_justificadas, quincena)
-        print(f"[MOVPER EXCEL] Escribiendo fechas aplicación en {CELDAS['FECHA_APLICACION']}: {dias_periodo}")
+        print(f"[MOVPER EXCEL] Escribiendo fechas aplicacion en {CELDAS['FECHA_APLICACION']}: {dias_periodo}")
         sheet.Range(CELDAS['FECHA_APLICACION']).Value = dias_periodo
-        # Ajustar tamaño según longitud
+        # Ajustar tamano segun longitud
         tamano_fechas = calcular_tamano_letra(dias_periodo, max_size=12, min_size=8)
         sheet.Range(CELDAS['FECHA_APLICACION']).Font.Size = tamano_fechas
-        print(f"[MOVPER EXCEL] Tamaño letra fechas: {tamano_fechas}")
+        print(f"[MOVPER EXCEL] Tamano letra fechas: {tamano_fechas}")
         
         # =============================================================
-        # ANALIZAR TIPOS DE INCIDENCIAS Y MARCAR CÍRCULOS REALES
+        # ANALIZAR TIPOS DE INCIDENCIAS Y MARCAR CIRCULOS REALES
         # =============================================================
         
         tipos = analizar_tipos_incidencias(incidencias_justificadas)
         
-        # Primero, poner todos los círculos en blanco (no seleccionado)
-        print(f"[MOVPER EXCEL] Reseteando todos los círculos a blanco...")
+        # Primero, poner todos los circulos en blanco (no seleccionado)
+        print(f"[MOVPER EXCEL] Reseteando todos los circulos a blanco...")
         for shape_name, shape_idx in SHAPES.items():
             set_circle_color(sheet, shape_idx, False)
         
-        # Marcar los círculos correspondientes según tipos encontrados
+        # Marcar los circulos correspondientes segun tipos encontrados
         print(f"[MOVPER EXCEL] Marcando círculos según incidencias...")
         # PARA FALTAR: cualquier tipo de falta (genérica, remoto, guardia, permiso, vacaciones)
         tiene_faltas = tipos['faltas'] or tipos['remotos'] or tipos['guardias'] or tipos['permisos'] or tipos['vacaciones']
@@ -371,9 +371,9 @@ def generar_formato_excel(
         print(f"[MOVPER EXCEL] Archivo guardado exitosamente: {output_path}")
         print(f"[MOVPER EXCEL] Verificando que el archivo existe...")
         if os.path.exists(output_path):
-            print(f"[MOVPER EXCEL] ✓ Archivo confirmado: {os.path.getsize(output_path)} bytes")
+            print(f"[MOVPER EXCEL] [OK] Archivo confirmado: {os.path.getsize(output_path)} bytes")
         else:
-            print(f"[MOVPER EXCEL] ✗ ERROR: Archivo no existe después de guardar")
+            print(f"[MOVPER EXCEL] [ERROR] Archivo no existe después de guardar")
         
     except Exception as e:
         print(f"[MOVPER EXCEL] ERROR durante generación: {e}")
