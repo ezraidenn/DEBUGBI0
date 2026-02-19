@@ -509,6 +509,19 @@ class PanicModeLog(db.Model):
 # SISTEMA MOBPER - MOVIMIENTO DE PERSONAL
 # ============================================
 
+class Company(db.Model):
+    """Empresas para sistema MobPer - cada empresa tiene su logo"""
+    __tablename__ = 'companies'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    logo_filename = db.Column(db.String(200))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Company {self.name}>'
+
 class MobPerUser(db.Model):
     """Usuario del sistema MobPer (independiente del sistema principal)"""
     __tablename__ = 'mobper_users'
@@ -547,6 +560,10 @@ class PresetUsuario(db.Model):
     nombre_formato = db.Column(db.String(200))
     departamento_formato = db.Column(db.String(100))
     jefe_directo_nombre = db.Column(db.String(200))
+    
+    # Empresa (para logo en formato Excel)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'))
+    company = db.relationship('Company', backref='presets')
     
     # Configuración de horario
     hora_entrada_default = db.Column(db.Time, default=datetime.strptime('09:00:00', '%H:%M:%S').time())

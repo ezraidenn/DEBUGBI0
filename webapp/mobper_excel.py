@@ -138,6 +138,54 @@ def set_circle_color(sheet, shape_index: int, is_selected: bool):
         print(f"[MOVPER EXCEL] Error en shape {shape_index}: {e}")
 
 
+def reemplazar_logo(sheet, logo_path: str) -> bool:
+    """
+    Reemplaza el logo en el Excel (Shape 25 - Picture 12).
+    
+    Args:
+        sheet: Worksheet de Excel
+        logo_path: Ruta absoluta al archivo de logo
+    
+    Returns:
+        bool: True si se reemplazó exitosamente
+    """
+    try:
+        logo_abs_path = os.path.abspath(logo_path)
+        
+        if not os.path.exists(logo_abs_path):
+            print(f"[MOVPER EXCEL] Logo no encontrado: {logo_abs_path}")
+            return False
+        
+        print(f"[MOVPER EXCEL] Reemplazando logo con: {logo_abs_path}")
+        
+        # Eliminar logo existente (Shape 25)
+        try:
+            sheet.Shapes(25).Delete()
+            print(f"[MOVPER EXCEL] Logo anterior eliminado (Shape 25)")
+        except Exception as e:
+            print(f"[MOVPER EXCEL] No se pudo eliminar logo anterior: {e}")
+        
+        # Insertar nuevo logo en la misma posición
+        picture = sheet.Shapes.AddPicture(
+            Filename=logo_abs_path,
+            LinkToFile=False,
+            SaveWithDocument=True,
+            Left=9.6,
+            Top=13.5,
+            Width=83.4,
+            Height=45.1
+        )
+        
+        print(f"[MOVPER EXCEL] ✓ Logo reemplazado exitosamente")
+        return True
+        
+    except Exception as e:
+        print(f"[MOVPER EXCEL] Error reemplazando logo: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def agrupar_dias_consecutivos(dias: List[int]) -> str:
     """
     Agrupa dias consecutivos para mostrar de forma compacta.
@@ -256,6 +304,19 @@ def generar_formato_excel(
         wb = excel.Workbooks.Open(os.path.abspath(output_path))
         sheet = wb.ActiveSheet
         print(f"[MOVPER EXCEL] Archivo abierto con win32com")
+        
+        # =============================================================
+        # REEMPLAZAR LOGO SEGÚN EMPRESA DEL USUARIO
+        # =============================================================
+        if preset and preset.company and preset.company.logo_filename:
+            logo_path = os.path.join(BASE_DIR, 'static', 'logos', preset.company.logo_filename)
+            if os.path.exists(logo_path):
+                print(f"[MOVPER EXCEL] Empresa: {preset.company.name}")
+                reemplazar_logo(sheet, logo_path)
+            else:
+                print(f"[MOVPER EXCEL] Logo no encontrado para empresa {preset.company.name}: {logo_path}")
+        else:
+            print(f"[MOVPER EXCEL] Sin empresa configurada, usando logo por defecto (MIT)")
         
         # =============================================================
         # FILTRAR INCIDENCIAS QUE VAN A JUSTIFICARSE
