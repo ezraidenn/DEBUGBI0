@@ -5,10 +5,11 @@ Sistema de regularización de asistencias quincenal
 Este módulo funciona como una aplicación independiente con su propio login.
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for, after_this_request
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta, date, time as time_type
 from calendar import monthrange
+import os
 import pytz
 import json
 import os
@@ -645,6 +646,18 @@ def calcular_incidencias_quincena(user, quincena):
 # RUTAS
 # ============================================================================
 
+@mobper_bp.route('/')
+def mobper_root():
+    """
+    Ruta raíz de MovPer - redirige a login o dashboard según estado de autenticación.
+    """
+    if 'mobper_user_id' in session:
+        # Usuario autenticado, redirigir a dashboard
+        return redirect(url_for('mobper.dashboard'))
+    else:
+        # No autenticado, redirigir a login
+        return redirect(url_for('mobper.login'))
+
 @mobper_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """
@@ -1178,7 +1191,16 @@ def api_exportar_excel():
             con_goce=con_goce
         )
         
-        # Enviar archivo al cliente
+        # Enviar archivo al cliente y borrar después
+        @after_this_request
+        def remove_file(response):
+            try:
+                os.remove(output_path)
+                print(f"[MOVPER ROUTES] Archivo temporal eliminado: {output_path}")
+            except Exception as e:
+                print(f"[MOVPER ROUTES] Error al eliminar archivo temporal: {e}")
+            return response
+        
         return send_file(
             output_path,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1359,7 +1381,16 @@ def generar_excel():
             con_goce=con_goce
         )
         
-        # Descargar archivo directamente
+        # Descargar archivo directamente y borrar después
+        @after_this_request
+        def remove_file(response):
+            try:
+                os.remove(output_path)
+                print(f"[MOVPER ROUTES] Archivo temporal eliminado: {output_path}")
+            except Exception as e:
+                print(f"[MOVPER ROUTES] Error al eliminar archivo temporal: {e}")
+            return response
+        
         return send_file(
             output_path,
             as_attachment=True,
@@ -1373,151 +1404,21 @@ def generar_excel():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@mobper_bp.route('/download/<filename>')
-@mobper_login_required
-def download_excel(filename):
-    """Descarga el archivo Excel generado."""
-    from webapp.mobper_excel import OUTPUT_DIR
-    
-    filepath = os.path.join(OUTPUT_DIR, filename)
-    
-    if not os.path.exists(filepath):
-        return jsonify({'error': 'Archivo no encontrado'}), 404
-    
-    return send_file(
-        filepath,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+# NOTA: Rutas obsoletas comentadas - ahora usamos archivos temporales
+# @mobper_bp.route('/download/<filename>')
+# @mobper_login_required
+# def download_excel(filename):
+#     """Descarga el archivo Excel generado."""
+#     # Ya no se usa - los archivos se generan como temporales y se borran después de enviarse
+#     return jsonify({'error': 'Ruta obsoleta - usa /generar_excel'}), 404
 
 
-@mobper_bp.route('/preview/<filename>')
-@mobper_login_required
-def preview_excel(filename):
-    """Vista previa del formato Excel como HTML."""
-    from webapp.mobper_excel import excel_to_html_preview, OUTPUT_DIR
-    from flask import render_template_string
-    
-    filepath = os.path.join(OUTPUT_DIR, filename)
-    
-    if not os.path.exists(filepath):
-        return "Archivo no encontrado", 404
-    
-    try:
-        html_content = excel_to_html_preview(filepath)
-    except Exception as e:
-        html_content = f"<div class='error'>Error al generar vista previa: {str(e)}</div>"
-    
-    # Template wrapper con estilos
-    wrapper = '''
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <title>Vista Previa - MovPer</title>
-        <style>
-            * { box-sizing: border-box; }
-            body {
-                font-family: 'Segoe UI', Tahoma, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 20px;
-                margin: 0;
-                min-height: 100vh;
-            }
-            .container {
-                max-width: 1400px;
-                margin: 0 auto;
-            }
-            .preview-header {
-                background: rgba(255,255,255,0.95);
-                color: #333;
-                padding: 20px 30px;
-                border-radius: 12px 12px 0 0;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                box-shadow: 0 -2px 20px rgba(0,0,0,0.1);
-            }
-            .preview-header h2 {
-                margin: 0;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            .preview-content {
-                background: white;
-                padding: 30px;
-                border-radius: 0 0 12px 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                overflow-x: auto;
-            }
-            .actions {
-                display: flex;
-                gap: 12px;
-            }
-            .btn {
-                padding: 12px 24px;
-                border-radius: 8px;
-                border: none;
-                cursor: pointer;
-                font-weight: 600;
-                text-decoration: none;
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                transition: all 0.2s;
-            }
-            .btn-primary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            .btn-primary:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(102,126,234,0.4);
-            }
-            .btn-secondary {
-                background: #f0f0f0;
-                color: #333;
-            }
-            .btn-secondary:hover {
-                background: #e0e0e0;
-            }
-            .error {
-                background: #fee2e2;
-                color: #b91c1c;
-                padding: 20px;
-                border-radius: 8px;
-                border: 1px solid #fca5a5;
-            }
-            /* Estilos para las tablas del Excel */
-            table { border-collapse: collapse; width: 100%; }
-            td, th { border: 1px solid #ddd; padding: 6px 10px; }
-            th { background: #f5f5f5; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="preview-header">
-                <h2>📋 Vista Previa - Formato de Movimiento de Personal</h2>
-                <div class="actions">
-                    <a href="{{ url_for('mobper.download_excel', filename=filename) }}" class="btn btn-primary">
-                        ⬇️ Descargar Excel
-                    </a>
-                    <a href="{{ url_for('mobper.checklist') }}" class="btn btn-secondary">
-                        ← Volver al Checklist
-                    </a>
-                </div>
-            </div>
-            <div class="preview-content">
-                {{ excel_html | safe }}
-            </div>
-        </div>
-    </body>
-    </html>
-    '''
-    
-    return render_template_string(wrapper, excel_html=html_content, filename=filename)
+# @mobper_bp.route('/preview/<filename>')
+# @mobper_login_required
+# def preview_excel(filename):
+#     """Vista previa del formato Excel como HTML."""
+#     # Ya no se usa - los archivos se generan como temporales
+#     return "Ruta obsoleta", 404
 
 
 @mobper_bp.route('/formatos')
