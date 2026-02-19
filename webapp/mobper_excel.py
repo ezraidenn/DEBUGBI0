@@ -7,15 +7,16 @@ import win32com.client as win32
 from datetime import datetime, date
 import os
 import shutil
-from typing import List, Dict, Tuple
+import tempfile
+from datetime import datetime, timedelta
 import pythoncom
+from typing import List, Dict, Tuple
 
 # Directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Configuracion de rutas
 TEMPLATE_PATH = os.path.join(BASE_DIR, 'templates', 'F-RH-18-MIT-FORMATO-DE-MOVIMIENTO-DE-PERSONAL-3(1).xlsx')
-OUTPUT_DIR = os.path.join(BASE_DIR, 'output', 'mobper')
 
 # =============================================================================
 # MAPEO DE CELDAS DEL TEMPLATE EXCEL
@@ -321,22 +322,28 @@ def generar_formato_excel(
         Tuple[str, str]: (ruta_archivo, nombre_archivo)
     """
     
-    # Crear directorio de salida si no existe
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # Generar nombre de archivo único
+    # Crear archivo temporal para el Excel (se borra automáticamente después de usarse)
     fecha_str = quincena['inicio'].strftime('%Y%m%d')
     output_filename = f"MovPer_{user.numero_socio}_{fecha_str}.xlsx"
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
+    
+    # Crear archivo temporal con nombre descriptivo
+    temp_file = tempfile.NamedTemporaryFile(
+        mode='wb',
+        suffix='.xlsx',
+        prefix=f'MovPer_{user.numero_socio}_',
+        delete=False  # No borrar automáticamente, lo haremos manualmente después de enviarlo
+    )
+    output_path = temp_file.name
+    temp_file.close()
     
     print(f"[MOVPER EXCEL] Iniciando generación de Excel con win32com")
     print(f"[MOVPER EXCEL] Template: {TEMPLATE_PATH}")
-    print(f"[MOVPER EXCEL] Output: {output_path}")
+    print(f"[MOVPER EXCEL] Output temporal: {output_path}")
     print(f"[MOVPER EXCEL] Usuario: {user.nombre_completo}")
     print(f"[MOVPER EXCEL] Incidencias: {len(incidencias)}")
     
     # IMPORTANTE: Copiar template PRIMERO, luego abrir la copia
-    print(f"[MOVPER EXCEL] Copiando template a output...")
+    print(f"[MOVPER EXCEL] Copiando template a archivo temporal...")
     shutil.copy(TEMPLATE_PATH, output_path)
     
     # Inicializar COM
