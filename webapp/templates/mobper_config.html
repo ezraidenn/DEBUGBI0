@@ -376,6 +376,20 @@
                            value="{{ preset.jefe_directo_nombre if preset else '' }}"
                            placeholder="Nombre de tu jefe directo">
                 </div>
+
+                <div class="form-group">
+                    <label for="company_id">Empresa</label>
+                    <select id="company_id" name="company_id">
+                        <option value="">-- Seleccionar empresa --</option>
+                        {% for company in companies %}
+                        <option value="{{ company.id }}" 
+                                {% if preset and preset.company_id == company.id %}selected{% endif %}>
+                            {{ company.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small>Selecciona tu empresa para usar el logo correcto en el formato</small>
+                </div>
             </div>
 
             <!-- Configuracion de Horario -->

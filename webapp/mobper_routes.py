@@ -17,7 +17,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment
 from sqlalchemy import and_, or_, func
 from sqlalchemy.orm.attributes import flag_modified
-from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia
+from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia, Company
 from src.api.biostar_client import BioStarAPIClient
 from webapp.dias_inhabiles import obtener_dias_inhabiles, obtener_nombre_dia_inhabil
 from src.utils.config import Config
@@ -843,6 +843,10 @@ def config():
             departamento_formato = request.form.get('departamento_formato', '').strip().upper()
             jefe_directo_nombre = aplicar_title_case(request.form.get('jefe_directo_nombre', '').strip())
             
+            # Empresa
+            company_id = request.form.get('company_id')
+            company_id = int(company_id) if company_id and company_id.strip() else None
+            
             hora_entrada_str = request.form.get('hora_entrada_default', '09:00')
             hora_entrada = datetime.strptime(hora_entrada_str, '%H:%M').time()
             
@@ -859,6 +863,7 @@ def config():
                     nombre_formato=nombre_formato,
                     departamento_formato=departamento_formato,
                     jefe_directo_nombre=jefe_directo_nombre,
+                    company_id=company_id,
                     hora_entrada_default=hora_entrada,
                     tolerancia_segundos=tolerancia_segundos,
                     dias_descanso=dias_descanso,
@@ -870,6 +875,7 @@ def config():
                 preset.nombre_formato = nombre_formato
                 preset.departamento_formato = departamento_formato
                 preset.jefe_directo_nombre = jefe_directo_nombre
+                preset.company_id = company_id
                 preset.hora_entrada_default = hora_entrada
                 preset.tolerancia_segundos = tolerancia_segundos
                 preset.dias_descanso = dias_descanso
@@ -891,14 +897,17 @@ def config():
         
         except Exception as e:
             db.session.rollback()
+            companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
             return render_template('mobper_config.html', 
                                  user=user, 
                                  preset=preset,
+                                 companies=companies,
                                  error=f'Error al guardar configuración: {str(e)}')
     
     # Si viene de guardar exitosamente
     success_msg = 'Configuración guardada exitosamente' if request.args.get('saved') else None
-    return render_template('mobper_config.html', user=user, preset=preset, success=success_msg)
+    companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
+    return render_template('mobper_config.html', user=user, preset=preset, companies=companies, success=success_msg)
 
 @mobper_bp.route('/api/clasificar-dia', methods=['POST'])
 @mobper_login_required
