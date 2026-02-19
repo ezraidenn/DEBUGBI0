@@ -186,8 +186,17 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         # Bloquear aspect ratio para que se mantenga la proporción original del logo
         picture.LockAspectRatio = -1  # True en COM
         
-        # Ajustar al ancho del espacio disponible manteniendo aspect ratio
+        # Escalar para llenar el espacio disponible manteniendo aspect ratio
+        # Intentar ajustar primero por ancho
         picture.Width = original_width
+        
+        # Si la altura resultante es menor que el espacio disponible, ajustar por altura
+        if picture.Height < original_height:
+            picture.Height = original_height
+        
+        # Si ahora el ancho excede el espacio, ajustar de nuevo por ancho
+        if picture.Width > original_width:
+            picture.Width = original_width
         
         # Quitar bordes y sombras (como el original)
         picture.Line.Visible = 0  # Sin borde
