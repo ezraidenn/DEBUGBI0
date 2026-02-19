@@ -4,6 +4,13 @@ Script para iniciar la aplicación web de BioStar Debug Monitor.
 import sys
 import socket
 from pathlib import Path
+import io
+
+# Force UTF-8 output to avoid cp1252 encoding errors on Windows consoles
+if sys.stdout and hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.stderr and hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
