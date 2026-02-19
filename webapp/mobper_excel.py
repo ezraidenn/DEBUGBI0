@@ -141,6 +141,7 @@ def set_circle_color(sheet, shape_index: int, is_selected: bool):
 def reemplazar_logo(sheet, logo_path: str) -> bool:
     """
     Reemplaza el logo en el Excel (Shape 25 - Picture 12).
+    Preserva la posición original y mantiene el aspect ratio del nuevo logo.
     
     Args:
         sheet: Worksheet de Excel
@@ -158,25 +159,44 @@ def reemplazar_logo(sheet, logo_path: str) -> bool:
         
         print(f"[MOVPER EXCEL] Reemplazando logo con: {logo_abs_path}")
         
-        # Eliminar logo existente (Shape 25)
-        try:
-            sheet.Shapes(25).Delete()
-            print(f"[MOVPER EXCEL] Logo anterior eliminado (Shape 25)")
-        except Exception as e:
-            print(f"[MOVPER EXCEL] No se pudo eliminar logo anterior: {e}")
+        # Obtener propiedades del logo original (Shape 25)
+        original_logo = sheet.Shapes(25)
+        original_left = original_logo.Left
+        original_top = original_logo.Top
+        original_width = original_logo.Width
+        original_height = original_logo.Height
         
-        # Insertar nuevo logo en la misma posición
+        print(f"[MOVPER EXCEL] Propiedades originales: Left={original_left}, Top={original_top}, Width={original_width}, Height={original_height}")
+        
+        # Eliminar logo existente
+        original_logo.Delete()
+        print(f"[MOVPER EXCEL] Logo anterior eliminado (Shape 25)")
+        
+        # Insertar nuevo logo en la misma posición con dimensiones temporales
         picture = sheet.Shapes.AddPicture(
             Filename=logo_abs_path,
             LinkToFile=False,
             SaveWithDocument=True,
-            Left=9.6,
-            Top=13.5,
-            Width=83.4,
-            Height=45.1
+            Left=original_left,
+            Top=original_top,
+            Width=-1,  # -1 = usar dimensiones originales del archivo
+            Height=-1
         )
         
-        print(f"[MOVPER EXCEL] ✓ Logo reemplazado exitosamente")
+        # Bloquear aspect ratio para que se mantenga la proporción original del logo
+        picture.LockAspectRatio = -1  # True en COM
+        
+        # Ajustar al ancho del espacio disponible manteniendo aspect ratio
+        picture.Width = original_width
+        
+        # Quitar bordes y sombras (como el original)
+        picture.Line.Visible = 0  # Sin borde
+        try:
+            picture.Shadow.Visible = 0  # Sin sombra
+        except:
+            pass  # Algunos logos pueden no tener esta propiedad
+        
+        print(f"[MOVPER EXCEL] ✓ Logo reemplazado: Width={picture.Width}, Height={picture.Height}")
         return True
         
     except Exception as e:
