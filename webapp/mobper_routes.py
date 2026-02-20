@@ -1397,6 +1397,9 @@ def generar_excel():
             con_goce=con_goce
         )
         
+        # Token para que el JS sepa cuándo terminó la descarga
+        dl_token = request.args.get('dl_token', '')
+
         # Descargar archivo directamente y borrar después
         @after_this_request
         def remove_file(response):
@@ -1405,8 +1408,11 @@ def generar_excel():
                 print(f"[MOVPER ROUTES] Archivo temporal eliminado: {output_path}")
             except Exception as e:
                 print(f"[MOVPER ROUTES] Error al eliminar archivo temporal: {e}")
+            # Señalar al JS que el archivo está listo (cookie polling)
+            if dl_token:
+                response.set_cookie('excel_ready', dl_token, max_age=30, path='/')
             return response
-        
+
         return send_file(
             output_path,
             as_attachment=True,
