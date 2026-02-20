@@ -111,57 +111,83 @@ MESES_ES = {
 #   font 10 -> 27 * 1.35 * 10/10 = ~36 chars
 #   font  8 -> 27 * 1.35 * 10/8  = ~45 chars
 
-# Configuracion de cada campo: (ancho_puntos, font_max, font_min, chars_por_punto, wrap_lines)
+# Configuracion de cada campo:
+#   (col_width_total, font_max, font_min, wrap_lines)
+#
+# col_width_total = suma de ColumnWidth de cada columna del merge area
+#   (ColumnWidth = chars de '0' en fuente Normal del doc = Calibri 11)
+#
+# Mediciones reales del template (win32com ColumnWidth sumado):
+#   NOMBRE            E8:M8    = 40.66  chars
+#   DEPARTAMENTO      Q8:R8    = 11.86  chars
+#   FECHA_AUTH        H10:K10  = 21.71  chars
+#   FECHA_APLICACION  P10:R10  = 17.29  chars
+#   MOTIVO            G20:R21  = ~65.0  chars (12 cols, wrap=2 filas)
+#   SOLICITO_NOMBRE   E56:G56  = 11.53  chars
+#   AUTORIZO_NOMBRE   J56      =  6.00  chars
+#   RECIBIO_NOMBRE    N56:R56  = 27.43  chars
+#
+# Formula de capacidad:
+#   Arial Narrow es ~78% del ancho de Calibri 11 (fuente base de ColumnWidth)
+#   chars_reales(font_size) = col_width / RATIO_NARROW * (11.0 / font_size) * wrap_lines
+#   donde RATIO_NARROW = 0.78
+#
+# Ejemplo DEPARTAMENTO (11.86 chars):
+#   font 12 -> 11.86 / 0.78 * (11/12) = ~13.9 chars
+#   font  9 -> 11.86 / 0.78 * (11/9)  = ~18.6 chars
+#   font  7 -> 11.86 / 0.78 * (11/7)  = ~23.9 chars
+
+RATIO_NARROW = 0.78   # Arial Narrow vs Calibri 11 (fuente base de ColumnWidth)
+RATIO_ARIAL  = 1.00   # Arial regular vs Calibri 11
+
 CAMPO_CONFIG = {
-    'NOMBRE':             (27.00,  12, 8,  1.35, 1),
-    'DEPARTAMENTO':       (17.25,  12, 7,  1.35, 1),
-    'FECHA_AUTORIZACION': (26.25,  10, 8,  1.35, 1),
-    'FECHA_APLICACION':   (32.25,  10, 7,  1.35, 1),
-    'MOTIVO':             (37.50,  10, 7,  1.05, 2),  # Arial regular, 2 filas wrap
-    'SOLICITO_NOMBRE':    (27.00,  10, 7,  1.35, 1),
-    'AUTORIZO_NOMBRE':    (35.25,  10, 7,  1.35, 1),
-    'RECIBIO_NOMBRE':     (17.25,  10, 8,  1.35, 1),
+    #                    col_width  fmax  fmin  wrap  ratio
+    'NOMBRE':             (40.66,   12,   7,    1,   RATIO_NARROW),
+    'DEPARTAMENTO':       (11.86,   12,   7,    1,   RATIO_NARROW),
+    'FECHA_AUTORIZACION': (21.71,   10,   7,    1,   RATIO_NARROW),
+    'FECHA_APLICACION':   (17.29,    8,   7,    1,   RATIO_NARROW),
+    'MOTIVO':             (65.00,   10,   7,    2,   RATIO_ARIAL),
+    'SOLICITO_NOMBRE':    (11.53,   10,   7,    1,   RATIO_NARROW),
+    'AUTORIZO_NOMBRE':    ( 6.00,   10,   7,    1,   RATIO_NARROW),
+    'RECIBIO_NOMBRE':     (27.43,   10,   7,    1,   RATIO_NARROW),
 }
 
 
 def calcular_font_adaptativo(texto: str, campo: str) -> int:
     """
-    Calcula el tamaño de fuente optimo para que el texto quepa exactamente
-    en el campo indicado, basandose en las dimensiones reales del template.
+    Calcula el tamaño de fuente optimo para que el texto quepa en el campo.
 
-    Algoritmo:
-      1. Obtiene ancho_pt, font_max, font_min, chars_por_punto del campo.
-      2. Para cada tamaño desde font_max hasta font_min:
-           capacidad = ancho_pt * chars_por_punto * (10 / font_size) * wrap_lines
-           Si len(texto) <= capacidad → usar ese tamaño
-      3. Si ninguno alcanza, devuelve font_min.
+    Usa ColumnWidth total del merge area (medido empiricamente) como base,
+    con la relacion de ancho entre la fuente del campo y Calibri 11.
+
+    Formula: chars_reales = col_width / ratio * (11.0 / font_size) * wrap_lines
 
     Args:
-        texto: El texto que se va a escribir en la celda.
-        campo: Clave en CAMPO_CONFIG (ej. 'NOMBRE', 'MOTIVO').
+        texto: Texto a escribir.
+        campo: Clave en CAMPO_CONFIG.
 
     Returns:
         int: Tamaño de fuente en puntos.
     """
     if not texto:
-        return CAMPO_CONFIG.get(campo, (0, 10, 8, 1.35, 1))[1]
+        cfg = CAMPO_CONFIG.get(campo)
+        return cfg[1] if cfg else 10
 
     config = CAMPO_CONFIG.get(campo)
     if not config:
-        # Fallback generico si el campo no esta mapeado
         length = len(texto)
         if length <= 15:
             return 10
-        elif length <= 25:
+        elif length <= 22:
             return 9
         else:
             return 8
 
-    ancho_pt, font_max, font_min, chars_por_pt, wrap_lines = config
+    col_width, font_max, font_min, wrap_lines, ratio = config
     n_chars = len(texto)
 
     for font_size in range(font_max, font_min - 1, -1):
-        capacidad = ancho_pt * chars_por_pt * (10.0 / font_size) * wrap_lines
+        capacidad = col_width / ratio * (11.0 / font_size) * wrap_lines
         if n_chars <= capacidad:
             return font_size
 
@@ -175,11 +201,39 @@ def calcular_tamano_letra(texto: str, max_size: int = 12, min_size: int = 8) -> 
     """
     length = len(texto)
     for font_size in range(max_size, min_size - 1, -1):
-        # Estimacion generica: ~3 chars por punto a tamaño 10, escala con fuente
-        capacidad = 30 * (10.0 / font_size)
+        capacidad = 30 * (11.0 / font_size)
         if length <= capacidad:
             return font_size
     return min_size
+
+
+def set_cell_text(sheet, celda: str, texto: str, campo: str):
+    """
+    Escribe texto en una celda aplicando tamaño de fuente adaptativo.
+    Si el texto no cabe ni a font_min, activa ShrinkToFit como respaldo.
+
+    Args:
+        sheet: Worksheet de Excel (win32com)
+        celda: Direccion de celda, ej. 'E8'
+        texto: Texto a escribir
+        campo: Clave en CAMPO_CONFIG para calcular el font size
+    """
+    rng = sheet.Range(celda)
+    font_size = calcular_font_adaptativo(texto, campo)
+    rng.Value = texto
+    rng.Font.Size = font_size
+
+    # Verificar si el texto cabe a font_min; si no, activar ShrinkToFit
+    config = CAMPO_CONFIG.get(campo)
+    if config:
+        col_width, font_max, font_min, wrap_lines, ratio = config
+        cap_min = col_width / ratio * (11.0 / font_min) * wrap_lines
+        if len(texto) > cap_min:
+            rng.ShrinkToFit = True
+            print(f"[MOVPER EXCEL] {campo} '{texto}' ({len(texto)}c) -> ShrinkToFit activado (cap_min={cap_min:.1f})")
+        else:
+            rng.ShrinkToFit = False
+    print(f"[MOVPER EXCEL] {campo} '{texto}' ({len(texto)} chars) -> font {font_size}pt")
 
 
 def formatear_fechas_compactas(dias: List[int], mes: str) -> str:
@@ -464,34 +518,22 @@ def generar_formato_excel(
         # Nombre del empleado
         nombre = preset.nombre_formato if preset and preset.nombre_formato else user.nombre_completo
         nombre_upper = nombre.upper()
-        font_nombre = calcular_font_adaptativo(nombre_upper, 'NOMBRE')
-        print(f"[MOVPER EXCEL] NOMBRE '{nombre_upper}' ({len(nombre_upper)} chars) -> font {font_nombre}pt")
-        sheet.Range(CELDAS['NOMBRE']).Value = nombre_upper
-        sheet.Range(CELDAS['NOMBRE']).Font.Size = font_nombre
+        set_cell_text(sheet, CELDAS['NOMBRE'], nombre_upper, 'NOMBRE')
         
         # Departamento
         departamento = preset.departamento_formato if preset and preset.departamento_formato else "Sin departamento"
         depto_upper = departamento.upper()
-        font_depto = calcular_font_adaptativo(depto_upper, 'DEPARTAMENTO')
-        print(f"[MOVPER EXCEL] DEPARTAMENTO '{depto_upper}' ({len(depto_upper)} chars) -> font {font_depto}pt")
-        sheet.Range(CELDAS['DEPARTAMENTO']).Value = depto_upper
-        sheet.Range(CELDAS['DEPARTAMENTO']).Font.Size = font_depto
+        set_cell_text(sheet, CELDAS['DEPARTAMENTO'], depto_upper, 'DEPARTAMENTO')
         
         # Fecha de autorizacion (hoy) en formato dd-mmm-yy con mes en espanol
         now = datetime.now()
         mes_corto = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic'}
         fecha_auth = f"{now.day:02d}-{mes_corto[now.month]}-{now.strftime('%y')}"
-        font_fecha_auth = calcular_font_adaptativo(fecha_auth, 'FECHA_AUTORIZACION')
-        print(f"[MOVPER EXCEL] FECHA_AUTH '{fecha_auth}' ({len(fecha_auth)} chars) -> font {font_fecha_auth}pt")
-        sheet.Range(CELDAS['FECHA_AUTORIZACION']).Value = fecha_auth
-        sheet.Range(CELDAS['FECHA_AUTORIZACION']).Font.Size = font_fecha_auth
+        set_cell_text(sheet, CELDAS['FECHA_AUTORIZACION'], fecha_auth, 'FECHA_AUTORIZACION')
         
         # Fecha de aplicacion (dias del periodo)
         dias_periodo = construir_fechas_aplicacion(incidencias_justificadas, quincena)
-        font_fechas = calcular_font_adaptativo(dias_periodo, 'FECHA_APLICACION')
-        print(f"[MOVPER EXCEL] FECHA_APLICACION '{dias_periodo}' ({len(dias_periodo)} chars) -> font {font_fechas}pt")
-        sheet.Range(CELDAS['FECHA_APLICACION']).Value = dias_periodo
-        sheet.Range(CELDAS['FECHA_APLICACION']).Font.Size = font_fechas
+        set_cell_text(sheet, CELDAS['FECHA_APLICACION'], dias_periodo, 'FECHA_APLICACION')
         
         # =============================================================
         # ANALIZAR TIPOS DE INCIDENCIAS Y MARCAR CIRCULOS REALES
@@ -532,35 +574,22 @@ def generar_formato_excel(
         # =============================================================
         
         motivo = generar_texto_motivo(incidencias_justificadas, tipos)
-        font_motivo = calcular_font_adaptativo(motivo, 'MOTIVO')
-        print(f"[MOVPER EXCEL] MOTIVO ({len(motivo)} chars) -> font {font_motivo}pt")
-        sheet.Range(CELDAS['MOTIVO']).Value = motivo
-        sheet.Range(CELDAS['MOTIVO']).Font.Size = font_motivo
+        set_cell_text(sheet, CELDAS['MOTIVO'], motivo, 'MOTIVO')
         
         # =============================================================
         # FIRMAS
         # =============================================================
         
         # Solicito (el empleado) - mismo nombre que encabezado
-        font_solicito = calcular_font_adaptativo(nombre_upper, 'SOLICITO_NOMBRE')
-        print(f"[MOVPER EXCEL] SOLICITO '{nombre_upper}' ({len(nombre_upper)} chars) -> font {font_solicito}pt")
-        sheet.Range(CELDAS['SOLICITO_NOMBRE']).Value = nombre_upper
-        sheet.Range(CELDAS['SOLICITO_NOMBRE']).Font.Size = font_solicito
+        set_cell_text(sheet, CELDAS['SOLICITO_NOMBRE'], nombre_upper, 'SOLICITO_NOMBRE')
         
         # Autorizo (jefe directo)
         jefe = preset.jefe_directo_nombre if preset and preset.jefe_directo_nombre else "PENDIENTE"
         jefe_upper = jefe.upper()
-        font_jefe = calcular_font_adaptativo(jefe_upper, 'AUTORIZO_NOMBRE')
-        print(f"[MOVPER EXCEL] AUTORIZO '{jefe_upper}' ({len(jefe_upper)} chars) -> font {font_jefe}pt")
-        sheet.Range(CELDAS['AUTORIZO_NOMBRE']).Value = jefe_upper
-        sheet.Range(CELDAS['AUTORIZO_NOMBRE']).Font.Size = font_jefe
+        set_cell_text(sheet, CELDAS['AUTORIZO_NOMBRE'], jefe_upper, 'AUTORIZO_NOMBRE')
         
         # Recibio (RH)
-        rh_texto = "RECURSOS HUMANOS"
-        font_rh = calcular_font_adaptativo(rh_texto, 'RECIBIO_NOMBRE')
-        print(f"[MOVPER EXCEL] RECIBIO '{rh_texto}' ({len(rh_texto)} chars) -> font {font_rh}pt")
-        sheet.Range(CELDAS['RECIBIO_NOMBRE']).Value = rh_texto
-        sheet.Range(CELDAS['RECIBIO_NOMBRE']).Font.Size = font_rh
+        set_cell_text(sheet, CELDAS['RECIBIO_NOMBRE'], "RECURSOS HUMANOS", 'RECIBIO_NOMBRE')
         
         # =============================================================
         # GUARDAR Y CERRAR
