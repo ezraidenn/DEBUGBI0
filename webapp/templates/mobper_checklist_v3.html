@@ -2957,7 +2957,7 @@
 
 
 
-        function generarFormatoExcel() {
+        async function generarFormatoExcel() {
             const goceToggle = document.getElementById('goceToggle');
             const conGoce = goceToggle ? (goceToggle.checked ? '1' : '0') : '1';
             const year = {{ quincena.anio }};
@@ -2981,38 +2981,42 @@
                 }
             }, 900);
 
-            // Generar token único para esta descarga y ponerlo en cookie
-            const token = 'xldl_' + Date.now();
-            document.cookie = 'excel_token=' + token + '; path=/; max-age=120';
+            try {
+                // Descargar como blob — sabemos exactamente cuándo termina
+                const url = `/mobper/generar-excel?con_goce=${conGoce}&year=${year}&month=${month}&quincena=${quincenaNum}`;
+                const response = await fetch(url);
 
-            // Navegar — el servidor devolverá el archivo y seteará la cookie excel_ready=<token>
-            setTimeout(() => {
-                window.location.href = `/mobper/generar-excel?con_goce=${conGoce}&year=${year}&month=${month}&quincena=${quincenaNum}&dl_token=${token}`;
-            }, 200);
-
-            // Polling: revisar cada 500ms si la cookie excel_ready=<token> apareció
-            const pollTimer = setInterval(() => {
-                const cookies = document.cookie.split(';').map(c => c.trim());
-                const ready = cookies.find(c => c.startsWith('excel_ready='));
-                if (ready && ready.includes(token)) {
-                    clearInterval(pollTimer);
-                    clearInterval(stepTimer);
-                    // Marcar último paso como activo brevemente
-                    stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
-                    document.getElementById('xs4').classList.add('active');
-                    setTimeout(() => overlay.classList.remove('show'), 800);
-                    // Limpiar cookies
-                    document.cookie = 'excel_ready=; path=/; max-age=0';
-                    document.cookie = 'excel_token=; path=/; max-age=0';
+                if (!response.ok) {
+                    throw new Error('Error generando el archivo (' + response.status + ')');
                 }
-            }, 500);
 
-            // Seguridad: ocultar tras 60s máximo
-            setTimeout(() => {
-                clearInterval(pollTimer);
+                const blob = await response.blob();
+
+                // Obtener nombre del archivo del header Content-Disposition
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const match = disposition.match(/filename[^;=\n]*=(['""]?)([^'"\n]+)\1/);
+                const filename = match ? match[2] : 'formato_movper.xlsx';
+
+                // Disparar descarga en el navegador
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+
+                // Marcar último paso y ocultar overlay
+                clearInterval(stepTimer);
+                stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
+                document.getElementById('xs4').classList.add('active');
+                setTimeout(() => overlay.classList.remove('show'), 600);
+
+            } catch (err) {
                 clearInterval(stepTimer);
                 overlay.classList.remove('show');
-            }, 60000);
+                alert('Error al generar el Excel: ' + err.message);
+            }
         }
 
 
