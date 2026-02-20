@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MovPer — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --br9:#3E2723;--br8:#4E342E;--br7:#5D4037;--br6:#6D4C41;--br1:#D7CCC8;--br0:#EFEBE9;
+  --sf:#fff;--bg:#F5F3F1;--tx:#1C1917;--mu:#78716C;--bd:#E7E5E4;
+  --gn:#16A34A;--gnb:#DCFCE7;--rd:#DC2626;--rdb:#FEE2E2;
+  --am:#D97706;--amb:#FEF3C7;--bl:#2563EB;--blb:#DBEAFE;
+  --r:10px;--sh:0 1px 3px rgba(0,0,0,.08);--shl:0 10px 25px rgba(0,0,0,.12)
+}
+body{font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+/* TOPBAR */
+.topbar{background:var(--br9);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.tl{display:flex;align-items:center;gap:12px}
+.tlogo{width:32px;height:32px;background:linear-gradient(135deg,var(--br7),var(--br6));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.ttitle{font-size:15px;font-weight:600}.tsub{font-size:12px;opacity:.65}
+.tr{display:flex;align-items:center;gap:12px}
+.tuser{font-size:13px;opacity:.8}
+.tbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .15s}
+.tbtn:hover{background:rgba(255,255,255,.2)}
+/* MAIN */
+.main{max-width:1200px;margin:0 auto;padding:28px 24px}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.ph h1{font-size:22px;font-weight:700}.ph p{font-size:13px;color:var(--mu);margin-top:2px}
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+.sc{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.sc .sl{font-size:11px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.sc .sv{font-size:28px;font-weight:700;margin-top:4px}
+.sc.tot .sv{color:var(--br7)}.sc.act .sv{color:var(--gn)}.sc.adm .sv{color:var(--bl)}.sc.ina .sv{color:var(--mu)}
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.sb{flex:1;min-width:220px;position:relative}
+.sb input{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--bd);border-radius:8px;font-size:14px;background:var(--sf);outline:none;transition:border-color .15s}
+.sb input:focus{border-color:var(--br7)}
+.si{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--mu);font-size:15px;pointer-events:none}
+.fsel{padding:9px 12px;border:1px solid var(--bd);border-radius:8px;font-size:13px;background:var(--sf);cursor:pointer;outline:none}
+.fsel:focus{border-color:var(--br7)}
+/* TABLE */
+.tc{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--br0);padding:11px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--br8);border-bottom:1px solid var(--bd);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--br0)}
+tbody td{padding:12px 14px;vertical-align:middle}
+.uc{display:flex;align-items:center;gap:10px}
+.av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--br7),var(--br6));color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.un{font-weight:600;color:var(--tx);line-height:1.3}.us{font-size:12px;color:var(--mu)}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.bg{background:var(--gnb);color:var(--gn)}.br{background:var(--rdb);color:var(--rd)}
+.bb{background:var(--blb);color:var(--bl)}.ba{background:var(--amb);color:var(--am)}
+.bx{background:var(--bd);color:var(--mu)}
+/* ACTION BTNS */
+.acts{display:flex;gap:6px;align-items:center}
+.bi{width:30px;height:30px;border-radius:6px;border:1px solid var(--bd);background:var(--sf);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s;color:var(--mu)}
+.bi:hover{background:var(--bg);border-color:var(--br6);color:var(--br7)}
+.bi.d:hover{background:var(--rdb);border-color:var(--rd);color:var(--rd)}
+/* EMPTY */
+.es{padding:60px 20px;text-align:center;color:var(--mu)}
+.es .ei{font-size:40px;margin-bottom:12px}.es p{font-size:14px}
+/* TOAST */
+#tc2{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none}
+.toast{background:var(--br9);color:#fff;padding:12px 18px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:var(--shl);display:flex;align-items:center;gap:10px;animation:sIn .25s ease;pointer-events:all;max-width:340px}
+.toast.ok{background:var(--gn)}.toast.err{background:var(--rd)}
+@keyframes sIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center;padding:20px}
+.mo.open{display:flex}
+.md{background:var(--sf);border-radius:14px;box-shadow:var(--shl);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;animation:mIn .2s ease}
+@keyframes mIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+.mh{padding:20px 24px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:17px;font-weight:700}
+.mx{width:28px;height:28px;border-radius:6px;border:none;background:var(--bg);cursor:pointer;font-size:16px;color:var(--mu);display:flex;align-items:center;justify-content:center;transition:background .15s}
+.mx:hover{background:var(--bd)}
+.mb{padding:20px 24px}
+.mf{padding:16px 24px 20px;border-top:1px solid var(--bd);display:flex;gap:10px;justify-content:flex-end}
+/* FORM */
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:12px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.fg input,.fg select{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:8px;font-size:14px;background:var(--sf);outline:none;transition:border-color .15s}
+.fg input:focus,.fg select:focus{border-color:var(--br7)}
+.fg input:disabled{background:var(--bg);color:var(--mu);cursor:not-allowed}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tr2{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd)}
+.tr2:last-child{border-bottom:none}
+.tl2{font-size:14px;font-weight:500}.td2{font-size:12px;color:var(--mu);margin-top:2px}
+.tog{position:relative;width:42px;height:24px;cursor:pointer}
+.tog input{opacity:0;width:0;height:0}
+.ts{position:absolute;inset:0;background:var(--bd);border-radius:24px;transition:background .2s}
+.ts::before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tog input:checked+.ts{background:var(--gn)}
+.tog input:checked+.ts::before{transform:translateX(18px)}
+/* BTNS */
+.btn{padding:9px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-p{background:var(--br7);color:#fff}.btn-p:hover{background:var(--br8)}
+.btn-s{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn-s:hover{background:var(--bd)}
+.btn-d{background:var(--rd);color:#fff}.btn-d:hover{background:#B91C1C}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+.ci{font-size:36px;text-align:center;margin-bottom:12px}
+.ct{text-align:center;font-size:15px;line-height:1.5}
+@media(max-width:640px){.fr{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.tsub{display:none}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tl">
+    <div class="tlogo">👥</div>
+    <div><div class="ttitle">MovPer Admin</div><div class="tsub">Gestión de Usuarios</div></div>
+  </div>
+  <div class="tr">
+    <span class="tuser">{{ current_user.nombre_completo }}</span>
+    <a href="{{ url_for('mobper.checklist') }}" class="tbtn">← Volver</a>
+  </div>
+</header>
+
+<main class="main">
+  <div class="ph">
+    <div><h1>Usuarios Registrados</h1><p>Administra cuentas, permisos y configuraciones del sistema MovPer</p></div>
+  </div>
+
+  <div class="stats">
+    <div class="sc tot"><div class="sl">Total</div><div class="sv" id="s-tot">—</div></div>
+    <div class="sc act"><div class="sl">Activos</div><div class="sv" id="s-act">—</div></div>
+    <div class="sc adm"><div class="sl">Admins</div><div class="sv" id="s-adm">—</div></div>
+    <div class="sc ina"><div class="sl">Inactivos</div><div class="sv" id="s-ina">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="sb"><span class="si">🔍</span><input type="text" id="q" placeholder="Buscar por nombre o número…" oninput="ft()"></div>
+    <select class="fsel" id="fs" onchange="ft()">
+      <option value="">Todos</option>
+      <option value="active">Activos</option>
+      <option value="inactive">Inactivos</option>
+      <option value="admin">Administradores</option>
+    </select>
+  </div>
+
+  <div class="tc"><div class="tw">
+    <table>
+      <thead><tr>
+        <th>Usuario</th><th>Departamento</th><th>Jefe Directo</th>
+        <th>Estado</th><th>Rol</th><th>Último Acceso</th><th>Registro</th>
+        <th style="text-align:center">Acciones</th>
+      </tr></thead>
+      <tbody id="tb"><tr><td colspan="8"><div class="es"><div class="ei">⏳</div><p>Cargando…</p></div></td></tr></tbody>
+    </table>
+  </div></div>
+</main>
+
+<!-- MODAL EDIT -->
+<div class="mo" id="me">
+  <div class="md">
+    <div class="mh"><h2>✏️ Editar Usuario</h2><button class="mx" onclick="cm('me')">✕</button></div>
+    <div class="mb">
+      <input type="hidden" id="eu-id">
+      <div class="sec">Información Personal</div>
+      <div class="fr">
+        <div class="fg"><label>Nº Empleado</label><input type="text" id="eu-ns" disabled></div>
+        <div class="fg"><label>Nombre Completo</label><input type="text" id="eu-nc" placeholder="Nombre completo"></div>
+      </div>
+      <div class="sec">Formato Excel</div>
+      <div class="fg"><label>Nombre en Formato</label><input type="text" id="eu-nf" placeholder="Como aparece en el formato"></div>
+      <div class="fr">
+        <div class="fg"><label>Departamento</label><input type="text" id="eu-dp" placeholder="Ej. Sistemas"></div>
+        <div class="fg"><label>Jefe Directo</label><input type="text" id="eu-jf" placeholder="Nombre del jefe"></div>
+      </div>
+      <div class="sec">Permisos y Estado</div>
+      <div class="tr2">
+        <div><div class="tl2">Cuenta Activa</div><div class="td2">El usuario puede iniciar sesión</div></div>
+        <label class="tog"><input type="checkbox" id="eu-ia"><span class="ts"></span></label>
+      </div>
+      <div class="tr2">
+        <div><div class="tl2">Administrador</div><div class="td2">Acceso al panel de administración</div></div>
+        <label class="tog"><input type="checkbox" id="eu-adm"><span class="ts"></span></label>
+      </div>
+      <div class="sec">Cambiar Contraseña <span style="color:var(--mu);font-weight:400;text-transform:none;font-size:11px">(vacío = sin cambio)</span></div>
+      <div class="fg"><input type="password" id="eu-pw" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-s" onclick="cm('me')">Cancelar</button>
+      <button class="btn btn-p" onclick="saveUser()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRM DELETE -->
+<div class="mo" id="mc">
+  <div class="md" style="max-width:400px">
+    <div class="mb" style="padding:28px 24px">
+      <div class="ci">🗑️</div>
+      <div class="ct">¿Eliminar a <strong id="cd-name"></strong>?<br>
+        <span style="color:var(--mu);font-size:13px">Se eliminarán todos sus datos e incidencias. No se puede deshacer.</span>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-s" onclick="cm('mc')">Cancelar</button>
+      <button class="btn btn-d" id="cd-btn">🗑️ Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESET PASSWORD -->
+<div class="mo" id="mp">
+  <div class="md" style="max-width:380px">
+    <div class="mh"><h2>🔑 Resetear Contraseña</h2><button class="mx" onclick="cm('mp')">✕</button></div>
+    <div class="mb">
+      <p style="font-size:13px;color:var(--mu);margin-bottom:16px">Usuario: <strong id="pw-name"></strong></p>
+      <input type="hidden" id="pw-id">
+      <div class="fg"><label>Nueva Contraseña</label><input type="password" id="pw-val" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-s" onclick="cm('mp')">Cancelar</button>
+      <button class="btn btn-p" onclick="doResetPw()">🔑 Cambiar</button>
+    </div>
+  </div>
+</div>
+
+<div id="tc2"></div>
+
+<script>
+let allUsers=[], BASE='';
+
+// Compute base URL from current path
+BASE = window.location.pathname.replace(/\/admin.*$/, '');
+
+document.addEventListener('DOMContentLoaded', load);
+
+async function load() {
+  try {
+    const r = await fetch(BASE+'/admin/api/users');
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    allUsers = d.users;
+    renderStats(allUsers);
+    renderTable(allUsers);
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+function renderStats(u) {
+  document.getElementById('s-tot').textContent = u.length;
+  document.getElementById('s-act').textContent = u.filter(x=>x.is_active).length;
+  document.getElementById('s-adm').textContent = u.filter(x=>x.is_admin).length;
+  document.getElementById('s-ina').textContent = u.filter(x=>!x.is_active).length;
+}
+
+function renderTable(users) {
+  const tb = document.getElementById('tb');
+  if (!users.length) {
+    tb.innerHTML='<tr><td colspan="8"><div class="es"><div class="ei">👤</div><p>No hay usuarios registrados</p></div></td></tr>';
+    return;
+  }
+  tb.innerHTML = users.map(u => {
+    const ini = u.nombre_completo.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    const sb = u.is_active ? '<span class="badge bg">● Activo</span>' : '<span class="badge bx">○ Inactivo</span>';
+    const rb = u.is_admin ? '<span class="badge bb">⭐ Admin</span>' : '<span class="badge ba">👤 Usuario</span>';
+    return `<tr>
+      <td><div class="uc"><div class="av">${ini}</div><div><div class="un">${u.nombre_completo}</div><div class="us">#${u.numero_socio}</div></div></div></td>
+      <td>${u.departamento||'<span style="color:var(--mu)">—</span>'}</td>
+      <td>${u.jefe||'<span style="color:var(--mu)">—</span>'}</td>
+      <td>${sb}</td><td>${rb}</td>
+      <td style="font-size:12px;color:var(--mu)">${u.last_login}</td>
+      <td style="font-size:12px;color:var(--mu)">${u.created_at}</td>
+      <td>
+        <div class="acts">
+          <button class="bi" title="Editar" onclick="openEdit(${u.id})">✏️</button>
+          <button class="bi" title="Resetear contraseña" onclick="openPw(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')">🔑</button>
+          <button class="bi" title="${u.is_active?'Desactivar':'Activar'}" onclick="toggleActive(${u.id})">${u.is_active?'🔒':'🔓'}</button>
+          <button class="bi d" title="Eliminar" onclick="openDelete(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function ft() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const fs = document.getElementById('fs').value;
+  let filtered = allUsers.filter(u => {
+    const match = u.nombre_completo.toLowerCase().includes(q) || u.numero_socio.includes(q);
+    if (!match) return false;
+    if (fs==='active') return u.is_active;
+    if (fs==='inactive') return !u.is_active;
+    if (fs==='admin') return u.is_admin;
+    return true;
+  });
+  renderTable(filtered);
+}
+
+// ── OPEN EDIT ──
+async function openEdit(id) {
+  try {
+    const r = await fetch(BASE+'/admin/api/users/'+id);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    const u = d.user;
+    document.getElementById('eu-id').value  = u.id;
+    document.getElementById('eu-ns').value  = u.numero_socio;
+    document.getElementById('eu-nc').value  = u.nombre_completo;
+    document.getElementById('eu-ia').checked  = u.is_active;
+    document.getElementById('eu-adm').checked = u.is_admin;
+    document.getElementById('eu-pw').value  = '';
+    if (u.preset) {
+      document.getElementById('eu-nf').value = u.preset.nombre_formato;
+      document.getElementById('eu-dp').value = u.preset.departamento_formato;
+      document.getElementById('eu-jf').value = u.preset.jefe_directo_nombre;
+    } else {
+      document.getElementById('eu-nf').value = '';
+      document.getElementById('eu-dp').value = '';
+      document.getElementById('eu-jf').value = '';
+    }
+    om('me');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function saveUser() {
+  const id = document.getElementById('eu-id').value;
+  const pw = document.getElementById('eu-pw').value.trim();
+  const body = {
+    nombre_completo: document.getElementById('eu-nc').value.trim(),
+    is_active: document.getElementById('eu-ia').checked,
+    is_admin:  document.getElementById('eu-adm').checked,
+    preset: {
+      nombre_formato:       document.getElementById('eu-nf').value.trim(),
+      departamento_formato: document.getElementById('eu-dp').value.trim(),
+      jefe_directo_nombre:  document.getElementById('eu-jf').value.trim(),
+    }
+  };
+  if (pw) body.password = pw;
+  try {
+    const r = await fetch(BASE+'/admin/api/users/'+id, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    toast(d.message,'ok');
+    cm('me'); load();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ── TOGGLE ACTIVE ──
+async function toggleActive(id) {
+  try {
+    const r = await fetch(BASE+'/admin/api/users/'+id+'/toggle-active',{method:'POST'});
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    toast(d.message,'ok'); load();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ── DELETE ──
+function openDelete(id, name) {
+  document.getElementById('cd-name').textContent = name;
+  document.getElementById('cd-btn').onclick = () => doDelete(id);
+  om('mc');
+}
+async function doDelete(id) {
+  try {
+    const r = await fetch(BASE+'/admin/api/users/'+id,{method:'DELETE'});
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    toast(d.message,'ok'); cm('mc'); load();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ── RESET PASSWORD ──
+function openPw(id, name) {
+  document.getElementById('pw-id').value = id;
+  document.getElementById('pw-name').textContent = name;
+  document.getElementById('pw-val').value = '';
+  om('mp');
+}
+async function doResetPw() {
+  const id  = document.getElementById('pw-id').value;
+  const pw  = document.getElementById('pw-val').value.trim();
+  if (pw.length < 4) { toast('Mínimo 4 caracteres','err'); return; }
+  try {
+    const r = await fetch(BASE+'/admin/api/users/'+id+'/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    toast(d.message,'ok'); cm('mp');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ── MODAL HELPERS ──
+function om(id){ document.getElementById(id).classList.add('open'); }
+function cm(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.mo').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
+
+// ── TOAST ──
+function toast(msg, type='') {
+  const c = document.getElementById('tc2');
+  const t = document.createElement('div');
+  t.className = 'toast'+(type?' '+type:'');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(()=>{ t.style.animation='sIn .25s ease reverse'; setTimeout(()=>t.remove(),250); }, 3500);
+}
+</script>
+</body>
+</html>
