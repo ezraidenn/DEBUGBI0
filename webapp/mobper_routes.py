@@ -1631,6 +1631,9 @@ def admin_api_users():
     users = MobPerUser.query.order_by(MobPerUser.created_at.desc()).all()
     result = []
     for u in users:
+        empresa = ''
+        if u.preset and u.preset.company_id and u.preset.company:
+            empresa = u.preset.company.name
         result.append({
             'id': u.id,
             'numero_socio': u.numero_socio,
@@ -1641,6 +1644,7 @@ def admin_api_users():
             'last_login': u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else 'Nunca',
             'departamento': u.preset.departamento_formato if u.preset else '',
             'jefe': u.preset.jefe_directo_nombre if u.preset else '',
+            'empresa': empresa,
         })
     return jsonify({'success': True, 'users': result, 'total': len(result)})
 
