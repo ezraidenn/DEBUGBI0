@@ -215,6 +215,20 @@ def mobper_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def mobper_admin_required(f):
+    """Decorador para proteger rutas de admin MovPer"""
+    from functools import wraps
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'mobper_user_id' not in session:
+            return redirect(url_for('mobper.login'))
+        user = MobPerUser.query.get(session['mobper_user_id'])
+        if not user or not user.is_admin:
+            return jsonify({'error': 'Acceso denegado'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 def get_current_mobper_user():
     """Obtiene el usuario actual de MovPer desde la sesión"""
     if 'mobper_user_id' not in session:
@@ -791,10 +805,12 @@ def register():
         print(f"[MOVPER] Nombre BioStar original: {usuario_biostar.get('name')}")
         print(f"[MOVPER] Nombre normalizado: {nombre_normalizado}")
         
-        # Crear nuevo usuario
+        # Crear nuevo usuario (8490 es admin por defecto)
+        ADMIN_NUMEROS = {'8490'}
         nuevo_user = MobPerUser(
             numero_socio=numero_socio,
-            nombre_completo=nombre_normalizado
+            nombre_completo=nombre_normalizado,
+            is_admin=(numero_socio in ADMIN_NUMEROS)
         )
         nuevo_user.set_password(password)
         
@@ -1593,4 +1609,182 @@ def open_output_folder():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+# =============================================================================
+# ADMIN CRUD - PANEL DE ADMINISTRACIÓN DE USUARIOS MOVPER
+# =============================================================================
+
+@mobper_bp.route('/admin')
+@mobper_admin_required
+def admin_panel():
+    """Panel de administración de usuarios MobPer."""
+    current_user = get_current_mobper_user()
+    users = MobPerUser.query.order_by(MobPerUser.created_at.desc()).all()
+    return render_template('mobper_admin.html', users=users, current_user=current_user)
+
+
+@mobper_bp.route('/admin/api/users', methods=['GET'])
+@mobper_admin_required
+def admin_api_users():
+    """API: Lista todos los usuarios con sus presets."""
+    users = MobPerUser.query.order_by(MobPerUser.created_at.desc()).all()
+    result = []
+    for u in users:
+        result.append({
+            'id': u.id,
+            'numero_socio': u.numero_socio,
+            'nombre_completo': u.nombre_completo,
+            'is_active': u.is_active,
+            'is_admin': u.is_admin,
+            'created_at': u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else '',
+            'last_login': u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else 'Nunca',
+            'departamento': u.preset.departamento_formato if u.preset else '',
+            'jefe': u.preset.jefe_directo_nombre if u.preset else '',
+        })
+    return jsonify({'success': True, 'users': result, 'total': len(result)})
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>', methods=['GET'])
+@mobper_admin_required
+def admin_api_get_user(user_id):
+    """API: Obtiene detalle de un usuario."""
+    u = MobPerUser.query.get_or_404(user_id)
+    data = {
+        'id': u.id,
+        'numero_socio': u.numero_socio,
+        'nombre_completo': u.nombre_completo,
+        'is_active': u.is_active,
+        'is_admin': u.is_admin,
+        'created_at': u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else '',
+        'last_login': u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else 'Nunca',
+        'preset': None,
+    }
+    if u.preset:
+        data['preset'] = {
+            'nombre_formato': u.preset.nombre_formato or '',
+            'departamento_formato': u.preset.departamento_formato or '',
+            'jefe_directo_nombre': u.preset.jefe_directo_nombre or '',
+            'hora_entrada_default': u.preset.hora_entrada_default.strftime('%H:%M') if u.preset.hora_entrada_default else '09:00',
+            'tolerancia_segundos': u.preset.tolerancia_segundos or 600,
+        }
+    return jsonify({'success': True, 'user': data})
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>', methods=['PUT'])
+@mobper_admin_required
+def admin_api_update_user(user_id):
+    """API: Actualiza datos de un usuario."""
+    current = get_current_mobper_user()
+    u = MobPerUser.query.get_or_404(user_id)
+    data = request.get_json()
+
+    try:
+        if 'nombre_completo' in data and data['nombre_completo'].strip():
+            u.nombre_completo = data['nombre_completo'].strip()
+        if 'is_active' in data:
+            u.is_active = bool(data['is_active'])
+        if 'is_admin' in data:
+            # No puede quitarse admin a sí mismo
+            if u.id != current.id:
+                u.is_admin = bool(data['is_admin'])
+        if 'password' in data and data['password'].strip():
+            u.set_password(data['password'].strip())
+
+        # Actualizar preset si viene
+        if 'preset' in data and u.preset:
+            p = u.preset
+            if 'nombre_formato' in data['preset']:
+                p.nombre_formato = data['preset']['nombre_formato']
+            if 'departamento_formato' in data['preset']:
+                p.departamento_formato = data['preset']['departamento_formato']
+            if 'jefe_directo_nombre' in data['preset']:
+                p.jefe_directo_nombre = data['preset']['jefe_directo_nombre']
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Usuario {u.numero_socio} actualizado correctamente'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>', methods=['DELETE'])
+@mobper_admin_required
+def admin_api_delete_user(user_id):
+    """API: Elimina un usuario y todos sus datos."""
+    current = get_current_mobper_user()
+    u = MobPerUser.query.get_or_404(user_id)
+
+    if u.id == current.id:
+        return jsonify({'success': False, 'error': 'No puedes eliminar tu propia cuenta'}), 400
+
+    try:
+        nombre = u.nombre_completo
+        numero = u.numero_socio
+        db.session.delete(u)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Usuario {numero} - {nombre} eliminado'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>/toggle-active', methods=['POST'])
+@mobper_admin_required
+def admin_api_toggle_active(user_id):
+    """API: Activa o desactiva un usuario."""
+    current = get_current_mobper_user()
+    u = MobPerUser.query.get_or_404(user_id)
+
+    if u.id == current.id:
+        return jsonify({'success': False, 'error': 'No puedes desactivar tu propia cuenta'}), 400
+
+    try:
+        u.is_active = not u.is_active
+        db.session.commit()
+        estado = 'activado' if u.is_active else 'desactivado'
+        return jsonify({'success': True, 'is_active': u.is_active, 'message': f'Usuario {estado}'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>/toggle-admin', methods=['POST'])
+@mobper_admin_required
+def admin_api_toggle_admin(user_id):
+    """API: Otorga o revoca permisos de admin."""
+    current = get_current_mobper_user()
+    u = MobPerUser.query.get_or_404(user_id)
+
+    if u.id == current.id:
+        return jsonify({'success': False, 'error': 'No puedes modificar tu propio rol'}), 400
+
+    try:
+        u.is_admin = not u.is_admin
+        db.session.commit()
+        rol = 'Admin' if u.is_admin else 'Usuario'
+        return jsonify({'success': True, 'is_admin': u.is_admin, 'message': f'Rol cambiado a {rol}'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/admin/api/users/<int:user_id>/reset-password', methods=['POST'])
+@mobper_admin_required
+def admin_api_reset_password(user_id):
+    """API: Resetea la contraseña de un usuario."""
+    u = MobPerUser.query.get_or_404(user_id)
+    data = request.get_json()
+    nueva = data.get('password', '').strip()
+
+    if len(nueva) < 4:
+        return jsonify({'success': False, 'error': 'La contraseña debe tener al menos 4 caracteres'}), 400
+
+    try:
+        u.set_password(nueva)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Contraseña de {u.numero_socio} actualizada'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
