@@ -1867,7 +1867,7 @@ def grupo_api_resumen():
     if year and month and quincena_num:
         quincena = calcular_quincena(year, month, quincena_num)
     else:
-        quincena = calcular_quincena_actual()
+        quincena = obtener_quincena_anterior(calcular_quincena_actual())
 
     quincena_ant = obtener_quincena_anterior(quincena)
     quincena_sig = obtener_quincena_siguiente(quincena)
