@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MovPer - Mi Equipo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --brown:#3E2723;--brown-d:#2C1A17;--brown-m:#5D4037;--brown-l:#6D4C41;--brown-xl:#8D6E63;
+  --cream:#EFEBE9;--cream-d:#D7CCC8;--bg:#F5F3F1;--white:#fff;
+  --tx:#1C1917;--tx2:#57534E;--tx3:#A8A29E;--bd:#E7E5E4;
+  --green:#16A34A;--green-bg:#DCFCE7;--red:#DC2626;--red-bg:#FEE2E2;
+  --amber:#D97706;--amber-bg:#FEF3C7;--blue:#2563EB;--blue-bg:#DBEAFE;
+  --r:12px;--r-sm:8px;--r-lg:16px;
+  --sh:0 1px 3px rgba(0,0,0,.06);--sh-md:0 4px 12px rgba(0,0,0,.08);--sh-lg:0 12px 32px rgba(0,0,0,.12);
+}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ── */
+.header{background:var(--brown);color:#fff;padding:.875rem 1.25rem;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(255,255,255,.06)}
+.header-content{max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.logo{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:1rem;letter-spacing:-.3px}
+.logo .sub{font-size:.75rem;opacity:.55;font-weight:400;margin-left:4px}
+.user-info{display:flex;align-items:center;gap:.5rem;font-size:.8125rem}
+.user-info span{opacity:.85;font-weight:500}
+.user-info a{color:#fff;text-decoration:none;padding:.375rem .625rem;border-radius:.5rem;background:rgba(255,255,255,.08);transition:background .15s}
+.user-info a:hover{background:rgba(255,255,255,.15)}
+
+/* ── MAIN ── */
+.main{max-width:1280px;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+
+/* ── PERIOD NAV ── */
+.period-nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;gap:.75rem;flex-wrap:wrap}
+.period-title{font-size:.9375rem;font-weight:700;color:var(--brown);display:flex;align-items:center;gap:.5rem}
+.period-title i{opacity:.5}
+.nav-btn{padding:.5rem 1rem;border-radius:var(--r-sm);font-size:.8125rem;font-weight:600;border:1px solid var(--bd);background:var(--white);color:var(--tx);cursor:pointer;text-decoration:none;transition:all .15s;display:inline-flex;align-items:center;gap:.375rem}
+.nav-btn:hover{background:var(--cream);border-color:var(--brown-xl)}
+.nav-btn.disabled{opacity:.4;pointer-events:none}
+.nav-btn.primary{background:var(--brown-m);color:#fff;border-color:var(--brown-m)}
+.nav-btn.primary:hover{background:var(--brown)}
+
+/* ── STATS GRID ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-bottom:1.5rem}
+.stat{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.25rem;box-shadow:var(--sh);transition:transform .15s,box-shadow .15s}
+.stat:hover{transform:translateY(-1px);box-shadow:var(--sh-md)}
+.stat-label{font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--tx3);margin-bottom:.25rem}
+.stat-value{font-size:1.75rem;font-weight:800;line-height:1}
+.stat.team .stat-value{color:var(--brown-m)}
+.stat.ok .stat-value{color:var(--green)}
+.stat.warn .stat-value{color:var(--amber)}
+.stat.danger .stat-value{color:var(--red)}
+.stat.info .stat-value{color:var(--blue)}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;align-items:center;gap:.625rem;margin-bottom:1rem;flex-wrap:wrap}
+.search-box{flex:1;min-width:200px;position:relative}
+.search-box input{width:100%;padding:.5625rem .75rem .5625rem 2.25rem;border:1px solid var(--bd);border-radius:var(--r-sm);font-size:.8125rem;background:var(--white);outline:none;transition:border-color .15s}
+.search-box input:focus{border-color:var(--brown-m)}
+.search-box i{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:.8125rem;pointer-events:none}
+.filter-sel{padding:.5625rem .75rem;border:1px solid var(--bd);border-radius:var(--r-sm);font-size:.8125rem;background:var(--white);cursor:pointer;outline:none}
+.filter-sel:focus{border-color:var(--brown-m)}
+.bulk-btn{padding:.5625rem 1rem;border-radius:var(--r-sm);font-size:.8125rem;font-weight:600;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:.375rem;transition:all .15s}
+.bulk-btn.zip{background:var(--brown-m);color:#fff}
+.bulk-btn.zip:hover{background:var(--brown)}
+.bulk-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── MEMBERS TABLE ── */
+.table-card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.8125rem}
+thead th{background:var(--cream);padding:.6875rem .875rem;text-align:left;font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--brown-m);border-bottom:1px solid var(--bd);white-space:nowrap;position:sticky;top:0}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(93,64,55,.03)}
+tbody td{padding:.75rem .875rem;vertical-align:middle}
+
+/* User cell */
+.u-cell{display:flex;align-items:center;gap:.625rem}
+.u-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--brown-m),var(--brown-l));color:#fff;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.u-name{font-weight:600;color:var(--tx);line-height:1.3;font-size:.8125rem}
+.u-num{font-size:.6875rem;color:var(--tx3)}
+
+/* Stat pills */
+.pill{display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:2px 8px;border-radius:20px;font-size:.75rem;font-weight:700}
+.pill.ok{background:var(--green-bg);color:var(--green)}
+.pill.warn{background:var(--amber-bg);color:var(--amber)}
+.pill.danger{background:var(--red-bg);color:var(--red)}
+.pill.neutral{background:var(--cream);color:var(--tx3)}
+
+/* Status badge */
+.status{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.6875rem;font-weight:600;white-space:nowrap}
+.status.s-ok{background:var(--green-bg);color:var(--green)}
+.status.s-pendiente{background:var(--amber-bg);color:var(--amber)}
+.status.s-alerta{background:var(--red-bg);color:var(--red)}
+.status.s-error{background:var(--cream);color:var(--tx3)}
+
+/* Action buttons */
+.acts{display:flex;gap:5px;align-items:center}
+.act-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--bd);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:all .15s;color:var(--tx3)}
+.act-btn:hover{background:var(--cream);border-color:var(--brown-xl);color:var(--brown-m)}
+.act-btn.xl-btn:hover{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+
+/* ── LOADING ── */
+.loading{padding:4rem 2rem;text-align:center;color:var(--tx3)}
+.loading i{font-size:2rem;margin-bottom:1rem;display:block;color:var(--brown-xl);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{font-size:.875rem}
+
+/* ── EMPTY ── */
+.empty{padding:4rem 2rem;text-align:center;color:var(--tx3)}
+.empty i{font-size:2.5rem;margin-bottom:.75rem;display:block}
+.empty p{font-size:.875rem}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(30,20,18,.6);z-index:500;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:var(--white);border-radius:var(--r-lg);box-shadow:var(--sh-lg);width:100%;max-width:680px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .2s ease}
+@keyframes modalIn{from{transform:scale(.96) translateY(8px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.modal-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-header h2{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.modal-close{width:28px;height:28px;border-radius:6px;border:none;background:var(--cream);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--tx3);transition:background .15s}
+.modal-close:hover{background:var(--bd)}
+.modal-body{padding:1.25rem 1.5rem;overflow-y:auto;flex:1}
+
+/* Detail modal content */
+.detail-user{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--bd)}
+.detail-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--brown-m),var(--brown-l));color:#fff;font-size:.875rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.detail-name{font-weight:700;font-size:.9375rem}
+.detail-sub{font-size:.75rem;color:var(--tx3)}
+
+.detail-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1.25rem}
+.ds{text-align:center;padding:.5rem;border-radius:var(--r-sm);background:var(--bg)}
+.ds-val{font-size:1.25rem;font-weight:800}
+.ds-lbl{font-size:.625rem;font-weight:600;text-transform:uppercase;color:var(--tx3);letter-spacing:.04em}
+.ds.ds-ok .ds-val{color:var(--green)}
+.ds.ds-warn .ds-val{color:var(--amber)}
+.ds.ds-danger .ds-val{color:var(--red)}
+
+.inc-list{display:flex;flex-direction:column;gap:.375rem}
+.inc-row{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;border-radius:var(--r-sm);font-size:.8125rem;border:1px solid var(--bd);transition:background .1s}
+.inc-row:hover{background:var(--bg)}
+.inc-date{font-weight:600;min-width:100px;color:var(--tx)}
+.inc-time{min-width:60px;color:var(--tx2);font-size:.75rem}
+.inc-badge{margin-left:auto}
+
+/* ── BULK OVERLAY ── */
+.bulk-overlay{display:none;position:fixed;inset:0;background:rgba(30,20,18,.65);z-index:600;align-items:center;justify-content:center}
+.bulk-overlay.show{display:flex}
+.bulk-card{background:var(--white);border-radius:var(--r-lg);padding:2rem 2.5rem;text-align:center;box-shadow:var(--sh-lg);max-width:320px;width:90%}
+.bulk-spinner{width:48px;height:48px;border:4px solid var(--cream);border-top-color:var(--brown-m);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 1.25rem}
+.bulk-card h3{font-size:.9375rem;font-weight:700;color:var(--brown);margin-bottom:.375rem}
+.bulk-card p{font-size:.8125rem;color:var(--tx3);line-height:1.5}
+.bulk-progress{margin-top:1rem;height:6px;background:var(--cream);border-radius:3px;overflow:hidden}
+.bulk-bar{height:100%;background:var(--brown-m);border-radius:3px;transition:width .3s;width:0%}
+
+/* ── TOAST ── */
+#toast-container{position:fixed;bottom:1.5rem;right:1.5rem;display:flex;flex-direction:column;gap:.5rem;z-index:9999;pointer-events:none}
+.toast{background:var(--brown);color:#fff;padding:.75rem 1.125rem;border-radius:var(--r-sm);font-size:.8125rem;font-weight:500;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:.5rem;animation:toastIn .25s ease;pointer-events:all;max-width:340px}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}
+@keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .detail-stats{grid-template-columns:repeat(3,1fr)}
+  .user-info span:not(:last-child){display:none}
+}
+@media(max-width:480px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .toolbar{flex-direction:column}
+  .search-box{min-width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-content">
+    <div class="logo">
+      <i class="fas fa-clipboard-check"></i>
+      <span>MOVPER</span>
+      <span class="sub">/ Mi Equipo</span>
+    </div>
+    <div class="user-info">
+      <span>{{ current_user.nombre_completo }}</span>
+      <a href="{{ url_for('mobper.checklist') }}" title="Mi checklist"><i class="fas fa-clipboard-list"></i></a>
+      <a href="{{ url_for('mobper.admin_panel') }}" title="Admin"><i class="fas fa-users-cog"></i></a>
+    </div>
+  </div>
+</div>
+
+<main class="main">
+  <!-- PERIOD NAV -->
+  <div class="period-nav" id="periodNav">
+    <button class="nav-btn" id="btnPrev" onclick="navQuincena('prev')"><i class="fas fa-chevron-left"></i> Anterior</button>
+    <div class="period-title" id="periodTitle"><i class="far fa-calendar-alt"></i> Cargando...</div>
+    <button class="nav-btn" id="btnNext" onclick="navQuincena('next')">Siguiente <i class="fas fa-chevron-right"></i></button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat team"><div class="stat-label">Miembros</div><div class="stat-value" id="st-team">-</div></div>
+    <div class="stat ok"><div class="stat-label">A Tiempo</div><div class="stat-value" id="st-ok">-</div></div>
+    <div class="stat warn"><div class="stat-label">Retardos</div><div class="stat-value" id="st-warn">-</div></div>
+    <div class="stat danger"><div class="stat-label">Faltas</div><div class="stat-value" id="st-danger">-</div></div>
+    <div class="stat info"><div class="stat-label">Pendientes</div><div class="stat-value" id="st-pend">-</div></div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="Buscar miembro..." oninput="filterTable()">
+    </div>
+    <select class="filter-sel" id="filterStatus" onchange="filterTable()">
+      <option value="">Todos</option>
+      <option value="ok">Sin incidencias</option>
+      <option value="alerta">Con alertas</option>
+      <option value="pendiente">Pendientes</option>
+    </select>
+    <button class="bulk-btn zip" id="btnZip" onclick="downloadAllExcel()" disabled>
+      <i class="fas fa-file-archive"></i> Descargar Todos
+    </button>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Miembro</th>
+            <th>Depto.</th>
+            <th style="text-align:center"><i class="fas fa-check-circle" style="color:var(--green)"></i> A Tiempo</th>
+            <th style="text-align:center"><i class="fas fa-clock" style="color:var(--amber)"></i> Retardos</th>
+            <th style="text-align:center"><i class="fas fa-times-circle" style="color:var(--red)"></i> Faltas</th>
+            <th>Estado</th>
+            <th style="text-align:center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="7"><div class="loading"><i class="fas fa-spinner"></i><p>Cargando datos del equipo...</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-clock" style="color:var(--brown-m)"></i> <span id="dm-title">Detalle</span></h2>
+      <button class="modal-close" onclick="closeModal('detailModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="dm-body">
+      <div class="loading"><i class="fas fa-spinner"></i><p>Cargando...</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- BULK DOWNLOAD OVERLAY -->
+<div class="bulk-overlay" id="bulkOverlay">
+  <div class="bulk-card">
+    <div class="bulk-spinner"></div>
+    <h3><i class="fas fa-file-archive" style="color:var(--brown-m);margin-right:4px"></i> Generando formatos</h3>
+    <p>Creando Excel de todos los miembros...<br>Esto puede tardar unos segundos.</p>
+    <div class="bulk-progress"><div class="bulk-bar" id="bulkBar"></div></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const BASE = window.location.pathname.replace(/\/grupo.*$/, '');
+let allMembers = [];
+let currentQ = null;
+let navData = null;
+
+document.addEventListener('DOMContentLoaded', () => loadData());
+
+async function loadData(year, month, num) {
+  showTableLoading();
+  let url = BASE + '/grupo/api/resumen';
+  const params = [];
+  if (year) params.push('year=' + year);
+  if (month) params.push('month=' + month);
+  if (num) params.push('quincena_num=' + num);
+  if (params.length) url += '?' + params.join('&');
+
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Error desconocido');
+
+    currentQ = d.quincena;
+    navData = d.nav;
+    allMembers = d.miembros;
+
+    // Update period nav
+    document.getElementById('periodTitle').innerHTML =
+      '<i class="far fa-calendar-alt"></i> ' + d.quincena.nombre;
+    document.getElementById('btnNext').classList.toggle('disabled', !d.nav.puede_sig);
+
+    // Update stats with animation
+    animateValue('st-team', d.total_miembros);
+    animateValue('st-ok', d.totals.a_tiempo);
+    animateValue('st-warn', d.totals.retardos);
+    animateValue('st-danger', d.totals.faltas);
+    animateValue('st-pend', d.totals.pendientes);
+
+    // Enable bulk button
+    document.getElementById('btnZip').disabled = allMembers.length === 0;
+
+    renderTable(allMembers);
+  } catch (e) {
+    toast('Error cargando datos: ' + e.message, 'err');
+    showTableEmpty('Error al cargar datos');
+  }
+}
+
+function animateValue(id, target) {
+  const el = document.getElementById(id);
+  const start = parseInt(el.textContent) || 0;
+  if (start === target) { el.textContent = target; return; }
+  const duration = 400;
+  const startTime = performance.now();
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(start + (target - start) * eased);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function navQuincena(dir) {
+  if (!navData) return;
+  const q = dir === 'prev' ? navData.ant : navData.sig;
+  loadData(q.anio, q.mes, q.numero);
+}
+
+function renderTable(members) {
+  const tb = document.getElementById('tableBody');
+  if (!members.length) {
+    showTableEmpty('No hay miembros en el equipo');
+    return;
+  }
+  tb.innerHTML = members.map((m, idx) => {
+    const ini = m.nombre_completo.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const statusCls = m.estado === 'ok' ? 's-ok' : m.estado === 'pendiente' ? 's-pendiente' : m.estado === 'alerta' ? 's-alerta' : 's-error';
+    const statusTxt = m.estado === 'ok' ? 'Sin incidencias' : m.estado === 'pendiente' ? m.faltas_sin_clasificar + ' sin clasificar' : m.estado === 'alerta' ? 'Requiere atenci\u00f3n' : 'Error';
+    const statusIcon = m.estado === 'ok' ? 'fa-check-circle' : m.estado === 'pendiente' ? 'fa-exclamation-circle' : 'fa-exclamation-triangle';
+
+    const okPill = m.a_tiempo > 0 ? `<span class="pill ok">${m.a_tiempo}</span>` : `<span class="pill neutral">0</span>`;
+    const warnPill = m.retardos > 0 ? `<span class="pill warn">${m.retardos}</span>` : `<span class="pill neutral">0</span>`;
+    const dangerPill = m.faltas > 0 ? `<span class="pill danger">${m.faltas}</span>` : `<span class="pill neutral">0</span>`;
+
+    return `<tr style="animation:fadeRow .3s ease ${idx * .03}s both">
+      <td>
+        <div class="u-cell">
+          <div class="u-av">${ini}</div>
+          <div><div class="u-name">${m.nombre_completo}</div><div class="u-num">#${m.numero_socio}</div></div>
+        </div>
+      </td>
+      <td style="color:var(--tx2);font-size:.75rem">${m.departamento || '\u2014'}</td>
+      <td style="text-align:center">${okPill}</td>
+      <td style="text-align:center">${warnPill}</td>
+      <td style="text-align:center">${dangerPill}</td>
+      <td><span class="status ${statusCls}"><i class="fas ${statusIcon}"></i> ${statusTxt}</span></td>
+      <td>
+        <div class="acts">
+          <button class="act-btn" title="Ver detalle" onclick="openDetail(${m.id})"><i class="fas fa-eye"></i></button>
+          <button class="act-btn xl-btn" title="Descargar Excel" onclick="downloadExcel(${m.id})"><i class="fas fa-file-excel"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Inject row animation keyframes if not present
+  if (!document.getElementById('rowAnimStyle')) {
+    const s = document.createElement('style');
+    s.id = 'rowAnimStyle';
+    s.textContent = '@keyframes fadeRow{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}';
+    document.head.appendChild(s);
+  }
+}
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const f = document.getElementById('filterStatus').value;
+  const filtered = allMembers.filter(m => {
+    const match = m.nombre_completo.toLowerCase().includes(q) || m.numero_socio.includes(q);
+    if (!match) return false;
+    if (f && f !== m.estado) return false;
+    return true;
+  });
+  renderTable(filtered);
+}
+
+function showTableLoading() {
+  document.getElementById('tableBody').innerHTML =
+    '<tr><td colspan="7"><div class="loading"><i class="fas fa-spinner"></i><p>Cargando datos del equipo...</p></div></td></tr>';
+}
+function showTableEmpty(msg) {
+  document.getElementById('tableBody').innerHTML =
+    `<tr><td colspan="7"><div class="empty"><i class="fas fa-users"></i><p>${msg}</p></div></td></tr>`;
+}
+
+// ── DETAIL MODAL ──
+async function openDetail(userId) {
+  document.getElementById('dm-body').innerHTML =
+    '<div class="loading"><i class="fas fa-spinner"></i><p>Cargando detalle...</p></div>';
+  openModal('detailModal');
+
+  let url = BASE + '/grupo/api/miembro/' + userId + '/detalle';
+  if (currentQ) url += `?year=${currentQ.anio}&month=${currentQ.mes}&quincena_num=${currentQ.numero}`;
+
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+
+    const u = d.user;
+    const ini = u.nombre_completo.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const incs = d.incidencias;
+
+    const counts = {
+      a_tiempo: incs.filter(i => i.estado_auto === 'A_TIEMPO').length,
+      retardos: incs.filter(i => i.estado_auto === 'RETARDO').length,
+      faltas: incs.filter(i => i.estado_auto === 'FALTA').length,
+      inhabiles: incs.filter(i => i.estado_auto === 'INHABIL').length,
+      descansos: incs.filter(i => i.estado_auto === 'DESCANSO').length,
+    };
+
+    document.getElementById('dm-title').textContent = u.nombre_completo;
+
+    const dias = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    let incHTML = incs.filter(i => i.tipo_dia === 'LABORAL').map(i => {
+      const dt = new Date(i.fecha + 'T12:00:00');
+      const dayName = dias[dt.getDay()];
+      const dateStr = dt.getDate() + ' ' + meses[dt.getMonth()];
+      let badgeCls = '', badgeTxt = '', icon = '';
+
+      if (i.estado_auto === 'A_TIEMPO') {
+        badgeCls = 'ok'; badgeTxt = 'A tiempo'; icon = 'fa-check-circle';
+      } else if (i.estado_auto === 'RETARDO') {
+        badgeCls = 'warn'; badgeTxt = '+' + i.minutos_diferencia + ' min'; icon = 'fa-clock';
+      } else if (i.estado_auto === 'FALTA') {
+        badgeCls = 'danger';
+        badgeTxt = i.clasificacion || 'Sin clasificar';
+        icon = i.clasificacion ? 'fa-tag' : 'fa-exclamation-circle';
+      }
+
+      const timeStr = i.primer_registro || '--:--';
+
+      return `<div class="inc-row">
+        <div class="inc-date">${dayName} ${dateStr}</div>
+        <div class="inc-time"><i class="fas fa-sign-in-alt" style="margin-right:3px;opacity:.4"></i>${timeStr}</div>
+        <div class="inc-badge"><span class="pill ${badgeCls}"><i class="fas ${icon}" style="margin-right:3px;font-size:.625rem"></i>${badgeTxt}</span></div>
+      </div>`;
+    }).join('');
+
+    if (!incHTML) incHTML = '<div class="empty" style="padding:2rem"><i class="fas fa-calendar-check"></i><p>Sin d\u00edas laborales en esta quincena</p></div>';
+
+    document.getElementById('dm-body').innerHTML = `
+      <div class="detail-user">
+        <div class="detail-av">${ini}</div>
+        <div>
+          <div class="detail-name">${u.nombre_completo}</div>
+          <div class="detail-sub">#${u.numero_socio} ${u.departamento ? '\u00b7 ' + u.departamento : ''}</div>
+        </div>
+      </div>
+      <div class="detail-stats">
+        <div class="ds ds-ok"><div class="ds-val">${counts.a_tiempo}</div><div class="ds-lbl">A Tiempo</div></div>
+        <div class="ds ds-warn"><div class="ds-val">${counts.retardos}</div><div class="ds-lbl">Retardos</div></div>
+        <div class="ds ds-danger"><div class="ds-val">${counts.faltas}</div><div class="ds-lbl">Faltas</div></div>
+        <div class="ds"><div class="ds-val" style="color:var(--tx3)">${counts.inhabiles}</div><div class="ds-lbl">Inh\u00e1biles</div></div>
+        <div class="ds"><div class="ds-val" style="color:var(--tx3)">${counts.descansos}</div><div class="ds-lbl">Descansos</div></div>
+      </div>
+      <div style="font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--tx3);margin-bottom:.5rem">
+        <i class="fas fa-list"></i> D\u00edas laborales
+      </div>
+      <div class="inc-list">${incHTML}</div>
+    `;
+  } catch (e) {
+    document.getElementById('dm-body').innerHTML =
+      `<div class="empty"><i class="fas fa-exclamation-triangle"></i><p>Error: ${e.message}</p></div>`;
+  }
+}
+
+// ── DOWNLOAD SINGLE EXCEL ──
+async function downloadExcel(userId) {
+  let url = BASE + '/grupo/api/generar-excel/' + userId;
+  if (currentQ) url += `?year=${currentQ.anio}&month=${currentQ.mes}&quincena_num=${currentQ.numero}`;
+
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Error ' + r.status);
+    const blob = await r.blob();
+    const disp = r.headers.get('Content-Disposition') || '';
+    const match = disp.match(/filename[^;=\n]*=['"]?([^'"\n]+)/);
+    const fname = match ? match[1] : 'formato.xlsx';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast('Excel descargado', 'ok');
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
+// ── DOWNLOAD ALL EXCEL (ZIP) ──
+async function downloadAllExcel() {
+  const overlay = document.getElementById('bulkOverlay');
+  const bar = document.getElementById('bulkBar');
+  overlay.classList.add('show');
+  bar.style.width = '0%';
+
+  // Simulate progress
+  let progress = 0;
+  const progressTimer = setInterval(() => {
+    progress = Math.min(progress + Math.random() * 15, 90);
+    bar.style.width = progress + '%';
+  }, 600);
+
+  let url = BASE + '/grupo/api/generar-excel-todos';
+  if (currentQ) url += `?year=${currentQ.anio}&month=${currentQ.mes}&quincena_num=${currentQ.numero}`;
+
+  try {
+    const r = await fetch(url);
+    clearInterval(progressTimer);
+    bar.style.width = '100%';
+
+    if (!r.ok) throw new Error('Error ' + r.status);
+    const blob = await r.blob();
+    const disp = r.headers.get('Content-Disposition') || '';
+    const match = disp.match(/filename[^;=\n]*=['"]?([^'"\n]+)/);
+    const fname = match ? match[1] : 'MovPer_Grupo.zip';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+
+    setTimeout(() => overlay.classList.remove('show'), 600);
+    toast('ZIP descargado con ' + allMembers.length + ' formatos', 'ok');
+  } catch (e) {
+    clearInterval(progressTimer);
+    overlay.classList.remove('show');
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
+// ── MODAL HELPERS ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── TOAST ──
+function toast(msg, type) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.innerHTML = '<i class="fas ' + (type === 'ok' ? 'fa-check-circle' : type === 'err' ? 'fa-exclamation-circle' : 'fa-info-circle') + '"></i>' + msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.animation = 'toastIn .25s ease reverse';
+    setTimeout(() => t.remove(), 250);
+  }, 3500);
+}
+</script>
+</body>
+</html>
