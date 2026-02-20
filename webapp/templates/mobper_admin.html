@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MovPer — Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -15,15 +16,15 @@
   --r:10px;--sh:0 1px 3px rgba(0,0,0,.08);--shl:0 10px 25px rgba(0,0,0,.12)
 }
 body{font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
-/* TOPBAR */
-.topbar{background:var(--br9);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-.tl{display:flex;align-items:center;gap:12px}
-.tlogo{width:32px;height:32px;background:linear-gradient(135deg,var(--br7),var(--br6));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
-.ttitle{font-size:15px;font-weight:600}.tsub{font-size:12px;opacity:.65}
-.tr{display:flex;align-items:center;gap:12px}
-.tuser{font-size:13px;opacity:.8}
-.tbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .15s}
-.tbtn:hover{background:rgba(255,255,255,.2)}
+/* HEADER - idéntico al checklist */
+.header{background:#3E2723;color:#fff;padding:.875rem 1.25rem;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(255,255,255,.06)}
+.header-content{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.logo{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:1rem;letter-spacing:-.3px}
+.logo .sub{font-size:.75rem;opacity:.6;font-weight:400;margin-left:4px}
+.user-info{display:flex;align-items:center;gap:.5rem;font-size:.8125rem}
+.user-info span{opacity:.85;font-weight:500}
+.user-info a{color:#fff;text-decoration:none;padding:.375rem .625rem;border-radius:.5rem;background:rgba(255,255,255,.08);transition:background .15s}
+.user-info a:hover{background:rgba(255,255,255,.15)}
 /* MAIN */
 .main{max-width:1200px;margin:0 auto;padding:28px 24px}
 .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
@@ -66,7 +67,9 @@ tbody td{padding:12px 14px;vertical-align:middle}
 .bi.d:hover{background:var(--rdb);border-color:var(--rd);color:var(--rd)}
 /* EMPTY */
 .es{padding:60px 20px;text-align:center;color:var(--mu)}
-.es .ei{font-size:40px;margin-bottom:12px}.es p{font-size:14px}
+.es .ei{font-size:36px;margin-bottom:12px;color:var(--mu)}.es p{font-size:14px}
+/* COMPANY BADGE */
+.co-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mu)}
 /* TOAST */
 #tc2{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999;pointer-events:none}
 .toast{background:var(--br9);color:#fff;padding:12px 18px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:var(--shl);display:flex;align-items:center;gap:10px;animation:sIn .25s ease;pointer-events:all;max-width:340px}
@@ -113,16 +116,19 @@ tbody td{padding:12px 14px;vertical-align:middle}
 </head>
 <body>
 
-<header class="topbar">
-  <div class="tl">
-    <div class="tlogo">👥</div>
-    <div><div class="ttitle">MovPer Admin</div><div class="tsub">Gestión de Usuarios</div></div>
+<div class="header">
+  <div class="header-content">
+    <div class="logo">
+      <i class="fas fa-clipboard-check"></i>
+      <span>MOVPER</span>
+      <span class="sub">/ Admin</span>
+    </div>
+    <div class="user-info">
+      <span>{{ current_user.nombre_completo }}</span>
+      <a href="{{ url_for('mobper.checklist') }}" title="Volver al checklist"><i class="fas fa-arrow-left"></i></a>
+    </div>
   </div>
-  <div class="tr">
-    <span class="tuser">{{ current_user.nombre_completo }}</span>
-    <a href="{{ url_for('mobper.checklist') }}" class="tbtn">← Volver</a>
-  </div>
-</header>
+</div>
 
 <main class="main">
   <div class="ph">
@@ -137,7 +143,7 @@ tbody td{padding:12px 14px;vertical-align:middle}
   </div>
 
   <div class="toolbar">
-    <div class="sb"><span class="si">🔍</span><input type="text" id="q" placeholder="Buscar por nombre o número…" oninput="ft()"></div>
+    <div class="sb"><span class="si"><i class="fas fa-search"></i></span><input type="text" id="q" placeholder="Buscar por nombre o número…" oninput="ft()"></div>
     <select class="fsel" id="fs" onchange="ft()">
       <option value="">Todos</option>
       <option value="active">Activos</option>
@@ -149,11 +155,11 @@ tbody td{padding:12px 14px;vertical-align:middle}
   <div class="tc"><div class="tw">
     <table>
       <thead><tr>
-        <th>Usuario</th><th>Departamento</th><th>Jefe Directo</th>
+        <th>Usuario</th><th>Empresa</th><th>Departamento</th><th>Jefe Directo</th>
         <th>Estado</th><th>Rol</th><th>Último Acceso</th><th>Registro</th>
         <th style="text-align:center">Acciones</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="8"><div class="es"><div class="ei">⏳</div><p>Cargando…</p></div></td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="9"><div class="es"><div class="ei"><i class="fas fa-spinner fa-spin"></i></div><p>Cargando usuarios…</p></div></td></tr></tbody>
     </table>
   </div></div>
 </main>
@@ -161,7 +167,7 @@ tbody td{padding:12px 14px;vertical-align:middle}
 <!-- MODAL EDIT -->
 <div class="mo" id="me">
   <div class="md">
-    <div class="mh"><h2>✏️ Editar Usuario</h2><button class="mx" onclick="cm('me')">✕</button></div>
+    <div class="mh"><h2><i class="fas fa-user-edit" style="color:var(--br7)"></i> Editar Usuario</h2><button class="mx" onclick="cm('me')"><i class="fas fa-times"></i></button></div>
     <div class="mb">
       <input type="hidden" id="eu-id">
       <div class="sec">Información Personal</div>
@@ -189,7 +195,7 @@ tbody td{padding:12px 14px;vertical-align:middle}
     </div>
     <div class="mf">
       <button class="btn btn-s" onclick="cm('me')">Cancelar</button>
-      <button class="btn btn-p" onclick="saveUser()">💾 Guardar</button>
+      <button class="btn btn-p" onclick="saveUser()"><i class="fas fa-save"></i> Guardar</button>
     </div>
   </div>
 </div>
@@ -198,14 +204,14 @@ tbody td{padding:12px 14px;vertical-align:middle}
 <div class="mo" id="mc">
   <div class="md" style="max-width:400px">
     <div class="mb" style="padding:28px 24px">
-      <div class="ci">🗑️</div>
+      <div class="ci"><i class="fas fa-trash-alt" style="color:var(--rd)"></i></div>
       <div class="ct">¿Eliminar a <strong id="cd-name"></strong>?<br>
         <span style="color:var(--mu);font-size:13px">Se eliminarán todos sus datos e incidencias. No se puede deshacer.</span>
       </div>
     </div>
     <div class="mf">
       <button class="btn btn-s" onclick="cm('mc')">Cancelar</button>
-      <button class="btn btn-d" id="cd-btn">🗑️ Eliminar</button>
+      <button class="btn btn-d" id="cd-btn"><i class="fas fa-trash"></i> Eliminar</button>
     </div>
   </div>
 </div>
@@ -213,7 +219,7 @@ tbody td{padding:12px 14px;vertical-align:middle}
 <!-- MODAL RESET PASSWORD -->
 <div class="mo" id="mp">
   <div class="md" style="max-width:380px">
-    <div class="mh"><h2>🔑 Resetear Contraseña</h2><button class="mx" onclick="cm('mp')">✕</button></div>
+    <div class="mh"><h2><i class="fas fa-key" style="color:var(--br7)"></i> Resetear Contraseña</h2><button class="mx" onclick="cm('mp')"><i class="fas fa-times"></i></button></div>
     <div class="mb">
       <p style="font-size:13px;color:var(--mu);margin-bottom:16px">Usuario: <strong id="pw-name"></strong></p>
       <input type="hidden" id="pw-id">
@@ -221,7 +227,7 @@ tbody td{padding:12px 14px;vertical-align:middle}
     </div>
     <div class="mf">
       <button class="btn btn-s" onclick="cm('mp')">Cancelar</button>
-      <button class="btn btn-p" onclick="doResetPw()">🔑 Cambiar</button>
+      <button class="btn btn-p" onclick="doResetPw()"><i class="fas fa-key"></i> Cambiar</button>
     </div>
   </div>
 </div>
@@ -257,15 +263,23 @@ function renderStats(u) {
 function renderTable(users) {
   const tb = document.getElementById('tb');
   if (!users.length) {
-    tb.innerHTML='<tr><td colspan="8"><div class="es"><div class="ei">👤</div><p>No hay usuarios registrados</p></div></td></tr>';
+    tb.innerHTML='<tr><td colspan="9"><div class="es"><div class="ei"><i class="fas fa-users"></i></div><p>No hay usuarios registrados</p></div></td></tr>';
     return;
   }
   tb.innerHTML = users.map(u => {
     const ini = u.nombre_completo.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-    const sb = u.is_active ? '<span class="badge bg">● Activo</span>' : '<span class="badge bx">○ Inactivo</span>';
-    const rb = u.is_admin ? '<span class="badge bb">⭐ Admin</span>' : '<span class="badge ba">👤 Usuario</span>';
+    const sb = u.is_active
+      ? '<span class="badge bg"><i class="fas fa-circle" style="font-size:7px"></i> Activo</span>'
+      : '<span class="badge bx"><i class="fas fa-circle" style="font-size:7px"></i> Inactivo</span>';
+    const rb = u.is_admin
+      ? '<span class="badge bb"><i class="fas fa-shield-alt"></i> Admin</span>'
+      : '<span class="badge ba"><i class="fas fa-user"></i> Usuario</span>';
+    const co = u.empresa ? `<span class="co-badge"><i class="fas fa-building"></i> ${u.empresa}</span>` : '<span style="color:var(--mu);font-size:12px">—</span>';
+    const lockIcon = u.is_active ? 'fa-lock-open' : 'fa-lock';
+    const lockTitle = u.is_active ? 'Desactivar' : 'Activar';
     return `<tr>
       <td><div class="uc"><div class="av">${ini}</div><div><div class="un">${u.nombre_completo}</div><div class="us">#${u.numero_socio}</div></div></div></td>
+      <td>${co}</td>
       <td>${u.departamento||'<span style="color:var(--mu)">—</span>'}</td>
       <td>${u.jefe||'<span style="color:var(--mu)">—</span>'}</td>
       <td>${sb}</td><td>${rb}</td>
@@ -273,10 +287,10 @@ function renderTable(users) {
       <td style="font-size:12px;color:var(--mu)">${u.created_at}</td>
       <td>
         <div class="acts">
-          <button class="bi" title="Editar" onclick="openEdit(${u.id})">✏️</button>
-          <button class="bi" title="Resetear contraseña" onclick="openPw(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')">🔑</button>
-          <button class="bi" title="${u.is_active?'Desactivar':'Activar'}" onclick="toggleActive(${u.id})">${u.is_active?'🔒':'🔓'}</button>
-          <button class="bi d" title="Eliminar" onclick="openDelete(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')">🗑️</button>
+          <button class="bi" title="Editar" onclick="openEdit(${u.id})"><i class="fas fa-pen"></i></button>
+          <button class="bi" title="Resetear contraseña" onclick="openPw(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')"><i class="fas fa-key"></i></button>
+          <button class="bi" title="${lockTitle}" onclick="toggleActive(${u.id})"><i class="fas ${lockIcon}"></i></button>
+          <button class="bi d" title="Eliminar" onclick="openDelete(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
         </div>
       </td>
     </tr>`;
