@@ -1792,3 +1792,286 @@ def admin_api_reset_password(user_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# =============================================================================
+# DASHBOARD GRUPAL - GESTIÓN DE EQUIPO
+# =============================================================================
+
+def get_group_members(leader_user):
+    """
+    Obtiene los miembros del grupo de un líder.
+    SIMULACIÓN: Por ahora, todos los usuarios registrados pertenecen al grupo del admin.
+    En producción, esto se filtrará por relación jefe-empleado.
+    """
+    members = MobPerUser.query.filter(
+        MobPerUser.id != leader_user.id,
+        MobPerUser.is_active == True
+    ).order_by(MobPerUser.nombre_completo).all()
+    return members
+
+
+def calcular_resumen_miembro(user, quincena):
+    """Calcula el resumen de incidencias de un miembro para una quincena."""
+    try:
+        incidencias = calcular_incidencias_quincena(user, quincena)
+        a_tiempo = sum(1 for i in incidencias if i['estado_auto'] == 'A_TIEMPO')
+        retardos = sum(1 for i in incidencias if i['estado_auto'] == 'RETARDO')
+        faltas = sum(1 for i in incidencias if i['estado_auto'] == 'FALTA')
+        inhabiles = sum(1 for i in incidencias if i['estado_auto'] == 'INHABIL')
+        descansos = sum(1 for i in incidencias if i['estado_auto'] == 'DESCANSO')
+        faltas_sin_clasificar = sum(
+            1 for i in incidencias
+            if i['estado_auto'] == 'FALTA' and not i.get('clasificacion')
+        )
+        if faltas_sin_clasificar > 0:
+            estado = 'pendiente'
+        elif faltas > 0 or retardos > 2:
+            estado = 'alerta'
+        else:
+            estado = 'ok'
+        return {
+            'a_tiempo': a_tiempo, 'retardos': retardos, 'faltas': faltas,
+            'inhabiles': inhabiles, 'descansos': descansos,
+            'faltas_sin_clasificar': faltas_sin_clasificar,
+            'estado': estado, 'incidencias': incidencias,
+        }
+    except Exception as e:
+        print(f"[GRUPO] Error calculando resumen de {user.numero_socio}: {e}")
+        return {
+            'a_tiempo': 0, 'retardos': 0, 'faltas': 0,
+            'inhabiles': 0, 'descansos': 0,
+            'faltas_sin_clasificar': 0, 'estado': 'error', 'incidencias': [],
+        }
+
+
+@mobper_bp.route('/grupo')
+@mobper_admin_required
+def grupo_dashboard():
+    """Dashboard de gestión grupal."""
+    current_user = get_current_mobper_user()
+    return render_template('mobper_grupo.html', current_user=current_user)
+
+
+@mobper_bp.route('/grupo/api/resumen', methods=['GET'])
+@mobper_admin_required
+def grupo_api_resumen():
+    """API: Resumen completo del grupo para una quincena."""
+    t_start = time_module.time()
+    leader = get_current_mobper_user()
+    members = get_group_members(leader)
+
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    quincena_num = request.args.get('quincena_num', type=int)
+
+    if year and month and quincena_num:
+        quincena = calcular_quincena(year, month, quincena_num)
+    else:
+        quincena = calcular_quincena_actual()
+
+    quincena_ant = obtener_quincena_anterior(quincena)
+    quincena_sig = obtener_quincena_siguiente(quincena)
+
+    miembros_data = []
+    totals = {'a_tiempo': 0, 'retardos': 0, 'faltas': 0, 'pendientes': 0}
+
+    for m in members:
+        resumen = calcular_resumen_miembro(m, quincena)
+        preset = PresetUsuario.query.filter_by(user_id=m.id).first()
+        miembros_data.append({
+            'id': m.id,
+            'numero_socio': m.numero_socio,
+            'nombre_completo': m.nombre_completo,
+            'departamento': preset.departamento_formato if preset else '',
+            'a_tiempo': resumen['a_tiempo'],
+            'retardos': resumen['retardos'],
+            'faltas': resumen['faltas'],
+            'faltas_sin_clasificar': resumen['faltas_sin_clasificar'],
+            'inhabiles': resumen['inhabiles'],
+            'descansos': resumen['descansos'],
+            'estado': resumen['estado'],
+            'last_login': m.last_login.strftime('%d/%m/%Y %H:%M') if m.last_login else 'Nunca',
+        })
+        totals['a_tiempo'] += resumen['a_tiempo']
+        totals['retardos'] += resumen['retardos']
+        totals['faltas'] += resumen['faltas']
+        if resumen['faltas_sin_clasificar'] > 0:
+            totals['pendientes'] += 1
+
+    elapsed = time_module.time() - t_start
+    print(f"[GRUPO] Resumen calculado en {elapsed:.2f}s para {len(members)} miembros")
+
+    from datetime import date as date_cls
+    hoy = date_cls.today()
+    puede_ir_siguiente = quincena_sig['inicio'] <= hoy
+
+    return jsonify({
+        'success': True,
+        'quincena': {
+            'nombre': quincena['nombre'],
+            'anio': quincena['anio'],
+            'mes': quincena['mes'],
+            'numero': quincena['numero'],
+        },
+        'nav': {
+            'ant': {'anio': quincena_ant['anio'], 'mes': quincena_ant['mes'], 'numero': quincena_ant['numero']},
+            'sig': {'anio': quincena_sig['anio'], 'mes': quincena_sig['mes'], 'numero': quincena_sig['numero']},
+            'puede_sig': puede_ir_siguiente,
+        },
+        'miembros': miembros_data,
+        'totals': totals,
+        'total_miembros': len(members),
+        'elapsed': round(elapsed, 2),
+    })
+
+
+@mobper_bp.route('/grupo/api/miembro/<int:user_id>/detalle', methods=['GET'])
+@mobper_admin_required
+def grupo_api_miembro_detalle(user_id):
+    """API: Detalle de incidencias de un miembro para una quincena."""
+    user = MobPerUser.query.get_or_404(user_id)
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    quincena_num = request.args.get('quincena_num', type=int)
+
+    if year and month and quincena_num:
+        quincena = calcular_quincena(year, month, quincena_num)
+    else:
+        quincena = calcular_quincena_actual()
+
+    incidencias = calcular_incidencias_quincena(user, quincena)
+    preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+
+    inc_list = []
+    for inc in incidencias:
+        inc_list.append({
+            'fecha': inc['fecha'].isoformat(),
+            'dia_semana': inc['dia_semana'],
+            'tipo_dia': inc['tipo_dia'],
+            'estado_auto': inc['estado_auto'],
+            'minutos_diferencia': inc['minutos_diferencia'],
+            'primer_registro': inc['primer_registro'].strftime('%H:%M:%S') if inc['primer_registro'] else None,
+            'hora_limite': inc['hora_limite'].strftime('%H:%M') if inc.get('hora_limite') else None,
+            'clasificacion': inc.get('clasificacion'),
+            'justificado': inc.get('justificado', True),
+            'nombre_inhabil': inc.get('nombre_inhabil'),
+        })
+
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user.id,
+            'numero_socio': user.numero_socio,
+            'nombre_completo': user.nombre_completo,
+            'departamento': preset.departamento_formato if preset else '',
+        },
+        'quincena': quincena['nombre'],
+        'incidencias': inc_list,
+    })
+
+
+@mobper_bp.route('/grupo/api/generar-excel/<int:user_id>', methods=['GET'])
+@mobper_admin_required
+def grupo_api_generar_excel_miembro(user_id):
+    """API: Genera Excel de un miembro específico."""
+    try:
+        from webapp.mobper_excel import generar_formato_excel
+        user = MobPerUser.query.get_or_404(user_id)
+        preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        quincena_num = request.args.get('quincena_num', type=int)
+        con_goce = request.args.get('con_goce', '1') == '1'
+
+        if year and month and quincena_num:
+            quincena = calcular_quincena(year, month, quincena_num)
+        else:
+            quincena = calcular_quincena_actual()
+
+        incidencias = calcular_incidencias_quincena(user, quincena)
+        output_path, filename = generar_formato_excel(
+            user=user, preset=preset, incidencias=incidencias,
+            quincena=quincena, con_goce=con_goce
+        )
+
+        @after_this_request
+        def remove_file_grupo_single(response):
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
+            return response
+
+        return send_file(
+            output_path, as_attachment=True, download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/grupo/api/generar-excel-todos', methods=['GET'])
+@mobper_admin_required
+def grupo_api_generar_excel_todos():
+    """API: Genera un ZIP con los Excel de todos los miembros del grupo."""
+    import zipfile
+    import tempfile
+    try:
+        from webapp.mobper_excel import generar_formato_excel
+        leader = get_current_mobper_user()
+        members = get_group_members(leader)
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        quincena_num = request.args.get('quincena_num', type=int)
+        con_goce = request.args.get('con_goce', '1') == '1'
+
+        if year and month and quincena_num:
+            quincena = calcular_quincena(year, month, quincena_num)
+        else:
+            quincena = calcular_quincena_actual()
+
+        zip_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(zip_dir, 'MovPer_Grupo.zip')
+        generated_files = []
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for m in members:
+                try:
+                    preset = PresetUsuario.query.filter_by(user_id=m.id).first()
+                    incidencias = calcular_incidencias_quincena(m, quincena)
+                    output_path, filename = generar_formato_excel(
+                        user=m, preset=preset, incidencias=incidencias,
+                        quincena=quincena, con_goce=con_goce
+                    )
+                    zf.write(output_path, filename)
+                    generated_files.append(output_path)
+                except Exception as e:
+                    print(f"[GRUPO ZIP] Error con {m.nombre_completo}: {e}")
+
+        for fp in generated_files:
+            try:
+                os.remove(fp)
+            except Exception:
+                pass
+
+        @after_this_request
+        def cleanup_grupo_zip(response):
+            try:
+                os.remove(zip_path)
+                os.rmdir(zip_dir)
+            except Exception:
+                pass
+            return response
+
+        q_name = quincena['nombre'].replace(' ', '_')
+        return send_file(
+            zip_path, as_attachment=True,
+            download_name=f'MovPer_Grupo_{q_name}.zip',
+            mimetype='application/zip'
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
