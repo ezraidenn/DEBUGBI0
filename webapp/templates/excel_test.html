@@ -333,13 +333,13 @@
 
     <div class="container">
         <div class="info-card">
-            <h3>📋 Datos de Prueba</h3>
+            <h3> Datos de Prueba</h3>
             <pre id="test-data">Cargando...</pre>
         </div>
 
         <div class="actions-bar">
             <button class="btn btn-primary" onclick="runAllTests()">
-                🚀 Ejecutar Todas las Pruebas
+                 Ejecutar Todas las Pruebas
             </button>
             <button class="btn btn-success" onclick="location.reload()">
                 🔄 Reiniciar
@@ -351,7 +351,7 @@
         </div>
 
         <div class="log-section">
-            <div class="log-header">📝 Log de Ejecución</div>
+            <div class="log-header"> Log de Ejecución</div>
             <div class="log-body" id="log-body">
                 <div class="log-entry info">Listo para ejecutar pruebas...</div>
             </div>
@@ -468,7 +468,7 @@
                         <div class="result-box" id="result-${m.id}"></div>
                         <div class="method-actions">
                             <button class="btn btn-primary" onclick="runTest('${m.id}')" id="btn-run-${m.id}">
-                                ▶️ Ejecutar
+                                ▶ Ejecutar
                             </button>
                             <button class="btn btn-success" onclick="downloadFile('${m.id}')" id="btn-download-${m.id}" disabled>
                                 📥 Descargar
@@ -483,8 +483,8 @@
             switch (status) {
                 case 'pending': return '⏳ Pendiente';
                 case 'running': return '🔄 Ejecutando...';
-                case 'success': return '✅ Éxito';
-                case 'error': return '❌ Error';
+                case 'success': return ' Éxito';
+                case 'error': return ' Error';
                 default: return status;
             }
         }
@@ -542,18 +542,18 @@
 
                 if (data.success) {
                     updateCardStatus(methodId, 'success', `Archivo generado: ${data.filename}`);
-                    addLog(`✅ ${methodId}: Éxito - ${data.filename}`, 'success');
+                    addLog(` ${methodId}: Éxito - ${data.filename}`, 'success');
                 } else {
                     updateCardStatus(methodId, 'error', data.error);
-                    addLog(`❌ ${methodId}: ${data.error}`, 'error');
+                    addLog(` ${methodId}: ${data.error}`, 'error');
                 }
             } catch (error) {
                 updateCardStatus(methodId, 'error', error.message);
-                addLog(`❌ ${methodId}: ${error.message}`, 'error');
+                addLog(` ${methodId}: ${error.message}`, 'error');
             }
 
             runBtn.disabled = false;
-            runBtn.innerHTML = '▶️ Ejecutar';
+            runBtn.innerHTML = '▶ Ejecutar';
         }
 
         async function runAllTests() {

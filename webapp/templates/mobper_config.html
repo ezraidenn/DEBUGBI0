@@ -402,7 +402,7 @@
                     </div>
                     <div>
                         <div class="card-title">Horario</div>
-                        <div class="card-subtitle">Hora de entrada y tolerancia</div>
+                        <div class="card-subtitle">Hora de entrada, salida y tolerancias</div>
                     </div>
                 </div>
 
@@ -415,11 +415,28 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="tolerancia_minutos">Tolerancia (min)</label>
+                        <label for="tolerancia_minutos">Tolerancia entrada (min)</label>
                         <input type="number" id="tolerancia_minutos" name="tolerancia_minutos" 
                                value="{{ (preset.tolerancia_segundos // 60) if preset else 10 }}" 
                                min="0" max="60" required>
                         <small>Minutos despues de la entrada</small>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-top: 1rem;">
+                    <div class="form-group">
+                        <label for="hora_salida_default">Hora de salida</label>
+                        <input type="time" id="hora_salida_default" name="hora_salida_default" 
+                               value="{{ preset.hora_salida_default.strftime('%H:%M') if preset and preset.hora_salida_default else '18:00' }}" required>
+                        <small>Hora normal de salida</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tolerancia_salida_minutos">Tolerancia salida (min)</label>
+                        <input type="number" id="tolerancia_salida_minutos" name="tolerancia_salida_minutos" 
+                               value="{{ (preset.tolerancia_salida_segundos // 60) if preset and preset.tolerancia_salida_segundos is not none else 0 }}" 
+                               min="0" max="60" required>
+                        <small>Minutos antes de la salida</small>
                     </div>
                 </div>
             </div>

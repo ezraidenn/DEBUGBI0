@@ -569,6 +569,8 @@ class PresetUsuario(db.Model):
     # Configuración de horario
     hora_entrada_default = db.Column(db.Time, default=datetime.strptime('09:00:00', '%H:%M:%S').time())
     tolerancia_segundos = db.Column(db.Integer, default=600)  # 10 minutos
+    hora_salida_default = db.Column(db.Time, default=datetime.strptime('18:00:00', '%H:%M:%S').time())
+    tolerancia_salida_segundos = db.Column(db.Integer, default=600)  # 10 minutos
     dias_descanso = db.Column(db.JSON, default=lambda: [5, 6])  # Sábado y Domingo
     lista_inhabiles = db.Column(db.JSON, default=list)
     
@@ -623,9 +625,28 @@ class IncidenciaDia(db.Model):
     # Motivo generado automáticamente según clasificación
     motivo_auto = db.Column(db.String(200))
     
-    # Datos del registro
+    # Datos del registro — entrada
     hora_entrada = db.Column(db.Time)
     minutos_diferencia = db.Column(db.Integer)
+    
+    # Datos del registro — salida
+    hora_salida = db.Column(db.Time)
+    minutos_diferencia_salida = db.Column(db.Integer)  # negativo = salió antes
+    salida_estado = db.Column(db.String(20))  # NORMAL, SALIDA_TEMPRANA
+    salida_justificado = db.Column(db.Boolean, default=True)
+    
+    # Detección automática de olvido de checada
+    # entrada_no_checada: solo tiene checada de salida (en ventana de salida), sin entrada
+    # salida_no_checada: solo tiene checada de entrada (en ventana de entrada), sin salida
+    entrada_no_checada = db.Column(db.Boolean, default=False)
+    salida_no_checada = db.Column(db.Boolean, default=False)
+    # Justificación de olvido de checada (default True = auto-justificado)
+    # False = error del sistema, no debe aparecer en el formato Excel
+    olvido_checar_justificado = db.Column(db.Boolean, default=True)
+
+    # Flag: este día de vacaciones ya fue exportado en un AVISO DE VACACIONES
+    # Evita duplicar el Excel de vacaciones al re-imprimir la misma quincena
+    vacaciones_impresa = db.Column(db.Boolean, default=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -637,3 +658,46 @@ class IncidenciaDia(db.Model):
     
     def __repr__(self):
         return f'<IncidenciaDia {self.user_id} {self.fecha} - {self.clasificacion}>'
+
+
+class CorreccionDia(db.Model):
+    """
+    Regla de corrección permanente para un día específico.
+    Cuando un checador pierde sincronización con BioStar, los eventos de la mañana
+    llegan con un offset horario. Esta tabla almacena la regla para corregir
+    automáticamente la primera checada de cualquier usuario (registrado o futuro)
+    que cumpla las condiciones ese día.
+
+    Lógica de aplicación:
+      - Si el usuario tiene >= min_eventos_requeridos ese día
+      - Y su primera checada cae dentro de la ventana [hora_anomala_inicio, hora_anomala_fin]
+      - Entonces se resta offset_minutos a esa primera checada
+      - La última checada (salida) NO se toca
+    """
+    __tablename__ = 'mobper_correcciones_dia'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Fecha exacta a la que aplica la corrección
+    fecha = db.Column(db.Date, nullable=False, unique=True)
+
+    # Offset a restar en minutos (positivo = restar, negativo = sumar)
+    offset_minutos = db.Column(db.Integer, nullable=False)
+
+    # Ventana horaria de la anomalía (hora CDMX) — solo se corrige si la primera
+    # checada cae dentro de este rango (para no afectar usuarios que sí checaron normal)
+    hora_anomala_inicio = db.Column(db.Time, nullable=False)  # ej. 17:00
+    hora_anomala_fin    = db.Column(db.Time, nullable=False)  # ej. 19:30
+
+    # Mínimo de eventos requeridos ese día para aplicar corrección
+    # (usuarios con 1 sola checada = olvidaron checar entrada, no se tocan)
+    min_eventos_requeridos = db.Column(db.Integer, default=2)
+
+    # Descripción del incidente para auditoría
+    descripcion = db.Column(db.String(500))
+
+    activa = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CorreccionDia {self.fecha} offset={self.offset_minutos}min>'

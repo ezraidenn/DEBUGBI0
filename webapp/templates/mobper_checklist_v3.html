@@ -1491,6 +1491,7 @@
             color: #9f1239;
 
         }
+        .class-tag.error_sistema { background:#F5F5F4; color:#78716C; border:1px solid #D6D3D1; }
 
 
 
@@ -1669,6 +1670,21 @@
         }
 
 
+
+        /* Vacation Modal */
+        .vac-modal-overlay { display:none; position:fixed; inset:0; background:rgba(30,20,18,.65); z-index:2100; align-items:center; justify-content:center; }
+        .vac-modal-overlay.show { display:flex; }
+        .vac-modal-card { background:#fff; border-radius:.75rem; padding:1.75rem 2rem; max-width:360px; width:92%; box-shadow:0 8px 32px rgba(0,0,0,.28); }
+        .vac-modal-title { font-size:.9375rem; font-weight:700; color:#3E2723; margin-bottom:.375rem; }
+        .vac-modal-sub { font-size:.8rem; color:#78716C; margin-bottom:1rem; line-height:1.5; }
+        .vac-periodos-list { display:flex; flex-direction:column; gap:.5rem; margin-bottom:1.25rem; }
+        .vac-check-item { display:flex; align-items:center; gap:.6rem; font-size:.875rem; color:#3E2723; cursor:pointer; padding:.5rem .75rem; border-radius:.5rem; border:1px solid #E7E5E4; transition:background .15s; }
+        .vac-check-item:hover { background:#FEF3C7; }
+        .vac-check-item input[type=checkbox] { accent-color:#5D4037; width:15px; height:15px; cursor:pointer; }
+        .vac-modal-actions { display:flex; gap:.75rem; justify-content:flex-end; }
+        .vac-btn-cancel { padding:.5rem 1rem; border-radius:.5rem; border:1px solid #D6D3D1; background:#fff; color:#78716C; font-size:.875rem; cursor:pointer; }
+        .vac-btn-confirm { padding:.5rem 1.25rem; border-radius:.5rem; border:none; background:#5D4037; color:#fff; font-size:.875rem; font-weight:600; cursor:pointer; }
+        .vac-btn-confirm:hover { background:#4E342E; }
 
         /* Excel Loading Overlay */
         .excel-overlay {
@@ -1964,7 +1980,15 @@
 
     </div>
 
-
+    {% if impersonating %}
+    <div style="background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;padding:.625rem 1.25rem;text-align:center;font-size:.8125rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:.75rem">
+        <i class="fas fa-eye"></i>
+        <span>Viendo como: {{ impersonating.nombre_completo }} (#{{ impersonating.numero_socio }})</span>
+        <a href="{{ url_for('mobper.admin_stop_impersonate') }}" style="background:rgba(255,255,255,.2);color:#fff;padding:3px 12px;border-radius:6px;text-decoration:none;font-size:.75rem;font-weight:600">
+            <i class="fas fa-times"></i> Volver a mi cuenta
+        </a>
+    </div>
+    {% endif %}
 
     <!-- Navegación Período -->
 
@@ -2114,6 +2138,10 @@
 
         {% set inhabiles = [] %}
 
+        {% set salidas_tempranas = [] %}
+
+        {% set olvido_checar = [] %}
+
 
 
         {% for inc in incidencias %}
@@ -2137,6 +2165,18 @@
         {% elif inc.estado_auto == 'INHABIL' %}
 
         {% set _ = inhabiles.append(inc) %}
+
+        {% endif %}
+
+        {% if inc.salida_estado == 'SALIDA_TEMPRANA' %}
+
+        {% set _ = salidas_tempranas.append(inc) %}
+
+        {% endif %}
+
+        {% if inc.entrada_no_checada or inc.salida_no_checada %}
+
+        {% set _ = olvido_checar.append(inc) %}
 
         {% endif %}
 
@@ -2216,6 +2256,8 @@
 
                                 <option value="INCAPACIDAD" {% if inc.clasificacion=='INCAPACIDAD' %}selected{% endif %}>Incapacidad</option>
 
+                                <option value="ERROR_SISTEMA" {% if inc.clasificacion=='ERROR_SISTEMA' %}selected{% endif %}style="color:#78716C">No es falta (error del sistema)</option>
+
                             </select>
 
 
@@ -2233,6 +2275,8 @@
                                 {% elif inc.clasificacion == 'VACACIONES' %}<i class="fas fa-umbrella-beach"></i> Vacaciones
 
                                 {% elif inc.clasificacion == 'INCAPACIDAD' %}<i class="fas fa-notes-medical"></i> Incapacidad
+
+                                {% elif inc.clasificacion == 'ERROR_SISTEMA' %}<i class="fas fa-exclamation-triangle"></i> No es falta
 
                                 {% endif %}
 
@@ -2355,6 +2399,238 @@
                                 {% else %}
 
                                 <i class="fas fa-times"></i> No Justificado
+
+                                {% endif %}
+
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+
+
+        <!-- SALIDAS TEMPRANAS -->
+
+        {% if salidas_tempranas %}
+
+        <div class="section">
+
+            <div class="section-header">
+
+                <div class="section-icon" style="background:#FFF3E0;border-color:#FFE0B2"><i class="fas fa-door-open" style="color:#E65100"></i></div>
+
+                <div class="section-info">
+
+                    <h3>Salidas Tempranas</h3>
+
+                    <div class="count">{{ salidas_tempranas|length }} incidencias</div>
+
+                </div>
+
+            </div>
+
+            <div class="cards-grid">
+
+                {% for inc in salidas_tempranas %}
+
+                <div class="inc-card" style="border-left-color:#E65100" data-fecha="{{ inc.fecha }}">
+
+                    <div class="inc-header">
+
+                        <div>
+
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+
+                        </div>
+
+                        <span class="badge" style="background:#FFF3E0;color:#E65100">{{ inc.minutos_diferencia_salida }} min</span>
+
+                    </div>
+
+                    <div class="inc-body">
+
+                        <div class="inc-info">
+
+                            <span><i class="fas fa-sign-out-alt" style="color:#E65100;font-size:0.875rem"></i></span>
+
+                            <span>Salida: {{ inc.ultimo_registro.strftime('%H:%M:%S') if inc.ultimo_registro else '--:--:--' }}</span>
+
+                        </div>
+
+                        <div class="inc-info">
+
+                            <span><i class="fas fa-stopwatch" style="color:var(--gray);font-size:0.875rem"></i></span>
+
+                            <span>Hora salida: {{ inc.hora_salida_esperada.strftime('%H:%M') }}</span>
+
+                        </div>
+
+
+
+                        <div class="just-toggle">
+
+                            <label class="toggle-switch">
+
+                                <input type="checkbox" {% if inc.salida_justificado is not defined or inc.salida_justificado
+
+                                    %}checked{% endif %}
+
+                                    onchange="toggleJustificacionSalida('{{ inc.fecha }}', this.checked)">
+
+                                <span class="toggle-slider"></span>
+
+                            </label>
+
+                            <span
+
+                                class="just-label {% if inc.salida_justificado is not defined or inc.salida_justificado %}yes{% else %}no{% endif %}"
+
+                                id="label-salida-{{ inc.fecha }}">
+
+                                {% if inc.salida_justificado is not defined or inc.salida_justificado %}
+
+                                <i class="fas fa-check"></i> Justificado
+
+                                {% else %}
+
+                                <i class="fas fa-times"></i> No Justificado
+
+                                {% endif %}
+
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+
+
+        <!-- OLVIDO CHECAR -->
+
+        {% if olvido_checar %}
+
+        <div class="section">
+
+            <div class="section-header">
+
+                <div class="section-icon" style="background:#E8EAF6;border-color:#C5CAE9"><i class="fas fa-fingerprint" style="color:#283593"></i></div>
+
+                <div class="section-info">
+
+                    <h3>Olvido de Checada</h3>
+
+                    <div class="count">{{ olvido_checar|length }} incidencias</div>
+
+                </div>
+
+            </div>
+
+            <div class="cards-grid">
+
+                {% for inc in olvido_checar %}
+
+                <div class="inc-card" style="border-left-color:#283593">
+
+                    <div class="inc-header">
+
+                        <div>
+
+                            <div class="inc-date">{{ formatear_fecha(inc.fecha) }}</div>
+
+                            <div class="inc-day">{{ inc.fecha.strftime('%d/%m/%Y') }}</div>
+
+                        </div>
+
+                        {% if inc.entrada_no_checada %}
+
+                        <span class="badge" style="background:#E8EAF6;color:#283593">Entrada</span>
+
+                        {% endif %}
+
+                        {% if inc.salida_no_checada %}
+
+                        <span class="badge" style="background:#E8EAF6;color:#283593">Salida</span>
+
+                        {% endif %}
+
+                    </div>
+
+                    <div class="inc-body">
+
+                        {% if inc.entrada_no_checada %}
+
+                        <div class="inc-info">
+
+                            <span><i class="fas fa-sign-in-alt" style="color:#283593;font-size:0.875rem"></i></span>
+
+                            <span>Entrada no checada - justificada</span>
+
+                        </div>
+
+                        {% endif %}
+
+                        {% if inc.salida_no_checada %}
+
+                        <div class="inc-info">
+
+                            <span><i class="fas fa-sign-out-alt" style="color:#283593;font-size:0.875rem"></i></span>
+
+                            <span>Salida no checada - justificada</span>
+
+                        </div>
+
+                        {% endif %}
+
+                        <div class="just-toggle">
+
+                            <label class="toggle-switch">
+
+                                <input type="checkbox" {% if inc.olvido_checar_justificado is not defined or inc.olvido_checar_justificado
+
+                                    %}checked{% endif %}
+
+                                    onchange="toggleJustificacionOlvido('{{ inc.fecha }}', this.checked)">
+
+                                <span class="toggle-slider"></span>
+
+                            </label>
+
+                            <span
+
+                                class="just-label {% if inc.olvido_checar_justificado is not defined or inc.olvido_checar_justificado %}yes{% else %}no{% endif %}"
+
+                                id="label-olvido-{{ inc.fecha }}">
+
+                                {% if inc.olvido_checar_justificado is not defined or inc.olvido_checar_justificado %}
+
+                                <i class="fas fa-check"></i> Justificado
+
+                                {% else %}
+
+                                <i class="fas fa-times"></i> Error del sistema
 
                                 {% endif %}
 
@@ -2602,7 +2878,7 @@
 
 
 
-                if (fecha && select && select.value && select.value !== 'INCAPACIDAD') {
+                if (fecha && select && select.value && select.value !== 'INCAPACIDAD' && select.value !== 'ERROR_SISTEMA' && select.value !== 'VACACIONES') {
 
                     const fechaObj = new Date(fecha + 'T00:00:00');
 
@@ -2844,7 +3120,7 @@
 
                     if (data.success) {
 
-                        showToast('✅ Clasificación guardada', 'success');
+                        showToast(' Clasificación guardada', 'success');
 
                         // Actualizar resumen antes de recargar
 
@@ -2858,7 +3134,7 @@
 
                     } else {
 
-                        showToast('❌ ' + (data.error || 'Error al guardar'), 'error');
+                        showToast(' ' + (data.error || 'Error al guardar'), 'error');
 
                         console.error('Error en respuesta:', data);
 
@@ -2868,7 +3144,7 @@
 
                 .catch(error => {
 
-                    showToast('❌ Error de conexión', 'error');
+                    showToast(' Error de conexión', 'error');
 
                     console.error('Error en clasificarFalta:', error);
 
@@ -2930,7 +3206,7 @@
 
                     if (data.success) {
 
-                        showToast('✅ Actualizado', 'success');
+                        showToast(' Actualizado', 'success');
 
                         // Actualizar el resumen inmediatamente
 
@@ -2938,7 +3214,7 @@
 
                     } else {
 
-                        showToast('❌ ' + (data.error || 'Error al actualizar'), 'error');
+                        showToast(' ' + (data.error || 'Error al actualizar'), 'error');
 
                         console.error('Error:', data);
 
@@ -2948,7 +3224,7 @@
 
                 .catch(error => {
 
-                    showToast('❌ Error de conexión', 'error');
+                    showToast('Error de conexion', 'error');
 
                     console.error('Error en toggleJustificacion:', error);
 
@@ -2958,6 +3234,189 @@
 
 
 
+        function toggleJustificacionSalida(fecha, justificado) {
+
+            const label = document.getElementById(`label-salida-${fecha}`);
+
+            if (label) {
+
+                if (justificado) {
+
+                    label.innerHTML = '<i class="fas fa-check"></i> Justificado';
+
+                    label.className = 'just-label yes';
+
+                } else {
+
+                    label.innerHTML = '<i class="fas fa-times"></i> No Justificado';
+
+                    label.className = 'just-label no';
+
+                }
+
+            }
+
+            fetch('/mobper/api/toggle-justificacion-salida', {
+
+                method: 'POST',
+
+                headers: { 'Content-Type': 'application/json' },
+
+                body: JSON.stringify({ fecha: fecha, justificado: justificado })
+
+            })
+
+                .then(res => {
+
+                    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+                    return res.json();
+
+                })
+
+                .then(data => {
+
+                    if (data.success) {
+
+                        showToast('Actualizado', 'success');
+
+                        calcularResumenDias();
+
+                    } else {
+
+                        showToast('Error al actualizar', 'error');
+
+                    }
+
+                })
+
+                .catch(error => {
+
+                    showToast('Error de conexion', 'error');
+
+                    console.error('Error en toggleJustificacionSalida:', error);
+
+                });
+
+        }
+
+
+
+        function toggleJustificacionOlvido(fecha, justificado) {
+
+            const label = document.getElementById(`label-olvido-${fecha}`);
+
+            if (label) {
+
+                if (justificado) {
+
+                    label.innerHTML = '<i class="fas fa-check"></i> Justificado';
+
+                    label.className = 'just-label yes';
+
+                } else {
+
+                    label.innerHTML = '<i class="fas fa-times"></i> Error del sistema';
+
+                    label.className = 'just-label no';
+
+                }
+
+            }
+
+            fetch('/mobper/api/toggle-justificacion-olvido', {
+
+                method: 'POST',
+
+                headers: { 'Content-Type': 'application/json' },
+
+                body: JSON.stringify({ fecha: fecha, justificado: justificado })
+
+            })
+
+                .then(res => {
+
+                    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+                    return res.json();
+
+                })
+
+                .then(data => {
+
+                    if (data.success) {
+
+                        showToast('Actualizado', 'success');
+
+                        calcularResumenDias();
+
+                    } else {
+
+                        showToast('Error al actualizar', 'error');
+
+                    }
+
+                })
+
+                .catch(error => {
+
+                    showToast('Error de conexion', 'error');
+
+                    console.error('Error en toggleJustificacionOlvido:', error);
+
+                });
+
+        }
+
+
+
+        async function _ejecutarDescargaExcel(conGoce, year, month, quincenaNum, periodosVac) {
+            const overlay = document.getElementById('excelOverlay');
+            overlay.classList.add('show');
+            const stepIds = ['xs1','xs2','xs3','xs4'];
+            let si = 0;
+            const stepTimer = setInterval(() => {
+                stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
+                if (si < stepIds.length) { document.getElementById(stepIds[si]).classList.add('active'); si++; }
+                else { clearInterval(stepTimer); }
+            }, 900);
+            try {
+                const pvParam = (periodosVac && periodosVac.length > 0) ? periodosVac.join(',') : 'none';
+                const url = `/mobper/generar-excel?con_goce=${conGoce}&year=${year}&month=${month}&quincena=${quincenaNum}&periodos_vac=${pvParam}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Error generando el archivo (' + response.status + ')');
+                const contentType = response.headers.get('Content-Type') || '';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error || 'Error desconocido');
+                    for (let i = 0; i < data.files.length; i++) {
+                        const f = data.files[i];
+                        await new Promise(resolve => setTimeout(resolve, i * 800));
+                        const a = document.createElement('a');
+                        a.href = f.url; a.download = f.filename;
+                        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    }
+                } else {
+                    const blob = await response.blob();
+                    const disposition = response.headers.get('Content-Disposition') || '';
+                    const match = disposition.match(/filename[^;=\n]*=(['""]?)([^'"\n]+)\1/);
+                    const filename = match ? match[2] : 'formato_movper.xlsx';
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob); a.download = filename;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                }
+                clearInterval(stepTimer);
+                stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
+                document.getElementById('xs4').classList.add('active');
+                setTimeout(() => overlay.classList.remove('show'), 600);
+            } catch (err) {
+                clearInterval(stepTimer);
+                overlay.classList.remove('show');
+                alert('Error al generar el Excel: ' + err.message);
+            }
+        }
+
         async function generarFormatoExcel() {
             const goceToggle = document.getElementById('goceToggle');
             const conGoce = goceToggle ? (goceToggle.checked ? '1' : '0') : '1';
@@ -2965,59 +3424,46 @@
             const month = {{ quincena.mes }};
             const quincenaNum = {{ quincena.numero }};
 
-            // Mostrar overlay
-            const overlay = document.getElementById('excelOverlay');
-            overlay.classList.add('show');
-
-            // Animar pasos secuencialmente
-            const stepIds = ['xs1','xs2','xs3','xs4'];
-            let si = 0;
-            const stepTimer = setInterval(() => {
-                stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
-                if (si < stepIds.length) {
-                    document.getElementById(stepIds[si]).classList.add('active');
-                    si++;
-                } else {
-                    clearInterval(stepTimer);
-                }
-            }, 900);
-
+            // Consultar periodos de vacaciones disponibles
+            let periodos = [];
             try {
-                // Descargar como blob — sabemos exactamente cuándo termina
-                const url = `/mobper/generar-excel?con_goce=${conGoce}&year=${year}&month=${month}&quincena=${quincenaNum}`;
-                const response = await fetch(url);
+                const r = await fetch(`/mobper/api/periodos-vacaciones?year=${year}&month=${month}&quincena=${quincenaNum}`);
+                const d = await r.json();
+                if (d.success) periodos = d.periodos;
+            } catch(e) { /* sin vacaciones */ }
 
-                if (!response.ok) {
-                    throw new Error('Error generando el archivo (' + response.status + ')');
-                }
-
-                const blob = await response.blob();
-
-                // Obtener nombre del archivo del header Content-Disposition
-                const disposition = response.headers.get('Content-Disposition') || '';
-                const match = disposition.match(/filename[^;=\n]*=(['""]?)([^'"\n]+)\1/);
-                const filename = match ? match[2] : 'formato_movper.xlsx';
-
-                // Disparar descarga en el navegador
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href);
-
-                // Marcar último paso y ocultar overlay
-                clearInterval(stepTimer);
-                stepIds.forEach(id => document.getElementById(id).classList.remove('active'));
-                document.getElementById('xs4').classList.add('active');
-                setTimeout(() => overlay.classList.remove('show'), 600);
-
-            } catch (err) {
-                clearInterval(stepTimer);
-                overlay.classList.remove('show');
-                alert('Error al generar el Excel: ' + err.message);
+            if (periodos.length === 0) {
+                // Sin vacaciones: descargar directamente
+                await _ejecutarDescargaExcel(conGoce, year, month, quincenaNum, []);
+                return;
             }
+
+            // Mostrar modal de seleccion de periodos
+            const modal = document.getElementById('vacModalOverlay');
+            const list = document.getElementById('vacPeriodosList');
+            list.innerHTML = '';
+            periodos.forEach(p => {
+                const li = document.createElement('label');
+                li.className = 'vac-check-item';
+                li.innerHTML = `<input type='checkbox' class='vac-cb' value='${p.index}' checked> <span>${p.label}</span>`;
+                list.appendChild(li);
+            });
+            modal.classList.add('show');
+
+            // Guardar contexto para el boton confirmar
+            modal._ctx = { conGoce, year, month, quincenaNum };
+        }
+
+        function vacModalConfirmar() {
+            const modal = document.getElementById('vacModalOverlay');
+            modal.classList.remove('show');
+            const ctx = modal._ctx;
+            const checked = [...document.querySelectorAll('.vac-cb:checked')].map(cb => parseInt(cb.value));
+            _ejecutarDescargaExcel(ctx.conGoce, ctx.year, ctx.month, ctx.quincenaNum, checked);
+        }
+
+        function vacModalCancelar() {
+            document.getElementById('vacModalOverlay').classList.remove('show');
         }
 
 
@@ -3036,6 +3482,19 @@
 
     </script>
 
+
+<!-- Vacation Period Selection Modal -->
+<div class="vac-modal-overlay" id="vacModalOverlay">
+  <div class="vac-modal-card">
+    <div class="vac-modal-title"><i class="fas fa-umbrella-beach" style="margin-right:7px;color:#5D4037"></i>Seleccionar periodos de vacaciones</div>
+    <div class="vac-modal-sub">Elige qué periodos incluir en la descarga. El MovPer siempre se incluye.</div>
+    <div id="vacPeriodosList" class="vac-periodos-list"></div>
+    <div class="vac-modal-actions">
+      <button class="vac-btn-cancel" onclick="vacModalCancelar()">Cancelar</button>
+      <button class="vac-btn-confirm" onclick="vacModalConfirmar()"><i class="fas fa-download" style="margin-right:5px"></i>Descargar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Excel Loading Overlay -->
 <div class="excel-overlay" id="excelOverlay">

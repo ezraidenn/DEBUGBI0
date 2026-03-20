@@ -1,0 +1,34 @@
+[
+  {
+    "id": "7338",
+    "server_datetime": "2025-02-04T11:12:27.00Z",
+    "datetime": "2025-02-03T16:56:50.00Z",
+    "index": "1295164",
+    "user_id_name": "5667(MEDINA VERA CARLOS )",
+    "user_id": {
+      "user_id": "5667",
+      "name": "MEDINA VERA CARLOS ",
+      "photo_exists": "false"
+    },
+    "user_group_id": {
+      "id": "1062",
+      "name": "Empleados"
+    },
+    "device_id": {
+      "id": "544125435",
+      "name": "Recepcion"
+    },
+    "event_type_id": {
+      "code": "4865"
+    },
+    "is_dst": "0",
+    "timezone": {
+      "half": "0",
+      "hour": "6",
+      "negative": "1"
+    },
+    "user_update_by_device": "false",
+    "hint": "173860181005441254350001295164",
+    "_query_user": "5667"
+  }
+]

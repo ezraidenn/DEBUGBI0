@@ -375,6 +375,7 @@ function renderTable(members) {
       <td>
         <div class="acts">
           <button class="act-btn" title="Ver detalle" onclick="openDetail(${m.id})"><i class="fas fa-eye"></i></button>
+          <a class="act-btn" title="Ver como este usuario" href="${BASE}/admin/impersonate/${m.id}" style="text-decoration:none"><i class="fas fa-user-secret"></i></a>
           <button class="act-btn xl-btn" title="Descargar Excel" onclick="downloadExcel(${m.id})"><i class="fas fa-file-excel"></i></button>
         </div>
       </td>
@@ -435,6 +436,8 @@ async function openDetail(userId) {
       faltas: incs.filter(i => i.estado_auto === 'FALTA').length,
       inhabiles: incs.filter(i => i.estado_auto === 'INHABIL').length,
       descansos: incs.filter(i => i.estado_auto === 'DESCANSO').length,
+      salidas_tempranas: incs.filter(i => i.salida_estado === 'SALIDA_TEMPRANA').length,
+      olvido_checar: incs.filter(i => i.entrada_no_checada || i.salida_no_checada).length,
     };
 
     document.getElementById('dm-title').textContent = u.nombre_completo;
@@ -458,16 +461,44 @@ async function openDetail(userId) {
         icon = i.clasificacion ? 'fa-tag' : 'fa-exclamation-circle';
       }
 
-      const timeStr = i.primer_registro || '--:--';
+      const entryStr = i.primer_registro || '--:--';
+      const exitStr = i.ultimo_registro || '--:--';
+
+      // Build extra badges for salida temprana and olvido checar
+      let extraBadges = '';
+      if (i.salida_estado === 'SALIDA_TEMPRANA') {
+        extraBadges += `<span class="pill" style="background:#FFF3E0;color:#E65100;margin-left:4px"><i class="fas fa-door-open" style="margin-right:3px;font-size:.625rem"></i>${i.minutos_diferencia_salida} min</span>`;
+      }
+      if (i.entrada_no_checada) {
+        extraBadges += `<span class="pill" style="background:#E8EAF6;color:#283593;margin-left:4px"><i class="fas fa-fingerprint" style="margin-right:3px;font-size:.625rem"></i>Ent.</span>`;
+      }
+      if (i.salida_no_checada) {
+        extraBadges += `<span class="pill" style="background:#E8EAF6;color:#283593;margin-left:4px"><i class="fas fa-fingerprint" style="margin-right:3px;font-size:.625rem"></i>Sal.</span>`;
+      }
 
       return `<div class="inc-row">
         <div class="inc-date">${dayName} ${dateStr}</div>
-        <div class="inc-time"><i class="fas fa-sign-in-alt" style="margin-right:3px;opacity:.4"></i>${timeStr}</div>
-        <div class="inc-badge"><span class="pill ${badgeCls}"><i class="fas ${icon}" style="margin-right:3px;font-size:.625rem"></i>${badgeTxt}</span></div>
+        <div class="inc-time" style="display:flex;gap:6px;align-items:center;min-width:120px">
+          <span title="Entrada"><i class="fas fa-sign-in-alt" style="opacity:.4"></i>${entryStr}</span>
+          <span title="Salida" style="color:var(--tx3)"><i class="fas fa-sign-out-alt" style="opacity:.4"></i>${exitStr}</span>
+        </div>
+        <div class="inc-badge" style="display:flex;flex-wrap:wrap;gap:2px;justify-content:flex-end">
+          <span class="pill ${badgeCls}"><i class="fas ${icon}" style="margin-right:3px;font-size:.625rem"></i>${badgeTxt}</span>
+          ${extraBadges}
+        </div>
       </div>`;
     }).join('');
 
     if (!incHTML) incHTML = '<div class="empty" style="padding:2rem"><i class="fas fa-calendar-check"></i><p>Sin d\u00edas laborales en esta quincena</p></div>';
+
+    // Build extra stats rows for salida temprana and olvido checar
+    let extraStats = '';
+    if (counts.salidas_tempranas > 0) {
+      extraStats += `<div class="ds"><div class="ds-val" style="color:#E65100">${counts.salidas_tempranas}</div><div class="ds-lbl">Sal. Temprana</div></div>`;
+    }
+    if (counts.olvido_checar > 0) {
+      extraStats += `<div class="ds"><div class="ds-val" style="color:#283593">${counts.olvido_checar}</div><div class="ds-lbl">Olv. Checar</div></div>`;
+    }
 
     document.getElementById('dm-body').innerHTML = `
       <div class="detail-user">
@@ -483,6 +514,7 @@ async function openDetail(userId) {
         <div class="ds ds-danger"><div class="ds-val">${counts.faltas}</div><div class="ds-lbl">Faltas</div></div>
         <div class="ds"><div class="ds-val" style="color:var(--tx3)">${counts.inhabiles}</div><div class="ds-lbl">Inh\u00e1biles</div></div>
         <div class="ds"><div class="ds-val" style="color:var(--tx3)">${counts.descansos}</div><div class="ds-lbl">Descansos</div></div>
+        ${extraStats}
       </div>
       <div style="font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--tx3);margin-bottom:.5rem">
         <i class="fas fa-list"></i> D\u00edas laborales

@@ -18,7 +18,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment
 from sqlalchemy import and_, or_, func
 from sqlalchemy.orm.attributes import flag_modified
-from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia, Company
+from webapp.models import db, MobPerUser, PresetUsuario, IncidenciaDia, Company, CorreccionDia
 from src.api.biostar_client import BioStarAPIClient
 from webapp.dias_inhabiles import obtener_dias_inhabiles, obtener_nombre_dia_inhabil
 from src.utils.config import Config
@@ -176,7 +176,8 @@ def obtener_nombre_clasificacion(codigo):
         'PERMISO': 'Permiso',
         'VACACIONES': 'Vacaciones',
         'INHABIL': 'Día Inhábil',
-        'INCAPACIDAD': 'Incapacidad'
+        'INCAPACIDAD': 'Incapacidad',
+        'ERROR_SISTEMA': 'No es falta (error del sistema)'
     }
     return nombres.get(codigo, codigo)
 
@@ -191,7 +192,8 @@ def generar_motivo_auto(estado_auto, clasificacion, numero_dia):
             'PERMISO': f"{numero_dia} falta justificada, permiso",
             'VACACIONES': f"{numero_dia} falta justificada, vacaciones",
             'INCAPACIDAD': f"{numero_dia} falta justificada, incapacidad",
-            'INHABIL': f"{numero_dia} día inhábil"
+            'INHABIL': f"{numero_dia} día inhábil",
+            'ERROR_SISTEMA': '',
         }
         return motivos.get(clasificacion, f"{numero_dia} falta")
     return ""
@@ -489,6 +491,9 @@ def calcular_incidencias_quincena(user, quincena):
     
     hora_entrada_default = preset.hora_entrada_default
     tolerancia_segundos = preset.tolerancia_segundos
+    hora_salida_default = getattr(preset, 'hora_salida_default', None) or datetime.strptime('18:00:00', '%H:%M:%S').time()
+    _tol_sal = getattr(preset, 'tolerancia_salida_segundos', None)
+    tolerancia_salida_segundos = _tol_sal if _tol_sal is not None else 0
     dias_descanso = preset.dias_descanso or [5, 6]
     
     # Obtener días inhábiles oficiales del año de la quincena
@@ -502,9 +507,20 @@ def calcular_incidencias_quincena(user, quincena):
     # Usar numero_socio como biostar_user_id
     biostar_user_id = user.numero_socio
     
-    # Calcular hora límite
+    # Calcular hora límite de entrada (entrada + tolerancia)
     hora_limite_dt = datetime.combine(date.today(), hora_entrada_default) + timedelta(seconds=tolerancia_segundos)
     hora_limite = hora_limite_dt.time()
+    
+    # Calcular hora límite de salida (salida - tolerancia = hora mínima aceptable para salir)
+    hora_salida_limite_dt = datetime.combine(date.today(), hora_salida_default) - timedelta(seconds=tolerancia_salida_segundos)
+    hora_salida_limite = hora_salida_limite_dt.time()
+    
+    # Punto medio del día para distinguir entrada vs salida en caso de 1 sola checada
+    # Si hora_entrada es 09:00 y hora_salida es 18:00, punto medio = 13:30
+    entrada_min = datetime.combine(date.today(), hora_entrada_default).timestamp()
+    salida_min = datetime.combine(date.today(), hora_salida_default).timestamp()
+    punto_medio_ts = (entrada_min + salida_min) / 2
+    punto_medio = datetime.fromtimestamp(punto_medio_ts).time()
     
     incidencias = []
     fecha_actual = quincena['inicio']
@@ -522,7 +538,12 @@ def calcular_incidencias_quincena(user, quincena):
             'clasificacion': inc.clasificacion,
             'motivo_auto': inc.motivo_auto,
             'con_goce_sueldo': inc.con_goce_sueldo,
-            'justificado': inc.justificado if hasattr(inc, 'justificado') else True
+            'justificado': inc.justificado if hasattr(inc, 'justificado') else True,
+            'salida_justificado': getattr(inc, 'salida_justificado', True),
+            'entrada_no_checada': getattr(inc, 'entrada_no_checada', False),
+            'salida_no_checada': getattr(inc, 'salida_no_checada', False),
+            'olvido_checar_justificado': getattr(inc, 'olvido_checar_justificado', True),
+            'hora_entrada': getattr(inc, 'hora_entrada', None),
         }
     
     # OPTIMIZACIÓN: Obtener TODOS los registros con CACHE
@@ -535,7 +556,11 @@ def calcular_incidencias_quincena(user, quincena):
     quincena_key = f"{quincena['inicio']}_{quincena['fin']}"
     
     def fetch_events():
-        """Función que obtiene eventos de BioStar (solo se llama en cache miss)."""
+        """
+        Obtiene eventos de BioStar y retorna dict por día:
+          {date: {'first': datetime, 'last': datetime, 'count': int}}
+        'first' y 'last' son iguales si solo hay 1 evento.
+        """
         registros = {}
         client = get_biostar_client()
         if not client:
@@ -568,10 +593,44 @@ def calcular_incidencias_quincena(user, quincena):
                     dt = dt_utc.astimezone(MEXICO_TZ)
                     fecha_evento = dt.date()
                     
-                    if fecha_evento not in registros or dt < registros[fecha_evento]:
-                        registros[fecha_evento] = dt
+                    if fecha_evento not in registros:
+                        registros[fecha_evento] = {'first': dt, 'last': dt, 'count': 1}
+                    else:
+                        r = registros[fecha_evento]
+                        r['count'] += 1
+                        if dt < r['first']:
+                            r['first'] = dt
+                        if dt > r['last']:
+                            r['last'] = dt
         
         print(f"[MOVPER OPTIMIZADO] Total días con registro: {len(registros)}")
+
+        # ── Aplicar correcciones de checador para fechas con regla activa ──
+        correcciones = CorreccionDia.query.filter(
+            CorreccionDia.activa == True,
+            CorreccionDia.fecha >= quincena['inicio'],
+            CorreccionDia.fecha <= quincena['fin']
+        ).all()
+
+        for corr in correcciones:
+            if corr.fecha not in registros:
+                continue
+            r = registros[corr.fecha]
+            if r['count'] < corr.min_eventos_requeridos:
+                print(f"[CORRECCION] {corr.fecha}: usuario tiene {r['count']} evento(s), "
+                      f"minimo requerido {corr.min_eventos_requeridos} — no se aplica")
+                continue
+            hora_primera = r['first'].time()
+            if not (corr.hora_anomala_inicio <= hora_primera <= corr.hora_anomala_fin):
+                print(f"[CORRECCION] {corr.fecha}: primera checada {hora_primera} fuera de "
+                      f"ventana anomala {corr.hora_anomala_inicio}-{corr.hora_anomala_fin} — no se aplica")
+                continue
+            corregida = r['first'] - timedelta(minutes=corr.offset_minutos)
+            print(f"[CORRECCION] {corr.fecha}: {r['first'].strftime('%H:%M:%S')} -> "
+                  f"{corregida.strftime('%H:%M:%S')} (offset -{corr.offset_minutos}min, "
+                  f"{r['count']} eventos ese dia)")
+            r['first'] = corregida
+
         return registros
     
     try:
@@ -584,6 +643,13 @@ def calcular_incidencias_quincena(user, quincena):
     
     while fecha_actual <= quincena['fin']:
         dia_semana = fecha_actual.weekday()
+        
+        # Valores por defecto para campos de salida y olvido
+        ultimo_registro = None
+        minutos_diferencia_salida = None
+        salida_estado = None
+        entrada_no_checada = False
+        salida_no_checada = False
         
         # Paso 1: Clasificar tipo de día
         if fecha_actual in lista_inhabiles:
@@ -600,46 +666,123 @@ def calcular_incidencias_quincena(user, quincena):
         else:
             tipo_dia = 'LABORAL'
             
-            # Paso 2: Usar registro precargado (ya no hacemos llamada API aquí)
-            primer_registro = registros_quincena.get(fecha_actual)
+            # Paso 2: Obtener registros precargados
+            reg_dia = registros_quincena.get(fecha_actual)
             
-            if primer_registro is None:
+            # Verificar si hay hora_entrada manual en BD (parche de checada faltante)
+            # La hora_entrada manual SIEMPRE gana sobre BioStar (override forzado).
+            # Forzamos count=2 para que el bloque de "1 solo evento" no se active:
+            # la entrada manual ES el primer evento; el evento BioStar (si existe) es la salida.
+            _hora_entrada_manual = clasificaciones_guardadas.get(fecha_actual, {}).get('hora_entrada')
+            if _hora_entrada_manual:
+                _dt_manual = MEXICO_TZ.localize(datetime.combine(fecha_actual, _hora_entrada_manual))
+                if reg_dia is None:
+                    # Sin evento BioStar: simular entrada+salida con la hora manual
+                    reg_dia = {'first': _dt_manual, 'last': _dt_manual, 'count': 2}
+                    print(f"[PARCHE ENTRADA] {fecha_actual}: inyectando hora_entrada manual {_hora_entrada_manual} (sin BioStar)")
+                else:
+                    # Con evento BioStar: la entrada manual reemplaza 'first', BioStar es la salida
+                    reg_dia = {'first': _dt_manual, 'last': reg_dia['last'], 'count': 2}
+                    print(f"[PARCHE ENTRADA] {fecha_actual}: sobreescribiendo entrada BioStar con {_hora_entrada_manual}")
+
+            if reg_dia is None:
                 # Sin registro = FALTA
+                primer_registro = None
                 estado_auto = 'FALTA'
                 minutos_diferencia = None
             else:
-                # Comparar con hora límite
-                hora_registro = primer_registro.time()
+                primer_registro = reg_dia['first']
+                ultimo_registro = reg_dia['last']
+                n_eventos = reg_dia['count']
                 
-                # Calcular diferencia en segundos totales
-                entrada_dt = datetime.combine(date.today(), hora_entrada_default)
-                registro_dt = datetime.combine(date.today(), hora_registro)
-                diferencia_segundos = (registro_dt - entrada_dt).total_seconds()
-                minutos_diferencia = int(diferencia_segundos / 60)
-                
-                # Comparar con hora límite: si llega ANTES de que termine el minuto límite, es a tiempo
-                # Ejemplo: límite 09:10, si llega a las 09:10:59 es a tiempo, 09:11:00 es retardo
-                limite_dt = datetime.combine(date.today(), hora_limite)
-                # Agregar 59 segundos al límite para que todo el minuto cuente como a tiempo
-                limite_con_segundos = limite_dt + timedelta(seconds=59)
-                
-                if registro_dt <= limite_con_segundos:
-                    estado_auto = 'A_TIEMPO'
+                # ── Detección de olvido de checada (solo 1 evento en el día) ──
+                if n_eventos == 1:
+                    hora_unico = primer_registro.time()
+                    if hora_unico >= punto_medio:
+                        # Único evento está en la segunda mitad del día → es salida, falta entrada
+                        entrada_no_checada = True
+                        # La entrada no existe, pero no es FALTA — el usuario sí asistió
+                        # Marcamos como A_TIEMPO (asumimos que entró a su hora)
+                        estado_auto = 'A_TIEMPO'
+                        minutos_diferencia = 0
+                        # El primer_registro es realmente la salida; simular entrada
+                        primer_registro = MEXICO_TZ.localize(
+                            datetime.combine(fecha_actual, hora_entrada_default)
+                        )
+                    else:
+                        # Único evento está en la primera mitad → es entrada, falta salida
+                        salida_no_checada = True
+                        ultimo_registro = None  # No hay salida real
+                        # Evaluar entrada normalmente
+                        hora_registro = primer_registro.time()
+                        entrada_dt = datetime.combine(date.today(), hora_entrada_default)
+                        registro_dt = datetime.combine(date.today(), hora_registro)
+                        diferencia_segundos = (registro_dt - entrada_dt).total_seconds()
+                        minutos_diferencia = int(diferencia_segundos / 60)
+                        limite_dt = datetime.combine(date.today(), hora_limite)
+                        limite_con_segundos = limite_dt + timedelta(seconds=59)
+                        if registro_dt <= limite_con_segundos:
+                            estado_auto = 'A_TIEMPO'
+                        else:
+                            estado_auto = 'RETARDO'
                 else:
-                    estado_auto = 'RETARDO'
+                    # 2+ eventos: primer_registro = entrada, ultimo_registro = salida
+                    # Evaluar entrada
+                    hora_registro = primer_registro.time()
+                    entrada_dt = datetime.combine(date.today(), hora_entrada_default)
+                    registro_dt = datetime.combine(date.today(), hora_registro)
+                    diferencia_segundos = (registro_dt - entrada_dt).total_seconds()
+                    minutos_diferencia = int(diferencia_segundos / 60)
+                    limite_dt = datetime.combine(date.today(), hora_limite)
+                    limite_con_segundos = limite_dt + timedelta(seconds=59)
+                    if registro_dt <= limite_con_segundos:
+                        estado_auto = 'A_TIEMPO'
+                    else:
+                        estado_auto = 'RETARDO'
+                
+                # ── Evaluar salida (si hay último registro real) ──
+                if ultimo_registro and not salida_no_checada:
+                    hora_salida_reg = ultimo_registro.time()
+                    salida_dt = datetime.combine(date.today(), hora_salida_default)
+                    salida_reg_dt = datetime.combine(date.today(), hora_salida_reg)
+                    dif_salida_seg = (salida_reg_dt - salida_dt).total_seconds()
+                    minutos_diferencia_salida = int(dif_salida_seg / 60)
+                    
+                    # Salida temprana: si salió ANTES de (hora_salida - tolerancia)
+                    salida_limite_dt = datetime.combine(date.today(), hora_salida_limite)
+                    if salida_reg_dt < salida_limite_dt:
+                        salida_estado = 'SALIDA_TEMPRANA'
+                    else:
+                        salida_estado = 'NORMAL'
         
         # Obtener clasificación guardada si existe
         clasificacion_info = clasificaciones_guardadas.get(fecha_actual, {})
+        
+        # Para olvido de checada, respetar lo guardado en BD si existe
+        saved_entrada_nc = clasificacion_info.get('entrada_no_checada', False)
+        saved_salida_nc = clasificacion_info.get('salida_no_checada', False)
+        # Auto-detectado tiene prioridad (se recalcula cada vez desde BioStar)
+        final_entrada_nc = entrada_no_checada or saved_entrada_nc
+        final_salida_nc = salida_no_checada or saved_salida_nc
         
         incidencia_dict = {
             'fecha': fecha_actual,
             'dia_semana': dia_semana,
             'tipo_dia': tipo_dia,
             'primer_registro': primer_registro,
+            'ultimo_registro': ultimo_registro,
             'estado_auto': estado_auto,
             'minutos_diferencia': minutos_diferencia,
             'hora_entrada_esperada': hora_entrada_default,
             'hora_limite': hora_limite,
+            'hora_salida_esperada': hora_salida_default,
+            'hora_salida_limite': hora_salida_limite,
+            'minutos_diferencia_salida': minutos_diferencia_salida,
+            'salida_estado': salida_estado,
+            'salida_justificado': clasificacion_info.get('salida_justificado', True),
+            'entrada_no_checada': final_entrada_nc,
+            'salida_no_checada': final_salida_nc,
+            'olvido_checar_justificado': clasificacion_info.get('olvido_checar_justificado', True),
             'clasificacion': clasificacion_info.get('clasificacion'),
             'motivo_auto': clasificacion_info.get('motivo_auto'),
             'con_goce_sueldo': clasificacion_info.get('con_goce_sueldo', True),
@@ -882,6 +1025,12 @@ def config():
             tolerancia_minutos = int(request.form.get('tolerancia_minutos', 10))
             tolerancia_segundos = tolerancia_minutos * 60
             
+            hora_salida_str = request.form.get('hora_salida_default', '18:00')
+            hora_salida = datetime.strptime(hora_salida_str, '%H:%M').time()
+            
+            tolerancia_salida_minutos = int(request.form.get('tolerancia_salida_minutos', 10))
+            tolerancia_salida_segundos = tolerancia_salida_minutos * 60
+            
             # Días de descanso
             dias_descanso = [int(d) for d in request.form.getlist('dias_descanso')]
             
@@ -895,6 +1044,8 @@ def config():
                     company_id=company_id,
                     hora_entrada_default=hora_entrada,
                     tolerancia_segundos=tolerancia_segundos,
+                    hora_salida_default=hora_salida,
+                    tolerancia_salida_segundos=tolerancia_salida_segundos,
                     dias_descanso=dias_descanso,
                     lista_inhabiles=[],
                     vigente_desde=date.today()
@@ -907,6 +1058,8 @@ def config():
                 preset.company_id = company_id
                 preset.hora_entrada_default = hora_entrada
                 preset.tolerancia_segundos = tolerancia_segundos
+                preset.hora_salida_default = hora_salida
+                preset.tolerancia_salida_segundos = tolerancia_salida_segundos
                 preset.dias_descanso = dias_descanso
                 flag_modified(preset, 'dias_descanso')
             
@@ -1063,6 +1216,24 @@ def api_check_user():
     user = MobPerUser.query.filter_by(numero_socio=numero_socio).first()
     return jsonify({'exists': user is not None})
 
+@mobper_bp.route('/admin/impersonate/<int:user_id>')
+@mobper_admin_required
+def admin_impersonate(user_id):
+    """Admin: ver el checklist de otro usuario sin cambiar su password."""
+    target = MobPerUser.query.get_or_404(user_id)
+    session['mobper_impersonate_id'] = target.id
+    print(f"[ADMIN] Impersonando usuario #{target.numero_socio} ({target.nombre_completo})")
+    return redirect(url_for('mobper.checklist'))
+
+
+@mobper_bp.route('/admin/stop-impersonate')
+@mobper_login_required
+def admin_stop_impersonate():
+    """Dejar de impersonar y volver al checklist propio."""
+    session.pop('mobper_impersonate_id', None)
+    return redirect(url_for('mobper.checklist'))
+
+
 @mobper_bp.route('/checklist', methods=['GET'])
 @mobper_bp.route('/checklist/<int:year>/<int:month>/<int:quincena_num>', methods=['GET'])
 @mobper_login_required
@@ -1073,7 +1244,22 @@ def checklist(year=None, month=None, quincena_num=None):
     Soporta navegación entre quincenas.
     """
     t_start = time_module.time()
-    user = get_current_mobper_user()
+    admin_user = get_current_mobper_user()
+    
+    # Admin impersonation: si hay impersonate_id en sesión, usar ese usuario
+    impersonating = None
+    impersonate_id = session.get('mobper_impersonate_id')
+    if impersonate_id and admin_user and admin_user.is_admin:
+        target = MobPerUser.query.get(impersonate_id)
+        if target:
+            impersonating = target
+            user = target
+        else:
+            session.pop('mobper_impersonate_id', None)
+            user = admin_user
+    else:
+        session.pop('mobper_impersonate_id', None)
+        user = admin_user
     
     # Calcular quincena (actual o especificada)
     if year and month and quincena_num:
@@ -1120,7 +1306,9 @@ def checklist(year=None, month=None, quincena_num=None):
         obtener_nombre_clasificacion=obtener_nombre_clasificacion,
         quincena_anterior=quincena_anterior,
         quincena_siguiente=quincena_siguiente,
-        puede_ir_siguiente=puede_ir_siguiente
+        puede_ir_siguiente=puede_ir_siguiente,
+        impersonating=impersonating,
+        admin_user=admin_user if impersonating else None
     )
 
 @mobper_bp.route('/api/calcular-quincena', methods=['POST'])
@@ -1346,78 +1534,262 @@ def toggle_justificacion():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@mobper_bp.route('/generar-excel')
+@mobper_bp.route('/api/toggle-justificacion-salida', methods=['POST'])
 @mobper_login_required
-def generar_excel():
-    """Genera el formato Excel de movimiento de personal."""
+def toggle_justificacion_salida():
+    """Alternar justificación de una salida temprana."""
     try:
-        from webapp.mobper_excel import generar_formato_excel
+        data = request.get_json()
+        fecha_str = data.get('fecha')
+        justificado = data.get('justificado', True)
         
         user = get_current_mobper_user()
-        preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
         
-        # Obtener quincena especificada o la anterior (la que se está justificando)
+        incidencia = IncidenciaDia.query.filter_by(
+            user_id=user.id,
+            fecha=fecha
+        ).first()
+        
+        if not incidencia:
+            incidencia = IncidenciaDia(
+                user_id=user.id,
+                fecha=fecha,
+                salida_estado='SALIDA_TEMPRANA'
+            )
+            db.session.add(incidencia)
+        
+        incidencia.salida_justificado = justificado
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'justificado': justificado,
+            'fecha': fecha_str
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/api/toggle-justificacion-olvido', methods=['POST'])
+@mobper_login_required
+def toggle_justificacion_olvido():
+    """Alternar justificación de olvido de checada (entrada o salida)."""
+    try:
+        data = request.get_json()
+        fecha_str = data.get('fecha')
+        justificado = data.get('justificado', True)
+
+        user = get_current_mobper_user()
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+
+        incidencia = IncidenciaDia.query.filter_by(
+            user_id=user.id,
+            fecha=fecha
+        ).first()
+
+        if not incidencia:
+            incidencia = IncidenciaDia(
+                user_id=user.id,
+                fecha=fecha,
+            )
+            db.session.add(incidencia)
+
+        incidencia.olvido_checar_justificado = justificado
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'justificado': justificado,
+            'fecha': fecha_str
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/api/periodos-vacaciones')
+@mobper_login_required
+def api_periodos_vacaciones():
+    """Devuelve los periodos de vacaciones disponibles para la quincena indicada."""
+    try:
+        from webapp.mobper_excel import agrupar_periodos_vacaciones
+
+        base_user = get_current_mobper_user()
+        impersonate_id = session.get('mobper_impersonate_id')
+        if impersonate_id and base_user and base_user.is_admin:
+            target = MobPerUser.query.get(impersonate_id)
+            user = target if target else base_user
+        else:
+            user = base_user
+
         year = request.args.get('year', type=int)
         month = request.args.get('month', type=int)
         quincena_num = request.args.get('quincena', type=int)
-        
+
         if year and month and quincena_num:
             quincena = calcular_quincena(year, month, quincena_num)
         else:
-            # Por defecto usar la quincena ANTERIOR (la que se justifica en el checklist)
             quincena_actual = calcular_quincena_actual()
             quincena = obtener_quincena_anterior(quincena_actual)
-        
-        # Calcular incidencias dinámicamente (igual que el checklist)
-        incidencias_dict = calcular_incidencias_quincena(user, quincena)
-        
-        # Leer con_goce del parámetro del UI (1 = con goce, 0 = sin goce)
-        con_goce_param = request.args.get('con_goce', '1')
-        con_goce = con_goce_param == '1'
-        
-        print(f"[MOVPER ROUTES] === GENERAR EXCEL ===")
-        print(f"[MOVPER ROUTES] Params recibidos: year={year}, month={month}, quincena_num={quincena_num}, con_goce={con_goce_param}")
-        print(f"[MOVPER ROUTES] User: {user.nombre_completo}")
-        print(f"[MOVPER ROUTES] Preset: {preset}")
-        print(f"[MOVPER ROUTES] Quincena calculada: {quincena}")
-        print(f"[MOVPER ROUTES] Incidencias totales: {len(incidencias_dict)}")
-        print(f"[MOVPER ROUTES] Con goce: {con_goce}")
-        
-        # Log detallado de incidencias para debug
-        for inc in incidencias_dict:
-            if inc.get('estado_auto') in ('RETARDO', 'FALTA'):
-                print(f"[MOVPER ROUTES]   {inc['fecha']} - {inc['estado_auto']} | clasificacion={inc.get('clasificacion')} | justificado={inc.get('justificado')} | motivo={inc.get('motivo_auto')}")
-        
-        # Generar Excel
-        output_path, filename = generar_formato_excel(
-            user=user,
-            preset=preset,
-            incidencias=incidencias_dict,
-            quincena=quincena,
-            con_goce=con_goce
-        )
-        
-        # Descargar archivo directamente y borrar después
-        @after_this_request
-        def remove_file(response):
-            try:
-                os.remove(output_path)
-                print(f"[MOVPER ROUTES] Archivo temporal eliminado: {output_path}")
-            except Exception as e:
-                print(f"[MOVPER ROUTES] Error al eliminar archivo temporal: {e}")
-            return response
 
-        return send_file(
-            output_path,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        incidencias_dict = calcular_incidencias_quincena(user, quincena)
+        periodos = agrupar_periodos_vacaciones(incidencias_dict)
+
+        MESES = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',
+                 7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic'}
+
+        result = []
+        for i, p in enumerate(periodos):
+            f_sal = p['fecha_salida']
+            f_reg = max(p['dias'])
+            dias_ef = p['dias_efectivos']
+            if dias_ef == 1:
+                label = f"Vacaciones {f_sal.day:02d}-{MESES[f_sal.month]}-{str(f_sal.year)[2:]}"
+            else:
+                label = (f"Vacaciones del {f_sal.day:02d}-{MESES[f_sal.month]} "
+                         f"al {f_reg.day:02d}-{MESES[f_reg.month]}-{str(f_reg.year)[2:]} "
+                         f"({dias_ef} dias)")
+            result.append({'index': i, 'label': label})
+
+        return jsonify({'success': True, 'periodos': result})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@mobper_bp.route('/generar-excel')
+@mobper_login_required
+def generar_excel():
+    """Genera el formato Excel de movimiento de personal.
+    Parametros:
+      - con_goce: 1/0
+      - year, month, quincena: quincena especifica
+      - periodos_vac: indices de periodos de vacaciones a incluir (ej. '0,1'), o 'none'
+    """
+    try:
+        from webapp.mobper_excel import (
+            generar_formato_excel,
+            agrupar_periodos_vacaciones,
+            generar_aviso_vacaciones,
         )
-        
+        import uuid
+
+        # Respetar impersonacion
+        base_user = get_current_mobper_user()
+        impersonate_id = session.get('mobper_impersonate_id')
+        if impersonate_id and base_user and base_user.is_admin:
+            target = MobPerUser.query.get(impersonate_id)
+            user = target if target else base_user
+        else:
+            user = base_user
+        preset = PresetUsuario.query.filter_by(user_id=user.id).first()
+
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        quincena_num = request.args.get('quincena', type=int)
+
+        if year and month and quincena_num:
+            quincena = calcular_quincena(year, month, quincena_num)
+        else:
+            quincena_actual = calcular_quincena_actual()
+            quincena = obtener_quincena_anterior(quincena_actual)
+
+        incidencias_dict = calcular_incidencias_quincena(user, quincena)
+        con_goce = request.args.get('con_goce', '1') == '1'
+
+        print(f"[MOVPER ROUTES] === GENERAR EXCEL ===")
+        print(f"[MOVPER ROUTES] User: {user.nombre_completo} | Quincena: {quincena['nombre']}")
+
+        # Periodos de vacaciones seleccionados por el usuario
+        periodos_param = request.args.get('periodos_vac', '')
+        todos_periodos_vac = agrupar_periodos_vacaciones(incidencias_dict)
+
+        if periodos_param and periodos_param != 'none':
+            indices = [int(x) for x in periodos_param.split(',') if x.strip().isdigit()]
+            periodos_seleccionados = [todos_periodos_vac[i] for i in indices if i < len(todos_periodos_vac)]
+        else:
+            periodos_seleccionados = []
+
+        # Generar MovPer normal
+        output_path, filename = generar_formato_excel(
+            user=user, preset=preset,
+            incidencias=incidencias_dict,
+            quincena=quincena, con_goce=con_goce
+        )
+
+        if not periodos_seleccionados:
+            # Solo MovPer, sin vacaciones
+            @after_this_request
+            def remove_file(response):
+                try: os.remove(output_path)
+                except Exception: pass
+                return response
+            return send_file(
+                output_path, as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+        # MovPer + AVISO DE VACACIONES por cada periodo seleccionado
+        archivos = [(output_path, filename)]
+        for periodo in periodos_seleccionados:
+            vac_path, vac_filename = generar_aviso_vacaciones(
+                user=user, preset=preset,
+                periodo_vac=periodo, quincena=quincena,
+            )
+            archivos.append((vac_path, vac_filename))
+            print(f"[MOVPER ROUTES] Vacaciones generado: {vac_filename}")
+
+        # Devolver tokens de descarga
+        tokens = []
+        for path, fname in archivos:
+            token = uuid.uuid4().hex
+            _excel_download_store[token] = (path, fname)
+            tokens.append({
+                'url': url_for('mobper.descargar_excel_token', token=token),
+                'filename': fname,
+            })
+        return jsonify({'success': True, 'multiple': True, 'files': tokens})
+
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Store temporal de archivos Excel pendientes de descarga {token: (path, filename)}
+_excel_download_store = {}
+
+
+@mobper_bp.route('/generar-excel/download/<token>')
+@mobper_login_required
+def descargar_excel_token(token):
+    """Sirve un archivo Excel generado previamente por su token de descarga."""
+    entry = _excel_download_store.pop(token, None)
+    if not entry:
+        return jsonify({'error': 'Token invalido o expirado'}), 404
+    path, filename = entry
+
+    @after_this_request
+    def remove_file(response):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+        return response
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 
 # NOTA: Rutas obsoletas comentadas - ahora usamos archivos temporales
@@ -1951,7 +2323,15 @@ def grupo_api_miembro_detalle(user_id):
             'estado_auto': inc['estado_auto'],
             'minutos_diferencia': inc['minutos_diferencia'],
             'primer_registro': inc['primer_registro'].strftime('%H:%M:%S') if inc['primer_registro'] else None,
+            'ultimo_registro': inc['ultimo_registro'].strftime('%H:%M:%S') if inc.get('ultimo_registro') else None,
             'hora_limite': inc['hora_limite'].strftime('%H:%M') if inc.get('hora_limite') else None,
+            'hora_salida_esperada': inc['hora_salida_esperada'].strftime('%H:%M') if inc.get('hora_salida_esperada') else None,
+            'salida_estado': inc.get('salida_estado'),
+            'salida_justificado': inc.get('salida_justificado', True),
+            'minutos_diferencia_salida': inc.get('minutos_diferencia_salida'),
+            'entrada_no_checada': inc.get('entrada_no_checada', False),
+            'salida_no_checada': inc.get('salida_no_checada', False),
+            'olvido_checar_justificado': inc.get('olvido_checar_justificado', True),
             'clasificacion': inc.get('clasificacion'),
             'justificado': inc.get('justificado', True),
             'nombre_inhabil': inc.get('nombre_inhabil'),
@@ -1973,9 +2353,14 @@ def grupo_api_miembro_detalle(user_id):
 @mobper_bp.route('/grupo/api/generar-excel/<int:user_id>', methods=['GET'])
 @mobper_admin_required
 def grupo_api_generar_excel_miembro(user_id):
-    """API: Genera Excel de un miembro específico."""
+    """API: Genera Excel de un miembro específico. ZIP si hay vacaciones."""
     try:
-        from webapp.mobper_excel import generar_formato_excel
+        from webapp.mobper_excel import (
+            generar_formato_excel,
+            agrupar_periodos_vacaciones,
+            generar_aviso_vacaciones,
+        )
+        import zipfile, tempfile
         user = MobPerUser.query.get_or_404(user_id)
         preset = PresetUsuario.query.filter_by(user_id=user.id).first()
         year = request.args.get('year', type=int)
@@ -1989,23 +2374,59 @@ def grupo_api_generar_excel_miembro(user_id):
             quincena = calcular_quincena_actual()
 
         incidencias = calcular_incidencias_quincena(user, quincena)
+        periodos_vac = agrupar_periodos_vacaciones(incidencias)
+
         output_path, filename = generar_formato_excel(
             user=user, preset=preset, incidencias=incidencias,
             quincena=quincena, con_goce=con_goce
         )
 
-        @after_this_request
-        def remove_file_grupo_single(response):
+        if not periodos_vac:
+            @after_this_request
+            def remove_file_grupo_single(response):
+                try:
+                    os.remove(output_path)
+                except Exception:
+                    pass
+                return response
+
+            return send_file(
+                output_path, as_attachment=True, download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+        archivos = [(output_path, filename)]
+        for periodo in periodos_vac:
+            vac_path, vac_filename = generar_aviso_vacaciones(
+                user=user, preset=preset, periodo_vac=periodo, quincena=quincena)
+            archivos.append((vac_path, vac_filename))
+
+        nombre_safe = (preset.nombre_formato if preset and preset.nombre_formato else user.nombre_completo)
+        nombre_safe = nombre_safe.replace(' ', '_')[:25]
+        zip_filename = f"MOVPER_{nombre_safe}_{quincena['nombre'].replace(' ', '_')}.zip"
+        tmp_zip_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(tmp_zip_dir, zip_filename)
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for path, fname in archivos:
+                zf.write(path, fname)
+        for path, _ in archivos:
             try:
-                os.remove(output_path)
+                os.remove(path)
+            except Exception:
+                pass
+
+        @after_this_request
+        def remove_zip_grupo(response):
+            try:
+                os.remove(zip_path)
             except Exception:
                 pass
             return response
 
-        return send_file(
-            output_path, as_attachment=True, download_name=filename,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
+        return send_file(zip_path, as_attachment=True, download_name=zip_filename,
+                         mimetype='application/zip')
+
     except Exception as e:
         import traceback
         traceback.print_exc()

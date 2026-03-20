@@ -139,7 +139,7 @@
                                autocomplete="off"
                                oninput="searchGroups(this.value)">
                         <div id="groupSuggestions" class="list-group mt-1" style="display: none; position: absolute; z-index: 1050; max-height: 200px; overflow-y: auto; width: calc(100% - 2rem);"></div>
-                        <small class="text-muted">💡 Escribe para ver sugerencias de grupos existentes, o escribe uno nuevo</small>
+                        <small class="text-muted"> Escribe para ver sugerencias de grupos existentes, o escribe uno nuevo</small>
                     </div>
                     <div class="alert alert-info mb-0">
                         <i class="bi bi-info-circle"></i> Esta entrada se agregará solo a este pase de lista y será marcada como presente.
@@ -170,7 +170,7 @@
                         <label class="form-label fw-bold">Tipo de emergencia</label>
                         <select class="form-select" name="emergency_type" required>
                             <option value="general">General</option>
-                            <option value="incendio">🔥 Incendio</option>
+                            <option value="incendio"> Incendio</option>
                             <option value="sismo">🌍 Sismo</option>
                             <option value="evacuacion">🚪 Evacuación</option>
                             <option value="seguridad">🔒 Seguridad</option>
@@ -193,7 +193,7 @@
                                     <input class="form-check-input" type="checkbox" name="trigger_alarms" id="triggerAlarmsCheck">
                                     <label class="form-check-label" for="triggerAlarmsCheck">
                                         <i class="bi bi-bell-fill text-warning"></i> <strong>Activar alarmas</strong>
-                                        <br><small class="text-muted">⚠ Soporte limitado - depende de configuración BioStar</small>
+                                        <br><small class="text-muted"> Soporte limitado - depende de configuración BioStar</small>
                                     </label>
                                 </div>
                             </div>
@@ -435,7 +435,7 @@ async function confirmActivateEmergency() {
                     }
                     
                     if (failed.length > 0) {
-                        deviceHtml += '<div class="text-start"><strong class="text-warning">⚠ Sin respuesta:</strong><ul>';
+                        deviceHtml += '<div class="text-start"><strong class="text-warning"> Sin respuesta:</strong><ul>';
                         failed.forEach(d => {
                             deviceHtml += `<li>${d.name}</li>`;
                         });
@@ -496,7 +496,7 @@ async function showRollCall(emergencyId) {
 }
 
 async function showEmergencyPanel(emergencyId) {
-    console.log('🚨 Mostrando panel de emergencia:', emergencyId);
+    console.log(' Mostrando panel de emergencia:', emergencyId);
     activeEmergencyId = emergencyId;
     
     // Mostrar panel
@@ -513,26 +513,26 @@ async function showEmergencyPanel(emergencyId) {
 
 function startEmergencySSE(emergencyId) {
     if (emergencyEventSource) {
-        console.log('⚠️ Cerrando conexión SSE anterior');
+        console.log(' Cerrando conexión SSE anterior');
         emergencyEventSource.close();
     }
     
     const sseUrl = `/emergency/stream/emergency/${emergencyId}`;
-    console.log('🚀 Iniciando SSE para emergencia:', emergencyId);
+    console.log(' Iniciando SSE para emergencia:', emergencyId);
     console.log('📡 URL SSE:', sseUrl);
     
     emergencyEventSource = new EventSource(sseUrl);
     console.log('EventSource creado, estado:', emergencyEventSource.readyState);
     
     emergencyEventSource.addEventListener('connection', (e) => {
-        console.log('✅ Conectado a SSE de emergencia');
+        console.log(' Conectado a SSE de emergencia');
         console.log('Datos de conexión:', e.data);
     });
     
     emergencyEventSource.addEventListener('update', (e) => {
         const data = JSON.parse(e.data);
         console.log('📥 Actualización recibida:', data);
-        console.log('📊 Stats:', data.stats);
+        console.log(' Stats:', data.stats);
         console.log('🔄 Cambios recientes:', data.recent_changes);
         
         // Actualizar estadísticas
@@ -562,7 +562,7 @@ function startEmergencySSE(emergencyId) {
     });
     
     emergencyEventSource.addEventListener('emergency_resolved', (e) => {
-        console.log('✅ Emergencia resuelta');
+        console.log(' Emergencia resuelta');
         Swal.fire({
             icon: 'success',
             title: 'Emergencia Resuelta',
@@ -581,12 +581,12 @@ function startEmergencySSE(emergencyId) {
     };
     
     emergencyEventSource.onerror = (error) => {
-        console.error('❌ Error en SSE:', error);
+        console.error(' Error en SSE:', error);
         console.error('Estado de conexión:', emergencyEventSource.readyState);
         console.error('0=CONNECTING, 1=OPEN, 2=CLOSED');
         
         if (emergencyEventSource.readyState === EventSource.CLOSED) {
-            console.log('⚠️ Conexión cerrada, reconectando en 3 segundos...');
+            console.log(' Conexión cerrada, reconectando en 3 segundos...');
             setTimeout(() => startEmergencySSE(emergencyId), 3000);
         }
     };
@@ -612,7 +612,7 @@ function showAutoMarkedNotification(marked) {
         toast: true,
         position: 'top-end',
         icon: 'info',
-        title: `✅ ${marked.user_name}`,
+        title: ` ${marked.user_name}`,
         text: `Auto-detectado en ${marked.device}`,
         showConfirmButton: false,
         timer: 4000
@@ -1052,7 +1052,7 @@ async function resolveEmergency() {
             
             Swal.fire({
                 icon: 'success',
-                title: '✅ Emergencia Resuelta',
+                title: ' Emergencia Resuelta',
                 html: `
                     <p>El pase de lista ha sido guardado.</p>
                     ${doorsHtml || '<p class="text-muted">No había puertas desbloqueadas.</p>'}

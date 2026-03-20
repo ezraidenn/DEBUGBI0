@@ -426,12 +426,12 @@
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>📋 Movimiento de Personal</h1>
+            <h1> Movimiento de Personal</h1>
             <p class="subtitle">{{ quincena.nombre }}</p>
             <div class="user-info">
-                <div>👤 {{ user.nombre_completo }}</div>
+                <div> {{ user.nombre_completo }}</div>
                 <div style="display: flex; gap: 15px;">
-                    <a href="{{ url_for('mobper.config') }}">⚙️ Configuración</a>
+                    <a href="{{ url_for('mobper.config') }}"> Configuración</a>
                     <a href="{{ url_for('mobper.logout') }}">Cerrar sesión →</a>
                 </div>
             </div>
@@ -441,20 +441,20 @@
     <div class="container">
         <!-- Resumen -->
         <div class="card">
-            <div class="card-title">📊 Resumen de Quincena</div>
+            <div class="card-title"> Resumen de Quincena</div>
             <div class="resumen-grid">
                 <div class="resumen-item verde">
-                    <div class="emoji">✅</div>
+                    <div class="emoji"></div>
                     <div class="label">A tiempo</div>
                     <div class="count">{{ resumen.a_tiempo }}</div>
                 </div>
                 <div class="resumen-item amarillo">
-                    <div class="emoji">⚠️</div>
+                    <div class="emoji"></div>
                     <div class="label">Retardos</div>
                     <div class="count">{{ resumen.retardos }}</div>
                 </div>
                 <div class="resumen-item rojo">
-                    <div class="emoji">❌</div>
+                    <div class="emoji"></div>
                     <div class="label">Faltas</div>
                     <div class="count">{{ resumen.faltas }}</div>
                 </div>
@@ -464,7 +464,7 @@
                     <div class="count">{{ resumen.inhabiles }}</div>
                 </div>
                 <div class="resumen-item gris">
-                    <div class="emoji">🏖️</div>
+                    <div class="emoji"></div>
                     <div class="label">Descansos</div>
                     <div class="count">{{ resumen.descansos }}</div>
                 </div>
@@ -473,16 +473,16 @@
 
         <!-- Atajos Rápidos -->
         <div class="card">
-            <div class="card-title">⚡ Atajos Rápidos</div>
+            <div class="card-title"> Atajos Rápidos</div>
             <div class="atajos-grid">
                 <button class="atajo-btn" onclick="aplicarClasificacion('JUSTIFICADO', 'retardos')">
-                    ✅ Justificar todos los retardos
+                     Justificar todos los retardos
                 </button>
                 <button class="atajo-btn" onclick="aplicarClasificacion('REMOTO', 'faltas')">
                     🏠 Todas las faltas → Remoto
                 </button>
                 <button class="atajo-btn" onclick="aplicarClasificacion('GUARDIA', 'faltas')">
-                    📞 Todas las faltas → Guardia
+                     Todas las faltas → Guardia
                 </button>
                 <button class="atajo-btn" onclick="aplicarClasificacion('PERMISO_GOCE', 'faltas')">
                     📅 Todas las faltas → Permiso
@@ -510,7 +510,7 @@
 
         <!-- Retardos -->
         {% if retardos %}
-        <div class="seccion-titulo">⚠️ RETARDOS ({{ retardos|length }})</div>
+        <div class="seccion-titulo"> RETARDOS ({{ retardos|length }})</div>
         {% for inc in retardos %}
         <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
             <div class="incidencia-header">
@@ -525,7 +525,7 @@
             
             <div class="incidencia-body">
                 <div class="info-row">
-                    <span class="info-icon">⏱️</span>
+                    <span class="info-icon">⏱</span>
                     <span>Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }} (límite: {{ inc.hora_limite.strftime('%H:%M') }})</span>
                 </div>
 
@@ -556,7 +556,7 @@
                     {% if inc.clasificacion %}
                     <div class="etiqueta-clasificacion {{ inc.clasificacion.lower().replace('_', '-') }}" 
                          id="etiqueta-{{ inc.fecha }}">
-                        <span>🏷️</span>
+                        <span>🏷</span>
                         <span>{{ obtener_nombre_clasificacion(inc.clasificacion) }}</span>
                     </div>
                     {% endif %}
@@ -568,7 +568,7 @@
 
         <!-- Faltas -->
         {% if faltas %}
-        <div class="seccion-titulo">❌ FALTAS ({{ faltas|length }})</div>
+        <div class="seccion-titulo"> FALTAS ({{ faltas|length }})</div>
         {% for inc in faltas %}
         <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
             <div class="incidencia-header">
@@ -583,7 +583,7 @@
             
             <div class="incidencia-body">
                 <div class="info-row">
-                    <span class="info-icon">❌</span>
+                    <span class="info-icon"></span>
                     <span>Inasistencia - No se detectó registro</span>
                 </div>
 
@@ -614,7 +614,7 @@
                     {% if inc.clasificacion %}
                     <div class="etiqueta-clasificacion {{ inc.clasificacion.lower().replace('_', '-') }}" 
                          id="etiqueta-{{ inc.fecha }}">
-                        <span>🏷️</span>
+                        <span>🏷</span>
                         <span>{{ obtener_nombre_clasificacion(inc.clasificacion) }}</span>
                     </div>
                     {% endif %}
@@ -626,7 +626,7 @@
 
         <!-- A Tiempo -->
         {% if a_tiempo %}
-        <div class="seccion-titulo">✅ A TIEMPO ({{ a_tiempo|length }})</div>
+        <div class="seccion-titulo"> A TIEMPO ({{ a_tiempo|length }})</div>
         {% for inc in a_tiempo %}
         <div class="incidencia-card" data-fecha="{{ inc.fecha }}">
             <div class="incidencia-header">
@@ -641,7 +641,7 @@
             
             <div class="incidencia-body">
                 <div class="info-row">
-                    <span class="info-icon">✅</span>
+                    <span class="info-icon"></span>
                     <span>Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
                 </div>
             </div>
@@ -681,7 +681,7 @@
                 const etiqueta = document.createElement('div');
                 etiqueta.className = `etiqueta-clasificacion ${clasificacion.toLowerCase().replace('_', '-')}`;
                 etiqueta.id = `etiqueta-${fecha}`;
-                etiqueta.innerHTML = `<span>🏷️</span><span>${nombres[clasificacion]}</span>`;
+                etiqueta.innerHTML = `<span>🏷</span><span>${nombres[clasificacion]}</span>`;
                 
                 const btnGuardar = card.querySelector('.btn-guardar');
                 btnGuardar.parentNode.insertBefore(etiqueta, btnGuardar.nextSibling);
@@ -715,13 +715,13 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    mostrarToast('✅ Clasificación guardada correctamente', 'success');
+                    mostrarToast(' Clasificación guardada correctamente', 'success');
                 } else {
-                    mostrarToast('❌ Error al guardar: ' + data.error, 'error');
+                    mostrarToast(' Error al guardar: ' + data.error, 'error');
                 }
             })
             .catch(error => {
-                mostrarToast('❌ Error de conexión', 'error');
+                mostrarToast(' Error de conexión', 'error');
                 console.error('Error:', error);
             });
         }
@@ -762,14 +762,14 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    mostrarToast(`✅ ${data.count} días clasificados correctamente`, 'success');
+                    mostrarToast(` ${data.count} días clasificados correctamente`, 'success');
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    mostrarToast('❌ Error al aplicar clasificación', 'error');
+                    mostrarToast(' Error al aplicar clasificación', 'error');
                 }
             })
             .catch(error => {
-                mostrarToast('❌ Error de conexión', 'error');
+                mostrarToast(' Error de conexión', 'error');
                 console.error('Error:', error);
             });
         }

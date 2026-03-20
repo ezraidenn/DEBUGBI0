@@ -164,7 +164,7 @@ function togglePanic() {
     } else {
         // Activar con opción de alarma
         Swal.fire({
-            title: '🚨 ACTIVAR Modo Pánico',
+            title: ' ACTIVAR Modo Pánico',
             html: `
                 <p>Dispositivo: <strong>${currentDeviceName}</strong></p>
                 <p class="text-muted mb-3">Esto desbloqueará la puerta permanentemente.</p>
@@ -182,7 +182,7 @@ function togglePanic() {
             showCancelButton: true,
             confirmButtonColor: '#dc3545',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: '🚨 Activar Pánico',
+            confirmButtonText: ' Activar Pánico',
             cancelButtonText: 'Cancelar',
             preConfirm: () => {
                 return document.getElementById('alarmCheckbox').checked;
@@ -222,7 +222,7 @@ function executePanicAction(action, activateAlarm) {
             
             Swal.fire({
                 icon: 'success',
-                title: action === 'activate' ? '🚨 Modo Pánico Activado' : '✅ Modo Pánico Desactivado',
+                title: action === 'activate' ? ' Modo Pánico Activado' : ' Modo Pánico Desactivado',
                 html: `<p><strong>${currentDeviceName}</strong></p>
                        ${data.alarm_active ? '<p class="text-warning"><i class="bi bi-volume-up-fill"></i> Alarma activada</p>' : ''}`,
                 timer: 3000,

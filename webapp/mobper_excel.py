@@ -44,10 +44,26 @@ CELDAS = {
     # Motivo
     'MOTIVO': 'G20',             # Campo de motivo (filas 20-21, columnas G-R)
     
-    # Firmas
+    # Firmas (SOLICITUD DE PERMISO)
     'SOLICITO_NOMBRE': 'E56',    # Nombre del solicitante (fila 56, columnas E-G)
     'AUTORIZO_NOMBRE': 'J56',    # Nombre del autorizador/jefe (fila 56, columna J)
     'RECIBIO_NOMBRE': 'Q56',     # "Recursos Humanos" (fila 56, estimado)
+
+    # AVISO DE VACACIONES (filas 39-52)
+    'VAC_FECHA_INGRESO':      'E41',   # Fecha de ingreso (no disponible)
+    'VAC_ANTIGUEDAD':         'L41',   # Antigüedad (no disponible)
+    'VAC_PERIODO':            'Q41',   # Período vacacional
+    'VAC_DIAS_CORRESPONDEN':  'F43',   # Días que corresponden
+    'VAC_DIAS_EFECTIVOS':     'K43',   # Días efectivos de vacaciones
+    'VAC_DIAS_PENDIENTES':    'P43',   # Días pendientes (merge top-left P43)
+    'VAC_FECHA_SALIDA':       'G45',   # Fecha de inicio de vacaciones (merge G45:I45)
+    'VAC_FECHA_REGRESO':      'P45',   # Fecha de regreso
+    'VAC_NOMBRE_SUPLENTE':    'F47',   # Nombre del suplente
+    'VAC_DEPARTAMENTO':       'P47',   # Departamento
+    'VAC_NOTA':               'F49',   # Nota
+    'VAC_SOLICITO':           'E56',   # Firma solicitó (misma fila que permiso)
+    'VAC_AUTORIZO':           'J56',   # Firma autorizó
+    'VAC_RECIBIO':            'N56',   # Firma recibió (RH)
 }
 
 # =============================================================================
@@ -137,19 +153,19 @@ MESES_ES = {
 #   font  9 -> 11.86 / 0.78 * (11/9)  = ~18.6 chars
 #   font  7 -> 11.86 / 0.78 * (11/7)  = ~23.9 chars
 
-RATIO_NARROW = 0.78   # Arial Narrow vs Calibri 11 (fuente base de ColumnWidth)
-RATIO_ARIAL  = 1.00   # Arial regular vs Calibri 11
+RATIO_NARROW = 0.88   # Arial Narrow vs Calibri 11 (conservador para merged cells)
+RATIO_ARIAL  = 1.10   # Arial regular vs Calibri 11 (conservador para merged cells)
 
 CAMPO_CONFIG = {
     #                    col_width  fmax  fmin  wrap  ratio
-    'NOMBRE':             (40.66,   12,   7,    1,   RATIO_NARROW),
-    'DEPARTAMENTO':       (11.86,   12,   7,    1,   RATIO_NARROW),
-    'FECHA_AUTORIZACION': (21.71,   10,   7,    1,   RATIO_NARROW),
-    'FECHA_APLICACION':   (17.29,    8,   7,    1,   RATIO_NARROW),
-    'MOTIVO':             (65.00,   10,   7,    2,   RATIO_ARIAL),
-    'SOLICITO_NOMBRE':    (11.53,   10,   7,    1,   RATIO_NARROW),
-    'AUTORIZO_NOMBRE':    ( 6.00,   10,   7,    1,   RATIO_NARROW),
-    'RECIBIO_NOMBRE':     (27.43,   10,   7,    1,   RATIO_NARROW),
+    'NOMBRE':             (40.66,   10,  10,    1,   RATIO_NARROW),
+    'DEPARTAMENTO':       (11.86,   14,   6,    1,   RATIO_NARROW),
+    'FECHA_AUTORIZACION': (21.71,   10,  10,    1,   RATIO_NARROW),
+    'FECHA_APLICACION':   (17.29,   10,   6,    1,   RATIO_NARROW),
+    'MOTIVO':             (65.00,   11,   7,    2,   RATIO_ARIAL),
+    'SOLICITO_NOMBRE':    (11.53,   12,   6,    1,   RATIO_NARROW),
+    'AUTORIZO_NOMBRE':    ( 6.00,   10,   6,    1,   RATIO_NARROW),
+    'RECIBIO_NOMBRE':     (27.43,   12,   7,    1,   RATIO_NARROW),
 }
 
 
@@ -207,10 +223,16 @@ def calcular_tamano_letra(texto: str, max_size: int = 12, min_size: int = 8) -> 
     return min_size
 
 
+# Campos que NO deben usar ShrinkToFit porque el texto desborda visualmente
+# hacia celdas adyacentes vacías (comportamiento natural de Excel).
+NO_SHRINK_FIELDS = {'AUTORIZO_NOMBRE', 'SOLICITO_NOMBRE'}
+
+
 def set_cell_text(sheet, celda: str, texto: str, campo: str):
     """
     Escribe texto en una celda aplicando tamaño de fuente adaptativo.
-    Si el texto no cabe ni a font_min, activa ShrinkToFit como respaldo.
+    Si el texto no cabe ni a font_min, activa ShrinkToFit como respaldo,
+    excepto para campos en NO_SHRINK_FIELDS que desbordan naturalmente.
 
     Args:
         sheet: Worksheet de Excel (win32com)
@@ -223,16 +245,18 @@ def set_cell_text(sheet, celda: str, texto: str, campo: str):
     rng.Value = texto
     rng.Font.Size = font_size
 
-    # Verificar si el texto cabe a font_min; si no, activar ShrinkToFit
-    config = CAMPO_CONFIG.get(campo)
-    if config:
-        col_width, font_max, font_min, wrap_lines, ratio = config
-        cap_min = col_width / ratio * (11.0 / font_min) * wrap_lines
-        if len(texto) > cap_min:
-            rng.ShrinkToFit = True
-            print(f"[MOVPER EXCEL] {campo} '{texto}' ({len(texto)}c) -> ShrinkToFit activado (cap_min={cap_min:.1f})")
-        else:
-            rng.ShrinkToFit = False
+    if campo in NO_SHRINK_FIELDS:
+        rng.ShrinkToFit = False
+    else:
+        config = CAMPO_CONFIG.get(campo)
+        if config:
+            col_width, font_max, font_min, wrap_lines, ratio = config
+            cap_min = col_width / ratio * (11.0 / font_min) * wrap_lines
+            if len(texto) > cap_min:
+                rng.ShrinkToFit = True
+                print(f"[MOVPER EXCEL] {campo} '{texto}' ({len(texto)}c) -> ShrinkToFit activado (cap_min={cap_min:.1f})")
+            else:
+                rng.ShrinkToFit = False
     print(f"[MOVPER EXCEL] {campo} '{texto}' ({len(texto)} chars) -> font {font_size}pt")
 
 
@@ -403,32 +427,242 @@ def filtrar_incidencias_a_justificar(incidencias: List[Dict]) -> List[Dict]:
     
     Incluye:
     - Retardos que tienen justificado=True (o no definido, por defecto True)
-    - Faltas que tienen clasificacion (REMOTO, GUARDIA, PERMISO, VACACIONES) 
-      EXCEPTO INCAPACIDAD (las incapacidades no van en MovPer)
+    - Faltas que tienen clasificacion (REMOTO, GUARDIA, PERMISO)
+      EXCEPTO INCAPACIDAD y VACACIONES (vacaciones van en su propio AVISO)
+    - Salidas tempranas justificadas (salida_estado == 'SALIDA_TEMPRANA' y salida_justificado)
+    - Olvido de checada (entrada_no_checada o salida_no_checada) con olvido_checar_justificado=True
     
     Excluye:
     - A_TIEMPO, INHABIL, DESCANSO
     - Retardos con justificado=False
     - Faltas sin clasificar
-    - Faltas clasificadas como INCAPACIDAD
+    - Faltas clasificadas como INCAPACIDAD o VACACIONES
+    - Salidas tempranas con salida_justificado=False
     """
     justificadas = []
+    fechas_incluidas = set()
     
     for inc in incidencias:
         estado_auto = inc.get('estado_auto', '')
         clasificacion = inc.get('clasificacion', '')
-        justificado = inc.get('justificado', True)  # Por defecto True
+        justificado = inc.get('justificado', True)
+        salida_estado = inc.get('salida_estado', '')
+        salida_justificado = inc.get('salida_justificado', True)
+        entrada_no_checada = inc.get('entrada_no_checada', False)
+        salida_no_checada = inc.get('salida_no_checada', False)
+        fecha = inc.get('fecha')
+        incluir = False
         
         # Retardos: solo los justificados
         if estado_auto == 'RETARDO' and justificado:
-            justificadas.append(inc)
+            incluir = True
         
-        # Faltas: solo las clasificadas (excepto INCAPACIDAD)
+        # Faltas: solo las clasificadas (excepto INCAPACIDAD, VACACIONES, ERROR_SISTEMA)
+        # VACACIONES van en su propio AVISO DE VACACIONES separado
+        # ERROR_SISTEMA = no es falta real, excluir del formato
         elif estado_auto == 'FALTA' and clasificacion:
-            if clasificacion != 'INCAPACIDAD':
-                justificadas.append(inc)
+            if clasificacion not in ('INCAPACIDAD', 'VACACIONES', 'ERROR_SISTEMA'):
+                incluir = True
+        
+        # Salidas tempranas justificadas
+        if salida_estado == 'SALIDA_TEMPRANA' and salida_justificado:
+            incluir = True
+        
+        # Olvido de checada: solo si justificado (False = error del sistema, excluir)
+        olvido_justificado = inc.get('olvido_checar_justificado', True)
+        if (entrada_no_checada or salida_no_checada) and olvido_justificado:
+            incluir = True
+        
+        if incluir and fecha not in fechas_incluidas:
+            justificadas.append(inc)
+            fechas_incluidas.add(fecha)
     
     return justificadas
+
+
+def agrupar_periodos_vacaciones(incidencias: List[Dict]) -> List[Dict]:
+    """
+    Agrupa dias de vacaciones en periodos consecutivos.
+    Dias no laborales (DESCANSO, INHABIL) entre vacaciones se incluyen en el periodo.
+
+    Returns:
+        Lista de periodos: [{'dias': [date,...], 'fecha_salida': date, 'fecha_regreso': date}]
+    """
+    from datetime import timedelta
+
+    # Extraer solo los dias clasificados como VACACIONES
+    dias_vac = sorted([
+        inc['fecha'] for inc in incidencias
+        if inc.get('clasificacion') == 'VACACIONES' and inc.get('estado_auto') == 'FALTA'
+    ])
+
+    if not dias_vac:
+        return []
+
+    periodos = []
+    grupo = [dias_vac[0]]
+
+    for i in range(1, len(dias_vac)):
+        prev = dias_vac[i - 1]
+        curr = dias_vac[i]
+        # Si la diferencia es <= 7 dias (permite fin de semana + feriado entre periodos)
+        if (curr - prev).days <= 7:
+            grupo.append(curr)
+        else:
+            periodos.append(grupo)
+            grupo = [curr]
+    periodos.append(grupo)
+
+    result = []
+    for grupo in periodos:
+        fecha_salida = min(grupo)
+        # fecha_regreso = dia siguiente al ultimo dia de vacaciones
+        fecha_regreso = max(grupo) + timedelta(days=1)
+        result.append({
+            'dias': grupo,
+            'fecha_salida': fecha_salida,
+            'fecha_regreso': fecha_regreso,
+            'dias_efectivos': len(grupo),
+        })
+    return result
+
+
+def generar_aviso_vacaciones(
+    user,
+    preset,
+    periodo_vac: Dict,
+    quincena: Dict,
+) -> Tuple[str, str]:
+    """
+    Genera un AVISO DE VACACIONES llenando la seccion inferior del template Excel.
+
+    Args:
+        user: MobPerUser
+        preset: PresetUsuario
+        periodo_vac: Dict con 'dias', 'fecha_salida', 'fecha_regreso', 'dias_efectivos'
+        quincena: Dict con info de la quincena
+
+    Returns:
+        (output_path, filename)
+    """
+    import shutil, tempfile
+
+    if not os.path.exists(TEMPLATE_PATH):
+        raise FileNotFoundError(f"Template no encontrado: {TEMPLATE_PATH}")
+
+    # Crear copia temporal
+    tmp_dir = tempfile.mkdtemp()
+    nombre = preset.nombre_formato if preset and preset.nombre_formato else user.nombre_completo
+    nombre_display = nombre.title()
+    safe_name = nombre_display.replace(' ', '_')[:30]
+    fecha_salida = periodo_vac['fecha_salida']
+    filename = f"VACACIONES_{safe_name}_{fecha_salida.strftime('%Y%m%d')}.xlsx"
+    output_path = os.path.join(tmp_dir, filename)
+    shutil.copy2(TEMPLATE_PATH, output_path)
+
+    pythoncom.CoInitialize()
+    excel = win32.gencache.EnsureDispatch('Excel.Application')
+    excel.Visible = False
+    excel.DisplayAlerts = False
+
+    try:
+        wb = excel.Workbooks.Open(os.path.abspath(output_path))
+        sheet = wb.ActiveSheet
+
+        # --- Logo ---
+        if preset and preset.company and preset.company.logo_filename:
+            logo_path = os.path.join(BASE_DIR, 'static', 'logos', preset.company.logo_filename)
+            if os.path.exists(logo_path):
+                reemplazar_logo(sheet, logo_path)
+
+        # --- Encabezado superior (mismo que MovPer) ---
+        set_cell_text(sheet, CELDAS['NOMBRE'], nombre_display, 'NOMBRE')
+        depto = preset.departamento_formato if preset and preset.departamento_formato else ''
+        set_cell_text(sheet, CELDAS['DEPARTAMENTO'], depto.upper(), 'DEPARTAMENTO')
+        now = datetime.now()
+        mes_corto = {1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',
+                     9:'sep',10:'oct',11:'nov',12:'dic'}
+        fecha_auth = f"{now.day:02d}-{mes_corto[now.month]}-{now.strftime('%y')}"
+        set_cell_text(sheet, CELDAS['FECHA_AUTORIZACION'], fecha_auth, 'FECHA_AUTORIZACION')
+
+        # --- Limpiar seccion SOLICITUD DE PERMISO (viene con datos del template base) ---
+        sheet.Range(CELDAS['MOTIVO']).Value = ''
+        # Limpiar todos los shapes (circulos) - dejarlos sin relleno
+        for shape_idx in SHAPES.values():
+            try:
+                set_circle_color(sheet, shape_idx, False)
+            except Exception:
+                pass
+        # Limpiar FECHA_APLICACION del encabezado (se llenara con fechas de vacaciones)
+        sheet.Range(CELDAS['FECHA_APLICACION']).Value = ''
+
+        # --- FECHA_APLICACION: dias de vacaciones ---
+        dias_ef = periodo_vac['dias_efectivos']
+        f_salida = periodo_vac['fecha_salida']
+        # fecha_regreso = ultimo dia de vacaciones (NO el dia siguiente)
+        f_regreso = max(periodo_vac['dias'])
+
+        # Fechas de aplicacion: lista de dias de vacaciones
+        dias_vac_nums = sorted([d.day for d in periodo_vac['dias']])
+        mes_nombre = mes_corto[f_salida.month]
+        if len(dias_vac_nums) == 1:
+            fecha_aplic_str = f"{dias_vac_nums[0]:02d}-{mes_nombre}-{str(f_salida.year)[2:]}"
+        else:
+            dias_str = ','.join(str(d) for d in dias_vac_nums)
+            fecha_aplic_str = f"{dias_str} {mes_nombre}-{str(f_salida.year)[2:]}"
+        set_cell_text(sheet, CELDAS['FECHA_APLICACION'], fecha_aplic_str, 'FECHA_APLICACION')
+
+        # --- AVISO DE VACACIONES ---
+        # Dias efectivos
+        sheet.Range(CELDAS['VAC_DIAS_EFECTIVOS']).Value = dias_ef
+        sheet.Range(CELDAS['VAC_DIAS_EFECTIVOS']).Font.Size = 10
+
+        # Fecha de salida: dd-mmm-yy (primer dia de vacaciones)
+        f_sal_str = f"{f_salida.day:02d}-{mes_corto[f_salida.month]}-{str(f_salida.year)[2:]}"
+        # Escribir directamente en la celda del merge area
+        rng_sal = sheet.Range(CELDAS['VAC_FECHA_SALIDA'])
+        rng_sal.Value = f_sal_str
+        rng_sal.Font.Size = 10
+        print(f"[MOVPER VACACIONES] VAC_FECHA_SALIDA={CELDAS['VAC_FECHA_SALIDA']} -> '{f_sal_str}'")
+
+        # Fecha de regreso: dd-mmm-yy (ultimo dia de vacaciones)
+        f_reg_str = f"{f_regreso.day:02d}-{mes_corto[f_regreso.month]}-{str(f_regreso.year)[2:]}"
+        rng_reg = sheet.Range(CELDAS['VAC_FECHA_REGRESO'])
+        rng_reg.Value = f_reg_str
+        rng_reg.Font.Size = 10
+        print(f"[MOVPER VACACIONES] VAC_FECHA_REGRESO={CELDAS['VAC_FECHA_REGRESO']} -> '{f_reg_str}'")
+
+        # Departamento
+        set_cell_text(sheet, CELDAS['VAC_DEPARTAMENTO'], depto.upper(), 'DEPARTAMENTO')
+
+        # Firmas
+        set_cell_text(sheet, CELDAS['VAC_SOLICITO'], nombre_display, 'SOLICITO_NOMBRE')
+        jefe = preset.jefe_directo_nombre if preset and preset.jefe_directo_nombre else 'PENDIENTE'
+        set_cell_text(sheet, CELDAS['VAC_AUTORIZO'], jefe.upper(), 'AUTORIZO_NOMBRE')
+        set_cell_text(sheet, CELDAS['VAC_RECIBIO'], 'RECURSOS HUMANOS', 'RECIBIO_NOMBRE')
+
+        print(f"[MOVPER VACACIONES] Periodo {f_salida} - {f_regreso}: {dias_ef} dias")
+
+        wb.Save()
+        wb.Close(False)
+        print(f"[MOVPER VACACIONES] Guardado: {output_path}")
+        return output_path, filename
+
+    except Exception as e:
+        print(f"[MOVPER VACACIONES] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            wb.Close(False)
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            excel.Quit()
+        except Exception:
+            pass
+        pythoncom.CoUninitialize()
 
 
 def generar_formato_excel(
@@ -515,10 +749,10 @@ def generar_formato_excel(
         # LLENAR DATOS DEL ENCABEZADO
         # =============================================================
         
-        # Nombre del empleado
+        # Nombre del empleado (Title Case: Raúl Abel Cetina Pool)
         nombre = preset.nombre_formato if preset and preset.nombre_formato else user.nombre_completo
-        nombre_upper = nombre.upper()
-        set_cell_text(sheet, CELDAS['NOMBRE'], nombre_upper, 'NOMBRE')
+        nombre_display = nombre.title()
+        set_cell_text(sheet, CELDAS['NOMBRE'], nombre_display, 'NOMBRE')
         
         # Departamento
         departamento = preset.departamento_formato if preset and preset.departamento_formato else "Sin departamento"
@@ -581,7 +815,7 @@ def generar_formato_excel(
         # =============================================================
         
         # Solicito (el empleado) - mismo nombre que encabezado
-        set_cell_text(sheet, CELDAS['SOLICITO_NOMBRE'], nombre_upper, 'SOLICITO_NOMBRE')
+        set_cell_text(sheet, CELDAS['SOLICITO_NOMBRE'], nombre_display, 'SOLICITO_NOMBRE')
         
         # Autorizo (jefe directo)
         jefe = preset.jefe_directo_nombre if preset and preset.jefe_directo_nombre else "PENDIENTE"
@@ -656,6 +890,7 @@ def analizar_tipos_incidencias(incidencias: List[Dict]) -> Dict:
     Analiza las incidencias y agrupa por tipo.
     Usa estado_auto para retardos y clasificacion para faltas.
     Las faltas se agrupan por su clasificación específica (REMOTO, GUARDIA, etc.)
+    También detecta salidas tempranas y olvido de checada.
     """
     tipos = {
         'faltas': [],           # Faltas sin clasificar o clasificadas como FALTA genérica
@@ -690,8 +925,23 @@ def analizar_tipos_incidencias(incidencias: List[Dict]) -> Dict:
                 tipos['vacaciones'].append(dia)
             elif clasificacion == 'INCAPACIDAD':
                 tipos['incapacidades'].append(dia)
+            elif clasificacion == 'ERROR_SISTEMA':
+                pass  # No es falta real, no incluir en ninguna categoría
             else:
                 tipos['faltas'].append(dia)
+        
+        # Salida temprana justificada
+        salida_estado = inc.get('salida_estado', '')
+        salida_justificado = inc.get('salida_justificado', True)
+        if salida_estado == 'SALIDA_TEMPRANA' and salida_justificado:
+            tipos['retirarse_temprano'].append(dia)
+        
+        # Olvido de checada (entrada o salida) — solo si justificado
+        entrada_nc = inc.get('entrada_no_checada', False)
+        salida_nc = inc.get('salida_no_checada', False)
+        olvido_just = inc.get('olvido_checar_justificado', True)
+        if (entrada_nc or salida_nc) and olvido_just:
+            tipos['olvido_checar'].append(dia)
     
     return tipos
 
@@ -735,6 +985,16 @@ def generar_texto_motivo(incidencias: List[Dict], tipos: Dict) -> str:
     if tipos['vacaciones']:
         dias_str = agrupar_dias_consecutivos(tipos['vacaciones'])
         partes.append(f"{dias_str} falta justificada, vacaciones")
+    
+    # Salidas tempranas justificadas
+    if tipos['retirarse_temprano']:
+        dias_str = agrupar_dias_consecutivos(tipos['retirarse_temprano'])
+        partes.append(f"{dias_str} salida temprana justificada")
+    
+    # Olvido de checada (auto-justificado)
+    if tipos['olvido_checar']:
+        dias_str = agrupar_dias_consecutivos(tipos['olvido_checar'])
+        partes.append(f"{dias_str} olvido checar justificado")
     
     # NOTA: Incapacidades NO se incluyen en el motivo del MobPer
     

@@ -687,8 +687,8 @@
         <div class="header-top">
             <div class="logo">MOVPER</div>
             <div class="user-menu">
-                <span>👤 {{ user.nombre_completo }}</span>
-                <a href="{{ url_for('mobper.config') }}">⚙️ Configuración</a>
+                <span> {{ user.nombre_completo }}</span>
+                <a href="{{ url_for('mobper.config') }}"> Configuración</a>
                 <a href="{{ url_for('mobper.logout') }}">Cerrar Sesión</a>
             </div>
         </div>
@@ -719,7 +719,7 @@
         <!-- Resumen -->
         <div class="card">
             <div class="card-header">
-                <span class="card-title">📊 Resumen de la Quincena</span>
+                <span class="card-title"> Resumen de la Quincena</span>
             </div>
             <div class="card-body">
                 <div class="stats-grid">
@@ -755,11 +755,11 @@
             <div class="card-body">
                 <div class="goce-options">
                     <div class="goce-option selected" onclick="setGoce(true)">
-                        <div class="icon">✅</div>
+                        <div class="icon"></div>
                         <div class="label">Con Goce de Sueldo</div>
                     </div>
                     <div class="goce-option" onclick="setGoce(false)">
-                        <div class="icon">📋</div>
+                        <div class="icon"></div>
                         <div class="label">Sin Goce de Sueldo</div>
                     </div>
                 </div>
@@ -791,7 +791,7 @@
         {% if faltas %}
         <div class="seccion">
             <div class="seccion-header">
-                <div class="seccion-icon rojo">❌</div>
+                <div class="seccion-icon rojo"></div>
                 <div class="seccion-info">
                     <h3>Faltas - Requieren Clasificación</h3>
                     <span class="count">{{ faltas|length }} incidencias</span>
@@ -810,7 +810,7 @@
                     </div>
                     <div class="incidencia-body">
                         <div class="info-row">
-                            <span class="icon">❌</span>
+                            <span class="icon"></span>
                             <span>No se detectó registro de entrada</span>
                         </div>
 
@@ -821,25 +821,25 @@
                                 <option value="">Seleccionar justificación...</option>
                                 <option value="REMOTO" {% if inc.clasificacion=='REMOTO' %}selected{% endif %}>🏠
                                     Trabajo Remoto</option>
-                                <option value="GUARDIA" {% if inc.clasificacion=='GUARDIA' %}selected{% endif %}>📞
+                                <option value="GUARDIA" {% if inc.clasificacion=='GUARDIA' %}selected{% endif %}>
                                     Guardia Telefónica</option>
-                                <option value="PERMISO" {% if inc.clasificacion=='PERMISO' %}selected{% endif %}>📝
+                                <option value="PERMISO" {% if inc.clasificacion=='PERMISO' %}selected{% endif %}>
                                     Permiso Personal</option>
                                 <option value="VACACIONES" {% if inc.clasificacion=='VACACIONES' %}selected{% endif %}>
-                                    🏖️ Vacaciones</option>
+                                     Vacaciones</option>
                                 <option value="INCAPACIDAD" {% if inc.clasificacion=='INCAPACIDAD' %}selected{% endif
-                                    %}>🏥 Incapacidad Médica</option>
+                                    %}> Incapacidad Médica</option>
                                 <option value="FALTA_JUSTIFICADA" {% if inc.clasificacion=='FALTA_JUSTIFICADA'
-                                    %}selected{% endif %}>📋 Falta Justificada (Otro)</option>
+                                    %}selected{% endif %}> Falta Justificada (Otro)</option>
                             </select>
 
                             {% if inc.clasificacion %}
                             <div class="etiqueta-clasificacion {{ inc.clasificacion|lower }}">
-                                {% if inc.clasificacion == 'REMOTO' %}🏠 Trabajo Remoto
-                                {% elif inc.clasificacion == 'GUARDIA' %}📞 Guardia Telefónica
-                                {% elif inc.clasificacion == 'PERMISO' %}📝 Permiso
-                                {% elif inc.clasificacion == 'VACACIONES' %}🏖️ Vacaciones
-                                {% elif inc.clasificacion == 'INCAPACIDAD' %}🏥 Incapacidad
+                                {% if inc.clasificacion == 'REMOTO' %}Trabajo Remoto
+                                {% elif inc.clasificacion == 'GUARDIA' %} Guardia Telefónica
+                                {% elif inc.clasificacion == 'PERMISO' %} Permiso
+                                {% elif inc.clasificacion == 'VACACIONES' %} Vacaciones
+                                {% elif inc.clasificacion == 'INCAPACIDAD' %} Incapacidad
                                 {% else %}{{ inc.clasificacion }}{% endif %}
                             </div>
                             {% endif %}
@@ -877,7 +877,7 @@
                             <span>Entrada: {{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
                         </div>
                         <div class="info-row">
-                            <span class="icon">⏱️</span>
+                            <span class="icon">⏱</span>
                             <span>Límite: {{ inc.hora_limite.strftime('%H:%M') }}</span>
                         </div>
 
@@ -892,9 +892,9 @@
                                 class="toggle-label {% if inc.justificado is not defined or inc.justificado %}justificado{% else %}no-justificado{% endif %}"
                                 id="label-{{ inc.fecha }}">
                                 {% if inc.justificado is not defined or inc.justificado %}
-                                ✅ Justificado
+                                 Justificado
                                 {% else %}
-                                ❌ No Justificado
+                                 No Justificado
                                 {% endif %}
                             </span>
                         </div>
@@ -909,7 +909,7 @@
         {% if a_tiempo %}
         <div class="seccion">
             <div class="seccion-header">
-                <div class="seccion-icon verde">✅</div>
+                <div class="seccion-icon verde"></div>
                 <div class="seccion-info">
                     <h3>Asistencias Puntuales</h3>
                     <span class="count">{{ a_tiempo|length }} días</span>
@@ -927,7 +927,7 @@
                     </div>
                     <div class="incidencia-body">
                         <div class="info-row">
-                            <span class="icon">✅</span>
+                            <span class="icon"></span>
                             <span>Entrada: {{ inc.primer_registro.strftime('%H:%M:%S') }}</span>
                         </div>
                     </div>
@@ -978,7 +978,7 @@
     <!-- Barra de Acciones -->
     <div class="actions-bar">
         <button class="btn-primary" onclick="generarFormatoExcel()">
-            📄 Generar Formato Excel
+             Generar Formato Excel
         </button>
     </div>
 
@@ -1015,7 +1015,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        mostrarToast('✅ Clasificación guardada', 'success');
+                        mostrarToast(' Clasificación guardada', 'success');
                         card.classList.add('clasificado');
 
                         // Agregar etiqueta visual
@@ -1023,12 +1023,12 @@
                         if (existingTag) existingTag.remove();
 
                         const nombres = {
-                            'REMOTO': '🏠 Trabajo Remoto',
-                            'GUARDIA': '📞 Guardia Telefónica',
-                            'PERMISO': '📝 Permiso',
-                            'VACACIONES': '🏖️ Vacaciones',
-                            'INCAPACIDAD': '🏥 Incapacidad',
-                            'FALTA_JUSTIFICADA': '📋 Falta Justificada'
+                            'REMOTO': 'Trabajo Remoto',
+                            'GUARDIA': ' Guardia Telefónica',
+                            'PERMISO': ' Permiso',
+                            'VACACIONES': ' Vacaciones',
+                            'INCAPACIDAD': ' Incapacidad',
+                            'FALTA_JUSTIFICADA': ' Falta Justificada'
                         };
 
                         const tag = document.createElement('div');
@@ -1036,11 +1036,11 @@
                         tag.textContent = nombres[clasificacion] || clasificacion;
                         select.parentNode.appendChild(tag);
                     } else {
-                        mostrarToast('❌ Error al guardar', 'error');
+                        mostrarToast(' Error al guardar', 'error');
                     }
                 })
                 .catch(error => {
-                    mostrarToast('❌ Error de conexión', 'error');
+                    mostrarToast(' Error de conexión', 'error');
                     console.error('Error:', error);
                 });
         }
@@ -1056,10 +1056,10 @@
                     if (data.success) {
                         const label = document.getElementById(`label-${fecha}`);
                         if (justificado) {
-                            label.textContent = '✅ Justificado';
+                            label.textContent = ' Justificado';
                             label.className = 'toggle-label justificado';
                         } else {
-                            label.textContent = '❌ No Justificado';
+                            label.textContent = ' No Justificado';
                             label.className = 'toggle-label no-justificado';
                         }
                         mostrarToast('Cambio guardado', 'success');
@@ -1082,16 +1082,16 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        mostrarToast('✅ Formato generado', 'success');
+                        mostrarToast(' Formato generado', 'success');
                         window.location.href = `/mobper/preview/${data.filename}`;
                     } else {
-                        mostrarToast(`❌ ${data.error}`, 'error');
+                        mostrarToast(` ${data.error}`, 'error');
                         btn.disabled = false;
                         btn.innerHTML = originalText;
                     }
                 })
                 .catch(error => {
-                    mostrarToast('❌ Error de conexión', 'error');
+                    mostrarToast(' Error de conexión', 'error');
                     btn.disabled = false;
                     btn.innerHTML = originalText;
                 });
