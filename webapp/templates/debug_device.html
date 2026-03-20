@@ -358,12 +358,12 @@ let hasReceivedSSEEvents = false;
 
 function startRealtimeSSE() {
     if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
-        console.log('⚠️ SSE ya está activo');
+        console.log(' SSE ya está activo');
         return;
     }
     
     const deviceId = {{ device.id }};
-    console.log(`🚀 Iniciando SSE para dispositivo: ${deviceId} (intento ${reconnectAttempts + 1})`);
+    console.log(` Iniciando SSE para dispositivo: ${deviceId} (intento ${reconnectAttempts + 1})`);
     
     // Cerrar conexión anterior si existe
     if (eventSource) {
@@ -383,7 +383,7 @@ function startRealtimeSSE() {
     // Evento: Conexión establecida
     eventSource.addEventListener('connection', function(e) {
         const data = JSON.parse(e.data);
-        console.log('✅ Conectado a SSE:', data);
+        console.log(' Conectado a SSE:', data);
         reconnectAttempts = 0; // Reset intentos al conectar exitosamente
         lastHeartbeat = Date.now();
     });
@@ -411,7 +411,7 @@ function startRealtimeSSE() {
     
     // Evento: Error
     eventSource.addEventListener('error', function(e) {
-        console.error('❌ Error en SSE:', e);
+        console.error(' Error en SSE:', e);
         
         if (eventSource.readyState === EventSource.CLOSED) {
             console.log('🔄 Conexión cerrada, reconectando...');
@@ -422,7 +422,7 @@ function startRealtimeSSE() {
     // Detectar cuando la pestaña vuelve a estar activa
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden && eventSource && eventSource.readyState === EventSource.CLOSED) {
-            console.log('👁️ Pestaña activa de nuevo, reconectando...');
+            console.log('👁 Pestaña activa de nuevo, reconectando...');
             attemptReconnect();
         }
     });
@@ -440,7 +440,7 @@ function startHeartbeatCheck() {
         
         // Si no hay heartbeat en 45 segundos, reconectar
         if (timeSinceLastHeartbeat > 45000) {
-            console.warn(`⚠️ Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
+            console.warn(` Sin heartbeat por ${Math.floor(timeSinceLastHeartbeat / 1000)}s, reconectando...`);
             attemptReconnect();
         }
     }, 30000);
@@ -448,7 +448,7 @@ function startHeartbeatCheck() {
 
 function attemptReconnect() {
     if (reconnectAttempts >= maxReconnectAttempts) {
-        console.error('❌ Máximo de intentos de reconexión alcanzado');
+        console.error(' Máximo de intentos de reconexión alcanzado');
         stopRealtimeSSE();
         return;
     }
@@ -503,7 +503,7 @@ function addEventToTable(event) {
     // Buscar tbody - la tabla está dentro de .table-responsive
     const tbody = document.querySelector('.table-responsive tbody');
     if (!tbody) {
-        console.error('⚠️ No se encontró tbody de la tabla de eventos');
+        console.error(' No se encontró tbody de la tabla de eventos');
         console.log('Tablas disponibles:', document.querySelectorAll('tbody'));
         return;
     }
@@ -519,7 +519,7 @@ function addEventToTable(event) {
             const newTime = event.datetime_full ? new Date(event.datetime_full).toLocaleString('es-MX').replace(',', '') : '';
             
             if (existingCode === newCode && existingTime.includes(newTime.split(' ')[1])) {
-                console.log('⏭️ Evento ya existe, saltando:', event.id);
+                console.log('⏭ Evento ya existe, saltando:', event.id);
                 return;
             }
         }
@@ -577,7 +577,7 @@ function addEventToTable(event) {
     
     // Insertar al inicio de la tabla
     tbody.insertBefore(row, tbody.firstChild);
-    console.log('✅ Evento agregado a la tabla');
+    console.log(' Evento agregado a la tabla');
     
     // Limitar a 100 filas
     while (tbody.children.length > 100) {
@@ -762,7 +762,7 @@ function updateCompleteList() {
 
 // Auto-start realtime on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Página cargada - Iniciando tiempo real automático');
+    console.log(' Página cargada - Iniciando tiempo real automático');
     
     // Iniciar SSE automáticamente
     setTimeout(() => {

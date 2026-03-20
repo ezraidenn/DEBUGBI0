@@ -202,7 +202,7 @@ let dashboardLoaded = false;
 let usersDataCache = [];  // Cache de usuarios para actualización en tiempo real
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Dashboard iniciando...');
+    console.log(' Dashboard iniciando...');
     {% if lazy_load %}
     loadDashboardData();
     {% else %}
@@ -258,7 +258,7 @@ function loadDashboardData() {
                 renderDevices(data.devices);
                 
                 dashboardLoaded = true;
-                console.log('✅ Dashboard cargado. Dispositivos:', allowedDeviceIds.size);
+                console.log(' Dashboard cargado. Dispositivos:', allowedDeviceIds.size);
                 
                 // Iniciar tiempo real
                 connectRealtime();
@@ -366,7 +366,7 @@ function connectRealtime() {
     dashboardEventSource = new EventSource('/stream/all-devices?interval=3');
     
     dashboardEventSource.addEventListener('connection', (e) => {
-        console.log('✅ Tiempo real activo');
+        console.log(' Tiempo real activo');
         reconnectAttempts = 0;
         if (statusBadge) {
             statusBadge.classList.remove('bg-warning', 'bg-danger');
@@ -381,13 +381,13 @@ function connectRealtime() {
         
         // Solo procesar dispositivos permitidos
         if (!allowedDeviceIds.has(deviceId)) {
-            console.log('⏭️ Evento ignorado - dispositivo no permitido:', deviceId);
+            console.log('⏭ Evento ignorado - dispositivo no permitido:', deviceId);
             return;
         }
         
         // Solo procesar accesos concedidos
         if (event.badge_class !== 'success') {
-            console.log('⏭️ Evento ignorado - no es acceso concedido');
+            console.log('⏭ Evento ignorado - no es acceso concedido');
             return;
         }
         
@@ -413,7 +413,7 @@ function connectRealtime() {
                 const statUsuarios = document.getElementById('statUsuarios');
                 if (statUsuarios) {
                     statUsuarios.textContent = allUserIds.size;
-                    console.log('👤 Nuevo usuario detectado:', userId, '- Total:', allUserIds.size);
+                    console.log(' Nuevo usuario detectado:', userId, '- Total:', allUserIds.size);
                 }
             }
             
@@ -466,7 +466,7 @@ function updateHeaderTotals() {
         const statAccesos = document.getElementById('statAccesos');
         if (statAccesos) {
             statAccesos.textContent = totalAccesos;
-            console.log('📊 Total accesos actualizados:', totalAccesos);
+            console.log(' Total accesos actualizados:', totalAccesos);
         }
     }
     
@@ -553,7 +553,7 @@ function loadUniqueUsersCount() {
                 // IMPORTANTE: Inicializar allUserIds con los usuarios del día
                 allUserIds.clear();
                 data.users.forEach(u => allUserIds.add(String(u.user_id)));
-                console.log('✅ Usuarios únicos inicializados:', allUserIds.size);
+                console.log(' Usuarios únicos inicializados:', allUserIds.size);
             } else {
                 console.error('Error en respuesta de usuarios:', data.error);
             }

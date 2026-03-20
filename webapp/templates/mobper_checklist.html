@@ -354,12 +354,12 @@
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>📋 Movimiento de Personal</h1>
+            <h1> Movimiento de Personal</h1>
             <p class="subtitle">{{ quincena.nombre }}</p>
             <div class="user-info">
-                <div>👤 {{ user.nombre_completo }}</div>
+                <div> {{ user.nombre_completo }}</div>
                 <div style="display: flex; gap: 15px;">
-                    <a href="{{ url_for('mobper.config') }}" style="color: white; text-decoration: none; opacity: 0.9;">⚙️ Configuración</a>
+                    <a href="{{ url_for('mobper.config') }}" style="color: white; text-decoration: none; opacity: 0.9;"> Configuración</a>
                     <a href="{{ url_for('mobper.logout') }}" style="color: white; text-decoration: none; opacity: 0.9;">Cerrar sesión →</a>
                 </div>
             </div>
@@ -369,20 +369,20 @@
     <div class="container">
         <!-- Resumen -->
         <div class="card">
-            <div class="card-title">📊 Resumen de Quincena</div>
+            <div class="card-title"> Resumen de Quincena</div>
             <div class="resumen-grid">
                 <div class="resumen-item verde">
-                    <div class="resumen-icon">🟢</div>
+                    <div class="resumen-icon"></div>
                     <div class="resumen-label">A tiempo</div>
                     <div class="resumen-value">{{ resumen.a_tiempo }}</div>
                 </div>
                 <div class="resumen-item amarillo">
-                    <div class="resumen-icon">🟡</div>
+                    <div class="resumen-icon"></div>
                     <div class="resumen-label">Retardos</div>
                     <div class="resumen-value">{{ resumen.retardos }}</div>
                 </div>
                 <div class="resumen-item rojo">
-                    <div class="resumen-icon">🔴</div>
+                    <div class="resumen-icon"></div>
                     <div class="resumen-label">Faltas</div>
                     <div class="resumen-value">{{ resumen.faltas }}</div>
                 </div>
@@ -401,16 +401,16 @@
 
         <!-- Atajos Rápidos -->
         <div class="card">
-            <div class="card-title">⚡ Atajos Rápidos</div>
+            <div class="card-title"> Atajos Rápidos</div>
             <div class="atajos">
                 <button class="btn-atajo" onclick="justificarTodosRetardos()">
-                    ✅ Justificar todos los retardos
+                     Justificar todos los retardos
                 </button>
                 <button class="btn-atajo" onclick="todasFaltasRemoto()">
                     🏠 Todas las faltas → Remoto
                 </button>
                 <button class="btn-atajo" onclick="todasFaltasGuardia()">
-                    📞 Todas las faltas → Guardia
+                     Todas las faltas → Guardia
                 </button>
                 <button class="btn-atajo" onclick="restablecerValores()">
                     🔄 Restablecer valores
@@ -421,7 +421,7 @@
         <!-- Retardos -->
         {% if resumen.retardos > 0 %}
         <div class="section-title">
-            🟡 RETARDOS
+             RETARDOS
             <span class="section-count">{{ resumen.retardos }}</span>
         </div>
         {% for inc in incidencias %}
@@ -436,7 +436,7 @@
                     </span>
                 </div>
                 <div class="incidencia-info">
-                    ⏱️ Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
+                    ⏱ Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
                     (límite: {{ inc.hora_limite.strftime('%H:%M') }})
                 </div>
                 <div class="incidencia-actions">
@@ -455,7 +455,7 @@
         <!-- Faltas -->
         {% if resumen.faltas > 0 %}
         <div class="section-title">
-            🔴 FALTAS
+             FALTAS
             <span class="section-count">{{ resumen.faltas }}</span>
         </div>
         {% for inc in incidencias %}
@@ -470,7 +470,7 @@
                     </span>
                 </div>
                 <div class="incidencia-info">
-                    ❌ Inasistencia - No se detectó registro
+                     Inasistencia - No se detectó registro
                 </div>
                 <div class="incidencia-actions">
                     <button class="btn-small" onclick="clasificarIncidencia('{{ inc.fecha.isoformat() }}')">
@@ -488,7 +488,7 @@
         <!-- A Tiempo (Colapsable) -->
         {% if resumen.a_tiempo > 0 %}
         <div class="section-title collapsible" onclick="toggleCollapsible('a-tiempo')">
-            🟢 A TIEMPO
+             A TIEMPO
             <span class="section-count">{{ resumen.a_tiempo }}</span>
             <span style="margin-left: auto; font-size: 14px;">▼</span>
         </div>
@@ -505,7 +505,7 @@
                         </span>
                     </div>
                     <div class="incidencia-info">
-                        ✅ Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
+                         Llegó a las {{ inc.primer_registro.strftime('%H:%M:%S') }}
                     </div>
                 </div>
                 {% endif %}
@@ -517,10 +517,10 @@
     <!-- Botones Flotantes -->
     <div class="floating-actions">
         <button class="btn-secondary" onclick="previsualizar()">
-            👁️ Previsualizar
+            👁 Previsualizar
         </button>
         <button class="btn-primary" onclick="exportarExcel()">
-            📄 Generar Excel
+             Generar Excel
         </button>
     </div>
 
