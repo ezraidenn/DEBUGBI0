@@ -99,12 +99,15 @@
     </style>
 
     <!-- Bootstrap CSS -->
+    <!-- TODO: añadir SRI hash -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- CSS no crítico con preload -->
+    <!-- TODO: añadir SRI hash -->
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" as="style"
         onload="this.onload=null;this.rel='stylesheet'">
     <noscript>
+        <!-- TODO: añadir SRI hash -->
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     </noscript>
 
@@ -113,7 +116,7 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet"
-        href="{{ url_for('static', filename='css/custom.css') }}?v={{ range(1000000, 9999999) | random }}">
+        href="{{ url_for('static', filename='css/custom.css') }}?v=20260527">
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -231,9 +234,11 @@
     {% endif %}
 
     <!-- Bootstrap JS -->
+    <!-- TODO: añadir SRI hash -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- SweetAlert2 -->
+    <!-- TODO: añadir SRI hash -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <!-- CSRF Token Global Setup -->

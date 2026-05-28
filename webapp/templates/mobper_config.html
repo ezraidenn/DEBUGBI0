@@ -339,6 +339,7 @@
         {% endif %}
 
         <form method="POST" action="{{ url_for('mobper.config') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <!-- Informacion Personal -->
             <div class="card">

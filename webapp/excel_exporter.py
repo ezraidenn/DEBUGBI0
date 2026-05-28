@@ -9,6 +9,18 @@ import pytz
 import io
 
 
+def safe_cell(value):
+    """Prefija ' a valores que empiezan con =, +, -, @, \\t, \\r o LF para
+    prevenir formula injection en Excel/CSV cuando el archivo se abre.
+    Aplica a TODO valor user-controlled escrito en una celda."""
+    if value is None:
+        return ''
+    s = str(value)
+    if s and s[0] in ('=', '+', '-', '@', '\t', '\r', '\n'):
+        return "'" + s
+    return s
+
+
 class EmergencyExcelExporter:
     """Exportador profesional de pase de lista a Excel."""
     
@@ -57,9 +69,9 @@ class EmergencyExcelExporter:
         started_at_local = self.emergency.started_at.replace(tzinfo=pytz.UTC).astimezone(mexico_tz)
         
         info_data = [
-            ("Zona:", self.emergency.zone.name),
-            ("Tipo:", self.emergency.emergency_type.upper()),
-            ("Iniciada por:", self.emergency.started_by_user.full_name or self.emergency.started_by_user.username),
+            ("Zona:", safe_cell(self.emergency.zone.name)),
+            ("Tipo:", safe_cell(self.emergency.emergency_type.upper())),
+            ("Iniciada por:", safe_cell(self.emergency.started_by_user.full_name or self.emergency.started_by_user.username)),
             ("Fecha de inicio:", started_at_local.strftime('%d/%m/%Y %H:%M:%S')),
             ("Estado:", "RESUELTA" if self.emergency.status == 'resolved' else "ACTIVA"),
         ]
@@ -136,21 +148,21 @@ class EmergencyExcelExporter:
                     bg_fill = PatternFill(fill_type=None)
                 
                 # Grupo
-                cell = self.ws.cell(row=current_row, column=1, value=group_name)
+                cell = self.ws.cell(row=current_row, column=1, value=safe_cell(group_name))
                 cell.font = Font(name='Arial', size=10, bold=True)
                 cell.fill = bg_fill
                 cell.border = self._create_border()
                 cell.alignment = Alignment(horizontal='left', vertical='center')
-                
+
                 # Nombre
-                cell = self.ws.cell(row=current_row, column=2, value=member['user_name'])
+                cell = self.ws.cell(row=current_row, column=2, value=safe_cell(member['user_name']))
                 cell.font = Font(name='Arial', size=10)
                 cell.fill = bg_fill
                 cell.border = self._create_border()
                 cell.alignment = Alignment(horizontal='left', vertical='center')
-                
+
                 # ID BioStar
-                cell = self.ws.cell(row=current_row, column=3, value=member['biostar_user_id'])
+                cell = self.ws.cell(row=current_row, column=3, value=safe_cell(member['biostar_user_id']))
                 cell.font = Font(name='Arial', size=10)
                 cell.fill = bg_fill
                 cell.border = self._create_border()
@@ -178,7 +190,7 @@ class EmergencyExcelExporter:
                 
                 # Marcado por
                 marked_by = member.get('marked_by', 'N/A')
-                cell = self.ws.cell(row=current_row, column=5, value=marked_by)
+                cell = self.ws.cell(row=current_row, column=5, value=safe_cell(marked_by))
                 cell.font = Font(name='Arial', size=10)
                 cell.fill = bg_fill
                 cell.border = self._create_border()
@@ -194,19 +206,19 @@ class EmergencyExcelExporter:
                         marked_dt_local = marked_dt.astimezone(mexico_tz)
                         marked_str = marked_dt_local.strftime('%d/%m/%Y %H:%M')
                     except:
-                        marked_str = member['marked_at']
+                        marked_str = safe_cell(member['marked_at'])
                 else:
                     marked_str = 'Sin marcar'
-                
+
                 cell = self.ws.cell(row=current_row, column=6, value=marked_str)
                 cell.font = Font(name='Arial', size=10)
                 cell.fill = bg_fill
                 cell.border = self._create_border()
                 cell.alignment = Alignment(horizontal='center', vertical='center')
-                
+
                 # Notas
                 notes = member.get('notes', '')
-                cell = self.ws.cell(row=current_row, column=7, value=notes)
+                cell = self.ws.cell(row=current_row, column=7, value=safe_cell(notes))
                 cell.font = Font(name='Arial', size=9, italic=True)
                 cell.fill = bg_fill
                 cell.border = self._create_border()

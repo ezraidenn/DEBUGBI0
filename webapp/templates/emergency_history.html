@@ -587,6 +587,12 @@
 </div>
 
 <script>
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     const T = { general: { i: 'bi-exclamation-circle', l: 'General' }, incendio: { i: 'bi-fire', l: 'Incendio' }, sismo: { i: 'bi-broadcast', l: 'Sismo' }, evacuacion: { i: 'bi-door-open', l: 'Evacuación' }, seguridad: { i: 'bi-shield-check', l: 'Seguridad' } };
     let page = 1, delId = null, modal = null;
 
@@ -613,11 +619,13 @@
         if (!items?.length) { document.getElementById('tbody').innerHTML = '<tr><td colspan="4"><div class="eh-empty"><i class="bi bi-inbox"></i><h3>Sin registros</h3><p>No hay emergencias</p></div></td></tr>'; document.getElementById('pag').innerHTML = ''; return; }
         document.getElementById('tbody').innerHTML = items.map(e => {
             const t = T[e.emergency_type] || T.general;
+            const safeType = encodeURIComponent(e.emergency_type || '').replace(/[^a-zA-Z0-9_-]/g, '');
+            const eid = parseInt(e.id, 10) || 0;
             return `<tr>
-            <td><div class="eh-zone"><div class="eh-zone-icon ${e.emergency_type}"><i class="bi ${t.i}"></i></div><div class="eh-zone-info"><div class="eh-zone-name">${e.zone_name}</div><div class="eh-zone-meta">${e.started_at} · ${e.duration} · ${e.started_by_name}</div></div></div></td>
-            <td><span class="eh-type ${e.emergency_type}">${t.l}</span></td>
-            <td><div class="eh-stats"><div class="eh-stat total"><span class="eh-stat-num">${e.stats.total}</span><span class="eh-stat-label">Total</span></div><div class="eh-stat present"><span class="eh-stat-num">${e.stats.present}</span><span class="eh-stat-label">Pres</span></div><div class="eh-stat absent"><span class="eh-stat-num">${e.stats.absent}</span><span class="eh-stat-label">Aus</span></div><div class="eh-stat pending"><span class="eh-stat-num">${e.stats.pending}</span><span class="eh-stat-label">Pend</span></div></div></td>
-            <td><div class="eh-actions"><button class="eh-btn eh-btn-excel" onclick="excel(${e.id})"><i class="bi bi-file-earmark-excel"></i> Excel</button>${e.can_delete ? `<button class="eh-btn eh-btn-del" onclick="del(${e.id})"><i class="bi bi-trash3"></i></button>` : ''}</div></td>
+            <td><div class="eh-zone"><div class="eh-zone-icon ${safeType}"><i class="bi ${t.i}"></i></div><div class="eh-zone-info"><div class="eh-zone-name">${escapeHtml(e.zone_name)}</div><div class="eh-zone-meta">${escapeHtml(e.started_at)} · ${escapeHtml(e.duration)} · ${escapeHtml(e.started_by_name)}</div></div></div></td>
+            <td><span class="eh-type ${safeType}">${escapeHtml(t.l)}</span></td>
+            <td><div class="eh-stats"><div class="eh-stat total"><span class="eh-stat-num">${escapeHtml(e.stats.total)}</span><span class="eh-stat-label">Total</span></div><div class="eh-stat present"><span class="eh-stat-num">${escapeHtml(e.stats.present)}</span><span class="eh-stat-label">Pres</span></div><div class="eh-stat absent"><span class="eh-stat-num">${escapeHtml(e.stats.absent)}</span><span class="eh-stat-label">Aus</span></div><div class="eh-stat pending"><span class="eh-stat-num">${escapeHtml(e.stats.pending)}</span><span class="eh-stat-label">Pend</span></div></div></td>
+            <td><div class="eh-actions"><button class="eh-btn eh-btn-excel" onclick="excel(${eid})"><i class="bi bi-file-earmark-excel"></i> Excel</button>${e.can_delete ? `<button class="eh-btn eh-btn-del" onclick="del(${eid})"><i class="bi bi-trash3"></i></button>` : ''}</div></td>
         </tr>`;
         }).join('');
     }

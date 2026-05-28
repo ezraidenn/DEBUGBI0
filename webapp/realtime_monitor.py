@@ -5,6 +5,8 @@ OPTIMIZADO: Solo busca eventos nuevos desde el último timestamp.
 """
 import threading
 import time
+import os
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Set, List, Optional
 import logging
@@ -167,6 +169,10 @@ class RealtimeMonitor:
             # Emitir a todos los clientes conectados
             try:
                 self.socketio.emit('new_event', event_data, namespace='/realtime')
-                logger.info(f"🔔 Evento emitido: Dispositivo {device_id}, Usuario: {event_data['user_name']}, Tipo: {event_data['event_type']}")
+                # PII (user_name) NO debe loggearse en produccion. Solo en dev con hash corto para correlacion.
+                if os.environ.get('FLASK_ENV') == 'development':
+                    user_name_raw = event_data.get('user_name') or ''
+                    user_hash = hashlib.sha256(user_name_raw.encode('utf-8', errors='ignore')).hexdigest()[:8]
+                    logger.debug(f"Evento emitido: Dispositivo {device_id}, UsuarioHash: {user_hash}, Tipo: {event_data['event_type']}")
             except Exception as e:
                 logger.error(f"Error al emitir evento: {str(e)}")

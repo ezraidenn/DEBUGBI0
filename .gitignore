@@ -1,10 +1,22 @@
-# Environment variables
-.env
-.env.local
-.env.production
-config.ini
+# ============================================
+# DEBUGBI0 - .gitignore
+# ============================================
 
-# Python
+# ---- Secretos / Configuracion sensible ----
+.env
+.env.*
+!.env.example
+config.ini
+secrets.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+known_hosts
+
+# ---- Python ----
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,6 +25,7 @@ __pycache__/
 env/
 venv/
 ENV/
+.venv/
 build/
 develop-eggs/
 dist/
@@ -30,19 +43,40 @@ wheels/
 *.egg
 pip-log.txt
 pip-delete-this-directory.txt
+requirements-frozen.txt
 
-# Data outputs
-data/outputs/*
-!data/outputs/.gitkeep
+# ---- Tests / Coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-# Database
+# ---- Bases de datos ----
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 webapp/*.db
-instance/*.db
+instance/
+*.bak
+*.db.bak
 
-# IDE
+# ---- Exports / Outputs (contienen PII) ----
+data/outputs/*
+!data/outputs/.gitkeep
+output/
+exports/
+*.xlsx
+*.xls
+*.csv
+*.zip
+
+# ---- IDE ----
 .vscode/
 .idea/
 *.swp
@@ -51,30 +85,26 @@ instance/*.db
 .project
 .pydevproject
 
-# OS
+# ---- Claude Code (per-machine, no compartir) ----
+.claude/
+.secret_key_dev
+.fernet_salt_dev
+
+# ---- OS ----
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+# ---- Logs ----
 *.log
-logs/
 *.log.*
+logs/
 
-# Flask
-instance/
+# ---- Flask ----
 .webassets-cache
 .flask_session/
 
-# Deployment
+# ---- Deployment ----
 releases/
 current
 shared/
-
-# Secrets y configuración sensible
-*.pem
-*.key
-*.crt
-*.p12
-id_rsa*
-known_hosts

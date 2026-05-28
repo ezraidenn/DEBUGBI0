@@ -55,15 +55,24 @@ except ImportError:
 # ============================================
 
 def get_env_bool(key: str, default: bool = False) -> bool:
-    """Obtiene variable de entorno como booleano."""
-    value = os.environ.get(key, str(default)).lower()
-    return value in ('true', '1', 'yes', 'on')
+    """Obtiene variable de entorno como booleano. Tolera espacios y CRLF."""
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    return value.strip().lower() in ('true', '1', 'yes', 'on')
+
 
 def get_env_int(key: str, default: int) -> int:
-    """Obtiene variable de entorno como entero."""
+    """Obtiene variable de entorno como entero. Loguea si el valor es invalido."""
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
     try:
-        return int(os.environ.get(key, default))
+        return int(str(raw).strip())
     except (ValueError, TypeError):
+        logging.getLogger('security').warning(
+            "Variable de entorno %s='%s' no es entero, usando default=%s", key, raw, default
+        )
         return default
 
 
@@ -119,7 +128,14 @@ class SecurityConfig:
     # ==================== ENCRYPTION ====================
     ENCRYPT_SENSITIVE_DATA = get_env_bool('ENCRYPT_SENSITIVE_DATA', True)
     ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
-    
+
+    # ==================== CORS / PROXY ====================
+    ALLOWED_ORIGINS = [
+        o.strip() for o in os.environ.get('ALLOWED_ORIGINS', '').split(',')
+        if o.strip()
+    ]
+    TRUSTED_PROXY_COUNT = get_env_int('TRUSTED_PROXY_COUNT', 0)
+
     # ==================== PRODUCCIÓN ====================
     # Ocultar información sensible en producción
     HIDE_SERVER_INFO = get_env_bool('HIDE_SERVER_INFO', True)  # Ocultar versión servidor
@@ -135,58 +151,83 @@ class SecurityConfig:
 
 class SecurityAuditLogger:
     """Logger especializado para eventos de seguridad."""
-    
+
+    # Patrones a redactar en mensajes (tokens hex/base64 largos en paths)
+    _REDACT_PATTERNS = [
+        re.compile(r'(/download/)[0-9a-fA-F]{16,}'),
+        re.compile(r'(/excel/(?:download|token)/)[0-9a-zA-Z_\-]{16,}'),
+        re.compile(r'(token=)[^\s&]+'),
+    ]
+
     def __init__(self):
+        from logging.handlers import RotatingFileHandler
+
         self.logger = logging.getLogger('security_audit')
         self.logger.setLevel(logging.INFO)
-        
-        # Solo configurar si está habilitado
-        if SecurityConfig.SECURITY_AUDIT_LOG:
-            # Crear directorio de logs si no existe
+
+        # Solo configurar si esta habilitado
+        if SecurityConfig.SECURITY_AUDIT_LOG and not self.logger.handlers:
             log_dir = os.path.dirname(SecurityConfig.AUDIT_LOG_FILE)
             if log_dir and not os.path.exists(log_dir):
                 os.makedirs(log_dir, exist_ok=True)
-            
-            # Handler de archivo
-            handler = logging.FileHandler(SecurityConfig.AUDIT_LOG_FILE)
+
+            # Rotacion: 10 MB x 10 backups (~100 MB techo)
+            handler = RotatingFileHandler(
+                SecurityConfig.AUDIT_LOG_FILE,
+                maxBytes=10 * 1024 * 1024,
+                backupCount=10,
+                encoding='utf-8',
+            )
             handler.setLevel(logging.INFO)
-            
-            # Formato detallado para auditoría
             formatter = logging.Formatter(
                 '%(asctime)s | %(levelname)s | %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
+            self.logger.propagate = False
+
+    def _redact(self, value: str) -> str:
+        out = str(value)
+        for pat in self._REDACT_PATTERNS:
+            out = pat.sub(r'\1<redacted>', out)
+        return out
     
     def log_event(self, event_type: str, details: Dict[str, Any], ip: str = None):
         """Registra un evento de seguridad."""
         if not SecurityConfig.SECURITY_AUDIT_LOG:
             return
-        
+
         ip = ip or self._get_client_ip()
         user = details.get('user', 'anonymous')
-        
-        message = f"[{event_type}] IP={ip} USER={user}"
+
+        message = f"[{event_type}] IP={self._redact(ip)} USER={self._redact(user)}"
         for key, value in details.items():
-            if key != 'user':
-                message += f" {key.upper()}={value}"
-        
-        if 'FAIL' in event_type or 'BLOCK' in event_type:
+            if key == 'user':
+                continue
+            message += f" {key.upper()}={self._redact(value)}"
+
+        if 'FAIL' in event_type or 'BLOCK' in event_type or 'HIJACK' in event_type:
             self.logger.warning(message)
         else:
             self.logger.info(message)
-    
+
     def _get_client_ip(self) -> str:
-        """Obtiene IP real del cliente (considera proxies)."""
+        """Obtiene IP del cliente. Solo confia en X-Forwarded-For si hay
+        TRUSTED_PROXY_COUNT>0, para evitar spoofing."""
         try:
-            # Verificar headers de proxy
-            if request.headers.get('X-Forwarded-For'):
-                return request.headers.get('X-Forwarded-For').split(',')[0].strip()
-            if request.headers.get('X-Real-IP'):
-                return request.headers.get('X-Real-IP')
+            if SecurityConfig.TRUSTED_PROXY_COUNT > 0:
+                xff = request.headers.get('X-Forwarded-For')
+                if xff:
+                    # El cliente real es el de la izquierda; los siguientes son proxies.
+                    parts = [p.strip() for p in xff.split(',') if p.strip()]
+                    if parts:
+                        return parts[0]
+                real = request.headers.get('X-Real-IP')
+                if real:
+                    return real.strip()
             return request.remote_addr or 'unknown'
-        except:
+        except Exception:
             return 'unknown'
 
 
@@ -261,49 +302,87 @@ login_limiter = RateLimiter()
 api_limiter = RateLimiter()
 
 
-def check_login_rate_limit(identifier: str) -> Tuple[bool, str]:
+def _login_keys(ip: str, username: str) -> Tuple[str, str]:
+    """Devuelve dos claves separadas: por IP y por username.
+    Aplicarlas en paralelo evita (a) bypass rotando IP, y (b) DoS
+    contra el username legitimo desde una sola IP malicios."""
+    return f"ip:{ip}", f"user:{(username or '').lower()}"
+
+
+def check_login_rate_limit(identifier: str, username: str = None) -> Tuple[bool, str]:
     """
-    Verifica rate limit para login.
+    Verifica rate limit para login con dos llaves (IP + username).
+    `identifier` debe ser la IP del cliente (o un valor estable por origen).
+    Si `username` es None se asume formato legacy 'ip:user'.
     Returns: (allowed, error_message)
     """
-    # Verificar si está bloqueado
-    blocked, remaining = login_limiter.is_blocked(identifier)
-    if blocked:
-        audit_logger.log_event('LOGIN_BLOCKED', {
-            'identifier': identifier,
-            'remaining_seconds': remaining
-        })
-        return False, f'Cuenta bloqueada temporalmente. Intenta en {remaining // 60 + 1} minutos.'
-    
-    # Registrar intento (ventana de 30 min - después se resetean automáticamente)
-    attempts = login_limiter.record_attempt(identifier, window_seconds=1800)
-    
-    # Verificar si excede límite
-    if attempts > SecurityConfig.LOGIN_MAX_ATTEMPTS:
-        login_limiter.block(identifier, SecurityConfig.LOGIN_LOCKOUT_MINUTES)
+    if username is None and ':' in identifier:
+        ip_part, user_part = identifier.split(':', 1)
+        ip_key, user_key = _login_keys(ip_part, user_part)
+    else:
+        ip_key, user_key = _login_keys(identifier, username or '')
+
+    # Bloqueo si CUALQUIERA de las dos llaves esta bloqueada
+    for key in (ip_key, user_key):
+        blocked, remaining = login_limiter.is_blocked(key)
+        if blocked:
+            audit_logger.log_event('LOGIN_BLOCKED', {
+                'key': key,
+                'remaining_seconds': remaining,
+            })
+            return False, f'Cuenta bloqueada temporalmente. Intenta en {remaining // 60 + 1} minutos.'
+
+    # Registrar intento en ambas llaves (ventana 30 min)
+    ip_attempts = login_limiter.record_attempt(ip_key, window_seconds=1800)
+    user_attempts = login_limiter.record_attempt(user_key, window_seconds=1800)
+
+    if ip_attempts > SecurityConfig.LOGIN_MAX_ATTEMPTS:
+        login_limiter.block(ip_key, SecurityConfig.LOGIN_LOCKOUT_MINUTES)
         audit_logger.log_event('LOGIN_LOCKOUT', {
-            'identifier': identifier,
-            'attempts': attempts,
-            'lockout_minutes': SecurityConfig.LOGIN_LOCKOUT_MINUTES
+            'key': ip_key, 'attempts': ip_attempts,
+            'lockout_minutes': SecurityConfig.LOGIN_LOCKOUT_MINUTES,
         })
-        return False, f'Demasiados intentos fallidos. Cuenta bloqueada por {SecurityConfig.LOGIN_LOCKOUT_MINUTES} minutos.'
-    
+        return False, f'Demasiados intentos fallidos. Bloqueado {SecurityConfig.LOGIN_LOCKOUT_MINUTES} minutos.'
+
+    if user_attempts > SecurityConfig.LOGIN_MAX_ATTEMPTS:
+        login_limiter.block(user_key, SecurityConfig.LOGIN_LOCKOUT_MINUTES)
+        audit_logger.log_event('LOGIN_LOCKOUT', {
+            'key': user_key, 'attempts': user_attempts,
+            'lockout_minutes': SecurityConfig.LOGIN_LOCKOUT_MINUTES,
+        })
+        return False, f'Demasiados intentos fallidos. Bloqueado {SecurityConfig.LOGIN_LOCKOUT_MINUTES} minutos.'
+
     return True, ''
 
 
-def record_login_success(identifier: str):
-    """Registra login exitoso y resetea rate limit."""
-    login_limiter.reset(identifier)
-    audit_logger.log_event('LOGIN_SUCCESS', {'user': identifier})
+def record_login_success(identifier: str, username: str = None):
+    """Registra login exitoso y resetea rate limit en ambas llaves."""
+    if username is None and ':' in identifier:
+        ip_part, user_part = identifier.split(':', 1)
+        ip_key, user_key = _login_keys(ip_part, user_part)
+    else:
+        ip_key, user_key = _login_keys(identifier, username or '')
+    login_limiter.reset(ip_key)
+    login_limiter.reset(user_key)
+    audit_logger.log_event('LOGIN_SUCCESS', {'user': (username or identifier)})
 
 
-def record_login_failure(identifier: str):
-    """Registra intento de login fallido."""
-    attempts = login_limiter.get_attempts(identifier)
+def record_login_failure(identifier: str, username: str = None):
+    """Registra intento fallido."""
+    if username is None and ':' in identifier:
+        ip_part, user_part = identifier.split(':', 1)
+        ip_key, user_key = _login_keys(ip_part, user_part)
+        attempted_user = user_part
+    else:
+        ip_key, user_key = _login_keys(identifier, username or '')
+        attempted_user = username or 'unknown'
+    ip_attempts = login_limiter.get_attempts(ip_key)
+    user_attempts = login_limiter.get_attempts(user_key)
     audit_logger.log_event('LOGIN_FAIL', {
-        'identifier': identifier,
-        'attempts': attempts,
-        'max_attempts': SecurityConfig.LOGIN_MAX_ATTEMPTS
+        'user': attempted_user,
+        'ip_attempts': ip_attempts,
+        'user_attempts': user_attempts,
+        'max_attempts': SecurityConfig.LOGIN_MAX_ATTEMPTS,
     })
 
 
@@ -351,19 +430,50 @@ def rate_limit_api(requests_per_minute: int = None):
 
 def validate_password(password: str) -> Tuple[bool, str]:
     """
-    Valida que la contraseña cumpla con la política de seguridad.
+    Valida que la contrase~na cumpla con la politica de seguridad.
     Returns: (is_valid, error_message)
     """
-    # Solo validar longitud mínima
+    if not password or not isinstance(password, str):
+        return False, 'La contrase~na no puede estar vacia.'
+
     if len(password) < SecurityConfig.PASSWORD_MIN_LENGTH:
-        return False, f'La contraseña debe tener mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres'
-    
+        return False, f'La contrase~na debe tener minimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres.'
+
+    if SecurityConfig.PASSWORD_REQUIRE_UPPER and not re.search(r'[A-Z]', password):
+        return False, 'La contrase~na debe contener al menos una mayuscula.'
+
+    if SecurityConfig.PASSWORD_REQUIRE_LOWER and not re.search(r'[a-z]', password):
+        return False, 'La contrase~na debe contener al menos una minuscula.'
+
+    if SecurityConfig.PASSWORD_REQUIRE_DIGIT and not re.search(r'\d', password):
+        return False, 'La contrase~na debe contener al menos un digito.'
+
+    if SecurityConfig.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[^\w\s]', password):
+        return False, 'La contrase~na debe contener al menos un caracter especial.'
+
+    # Deny-list mini: contrase~nas obviamente debiles
+    weak = {
+        'password', 'admin123', '12345678', 'qwerty123', 'letmein123',
+        'biostar', 'biostar123', 'changeme',
+    }
+    if password.lower() in weak:
+        return False, 'Contrase~na demasiado comun. Elige otra.'
+
     return True, ''
 
 
 def get_password_policy_text() -> str:
-    """Retorna texto descriptivo de la política de contraseñas."""
-    return f'Requisitos: Mínimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres'
+    """Retorna texto descriptivo de la politica de contrase~nas."""
+    parts = [f'minimo {SecurityConfig.PASSWORD_MIN_LENGTH} caracteres']
+    if SecurityConfig.PASSWORD_REQUIRE_UPPER:
+        parts.append('mayusculas')
+    if SecurityConfig.PASSWORD_REQUIRE_LOWER:
+        parts.append('minusculas')
+    if SecurityConfig.PASSWORD_REQUIRE_DIGIT:
+        parts.append('digitos')
+    if SecurityConfig.PASSWORD_REQUIRE_SPECIAL:
+        parts.append('caracteres especiales')
+    return 'Requisitos: ' + ', '.join(parts)
 
 
 # ============================================
@@ -412,42 +522,58 @@ def add_security_headers(response):
     Agrega headers de seguridad a la respuesta HTTP.
     Llamar desde after_request en Flask.
     """
-    # Prevenir clickjacking
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    
-    # Prevenir MIME type sniffing
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    
-    # XSS Protection (legacy pero útil)
     response.headers['X-XSS-Protection'] = '1; mode=block'
-    
-    # Referrer Policy
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    
-    # Permissions Policy (antes Feature-Policy)
-    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
-    
-    # Content Security Policy (permite CDNs necesarios)
+    response.headers['Permissions-Policy'] = (
+        'geolocation=(), microphone=(), camera=(), payment=(), usb=()'
+    )
+
+    # CSP: usa nonce por request (almacenado en g.csp_nonce por context processor).
+    # Mantiene 'unsafe-inline' como fallback porque las templates aun tienen
+    # handlers inline; el nonce es la migracion futura.
+    try:
+        from flask import g
+        nonce = getattr(g, 'csp_nonce', '')
+        nonce_src = f" 'nonce-{nonce}'" if nonce else ''
+    except Exception:
+        nonce_src = ''
+
     csp = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; "
-        "font-src 'self' fonts.gstatic.com cdn.jsdelivr.net; "
+        f"script-src 'self'{nonce_src} 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self' cdn.jsdelivr.net fonts.googleapis.com fonts.gstatic.com; "
-        "frame-ancestors 'self';"
+        "connect-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "object-src 'none';"
     )
     response.headers['Content-Security-Policy'] = csp
-    
-    # HSTS (solo si HTTPS está habilitado)
-    if SecurityConfig.FORCE_HTTPS:
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    
-    # Ocultar información del servidor
+
+    # HSTS: enviar siempre si la peticion entrante es HTTPS (no depender solo de
+    # FORCE_HTTPS, que es de boot-time). Si el reverse proxy termina TLS, lee
+    # X-Forwarded-Proto (solo si confiamos en el proxy via TRUSTED_PROXY_COUNT).
+    try:
+        is_https = request.is_secure
+        if not is_https and SecurityConfig.TRUSTED_PROXY_COUNT > 0:
+            proto = request.headers.get('X-Forwarded-Proto', 'http').split(',')[0].strip().lower()
+            is_https = (proto == 'https')
+    except Exception:
+        is_https = False
+
+    if is_https or SecurityConfig.FORCE_HTTPS:
+        response.headers['Strict-Transport-Security'] = (
+            f'max-age={SecurityConfig.HSTS_MAX_AGE}; includeSubDomains'
+        )
+
     if SecurityConfig.HIDE_SERVER_INFO:
-        response.headers['Server'] = 'WebServer'  # Ocultar versión real
-        response.headers['X-Powered-By'] = ''  # Remover X-Powered-By
-    
+        response.headers['Server'] = 'WebServer'
+        response.headers.pop('X-Powered-By', None)
+
     return response
 
 
@@ -499,74 +625,120 @@ def production_response_filter(response):
 def configure_flask_security(app):
     """
     Configura Flask con todas las opciones de seguridad.
-    Llamar al inicializar la aplicación.
+    Llamar al inicializar la aplicacion.
     """
-    # SECRET_KEY - CRÍTICO
-    secret_key = os.environ.get('SECRET_KEY')
-    if not secret_key or secret_key == 'CAMBIAR_POR_CLAVE_SEGURA_DE_64_CARACTERES':
-        if os.environ.get('FLASK_ENV') == 'production':
-            raise ValueError(
-                "ERROR CRÍTICO: SECRET_KEY no configurada. "
-                "Genera una con: python -c \"import secrets; print(secrets.token_hex(32))\""
+    # SECRET_KEY - CRITICO. Falla si esta vacia o es el placeholder, en
+    # cualquier entorno (no solo production).
+    secret_key = os.environ.get('SECRET_KEY', '').strip()
+    placeholder = secret_key in (
+        '', 'default',
+        'CAMBIAR_POR_CLAVE_SEGURA_DE_64_CARACTERES',
+    )
+    if placeholder:
+        if os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
+            raise RuntimeError(
+                "SECRET_KEY ausente o placeholder. Genera una con: "
+                "python -c \"import secrets; print(secrets.token_hex(32))\""
             )
-        else:
-            # En desarrollo, generar una temporal (no recomendado)
-            import secrets
+        # Desarrollo: persistir una clave en disco para evitar rotacion en cada
+        # reinicio (que invalidaria datos Fernet cifrados con la clave previa).
+        dev_key_file = os.path.join(
+            os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
+            '.secret_key_dev'
+        )
+        if os.path.exists(dev_key_file):
+            with open(dev_key_file, 'r') as fh:
+                secret_key = fh.read().strip()
+        if not secret_key:
             secret_key = secrets.token_hex(32)
-            print("[WARNING] Usando SECRET_KEY temporal. Configura una en .env para produccion.")
-    
+            try:
+                with open(dev_key_file, 'w') as fh:
+                    fh.write(secret_key)
+                os.chmod(dev_key_file, 0o600)
+            except Exception:
+                pass
+            print("[WARN] SECRET_KEY ausente; generada y guardada en .secret_key_dev (solo dev).")
+
     app.config['SECRET_KEY'] = secret_key
-    
-    # Configuración de sesiones seguras
+
+    # Cookies de sesion: Secure dinamico (Secure si el request es HTTPS o si
+    # FORCE_HTTPS=true). SameSite=Strict para la app de admin.
+    samesite = 'Strict' if get_env_bool('SESSION_COOKIE_STRICT', True) else 'Lax'
     app.config['SESSION_COOKIE_SECURE'] = SecurityConfig.FORCE_HTTPS
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SAMESITE'] = samesite
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SecurityConfig.SESSION_LIFETIME_MINUTES)
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=SecurityConfig.REMEMBER_COOKIE_DAYS)
     app.config['REMEMBER_COOKIE_SECURE'] = SecurityConfig.FORCE_HTTPS
     app.config['REMEMBER_COOKIE_HTTPONLY'] = True
-    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
-    
+    app.config['REMEMBER_COOKIE_SAMESITE'] = samesite
+
+    # WTF / CSRF (Flask-WTF si esta instalado)
+    app.config['WTF_CSRF_ENABLED'] = SecurityConfig.CSRF_ENABLED
+    app.config['WTF_CSRF_TIME_LIMIT'] = SecurityConfig.CSRF_TIME_LIMIT
+    app.config['WTF_CSRF_SSL_STRICT'] = SecurityConfig.FORCE_HTTPS
+
     # Database
-    db_url = os.environ.get('DATABASE_URL', 'sqlite:///biostar_users.db')
-    
-    # Si la URL es relativa, convertirla a absoluta
+    db_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/biostar_users.db')
     if db_url.startswith('sqlite:///') and not db_url.startswith('sqlite:////'):
-        # Obtener el directorio base del proyecto
         base_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
         db_path = db_url.replace('sqlite:///', '')
         absolute_db_path = os.path.join(base_dir, db_path)
         db_url = f'sqlite:///{absolute_db_path}'
-    
+
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
-    # Configuración adicional
+
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
-    
-    # Registrar handler para headers de seguridad
+
+    # ProxyFix solo si declaras un proxy de confianza. Sin esto, X-Forwarded-*
+    # del cliente son ignorados y se usa request.remote_addr.
+    if SecurityConfig.TRUSTED_PROXY_COUNT > 0:
+        try:
+            from werkzeug.middleware.proxy_fix import ProxyFix
+            app.wsgi_app = ProxyFix(
+                app.wsgi_app,
+                x_for=SecurityConfig.TRUSTED_PROXY_COUNT,
+                x_proto=SecurityConfig.TRUSTED_PROXY_COUNT,
+                x_host=0,
+                x_port=0,
+                x_prefix=0,
+            )
+        except Exception as exc:
+            print(f"[WARN] ProxyFix no aplicado: {exc}")
+
+    # Generar nonce CSP por peticion
+    @app.before_request
+    def _set_csp_nonce():
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    # Exponer nonce a templates: {{ csp_nonce }}
+    @app.context_processor
+    def _inject_csp_nonce():
+        return {'csp_nonce': getattr(g, 'csp_nonce', '')}
+
+    # Handler de headers de seguridad
     @app.after_request
     def apply_security_headers(response):
         response = add_security_headers(response)
-        # Aplicar filtro de producción
         response = production_response_filter(response)
         return response
-    
-    # Forzar HTTPS si está configurado
+
+    # Forzar HTTPS si esta configurado
     if SecurityConfig.FORCE_HTTPS:
         @app.before_request
         def force_https():
             if not request.is_secure and request.headers.get('X-Forwarded-Proto', 'http') != 'https':
                 url = request.url.replace('http://', 'https://', 1)
                 return redirect(url, code=301)
-    
-    # Deshabilitar modo debug en producción
-    if os.environ.get('FLASK_ENV') == 'production':
+
+    # Configuracion segura para produccion
+    if os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
         app.config['DEBUG'] = False
         app.config['TESTING'] = False
         app.config['PROPAGATE_EXCEPTIONS'] = False
         app.config['PRESERVE_CONTEXT_ON_EXCEPTION'] = False
-    
+
     return app
 
 
@@ -580,14 +752,25 @@ def hash_ip(ip: str) -> str:
 
 
 def is_safe_url(target: str) -> bool:
-    """Verifica que una URL sea segura para redirección."""
+    """
+    Verifica que una URL sea segura para redireccion.
+    Rechaza protocol-relative URLs (//evil.com) y schemes peligrosos.
+    """
+    if not target:
+        return False
+    # Rechaza protocol-relative explicito antes de urljoin
+    if target.startswith(('//', '\\\\', '/\\', '\\/')):
+        return False
+
     from urllib.parse import urlparse, urljoin
     from flask import request
-    
+
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
-    
-    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+    if test_url.scheme not in ('http', 'https'):
+        return False
+    return ref_url.netloc == test_url.netloc
 
 
 def generate_secure_token(length: int = 32) -> str:
@@ -600,49 +783,127 @@ def generate_secure_token(length: int = 32) -> str:
 # ============================================
 
 class CSRFProtection:
-    """Protección CSRF con tokens."""
-    
+    """
+    Proteccion CSRF con tokens (con TTL).
+    El token se rota cada CSRF_TIME_LIMIT segundos.
+    """
+
     @staticmethod
     def generate_token() -> str:
-        """Genera un token CSRF y lo guarda en sesión."""
-        if '_csrf_token' not in session:
-            session['_csrf_token'] = secrets.token_hex(32)
-        return session['_csrf_token']
-    
+        """Genera un token CSRF y lo guarda en sesion con timestamp."""
+        now = datetime.utcnow().timestamp()
+        issued = session.get('_csrf_issued_at', 0)
+        token = session.get('_csrf_token')
+        if (
+            not token
+            or (now - issued) > SecurityConfig.CSRF_TIME_LIMIT
+        ):
+            token = secrets.token_hex(32)
+            session['_csrf_token'] = token
+            session['_csrf_issued_at'] = now
+        return token
+
     @staticmethod
     def validate_token(token: str) -> bool:
-        """Valida un token CSRF."""
+        """Valida un token CSRF (timing-safe, con expiracion)."""
         if not SecurityConfig.CSRF_ENABLED:
             return True
-        
         session_token = session.get('_csrf_token')
+        issued = session.get('_csrf_issued_at', 0)
         if not session_token or not token:
             return False
-        
-        # Comparación segura contra timing attacks
-        return hmac.compare_digest(session_token, token)
-    
+        # Expirado
+        if (datetime.utcnow().timestamp() - issued) > SecurityConfig.CSRF_TIME_LIMIT:
+            return False
+        return hmac.compare_digest(str(session_token), str(token))
+
     @staticmethod
     def get_token_field() -> str:
         """Retorna HTML del campo hidden para formularios."""
         token = CSRFProtection.generate_token()
-        return f'<input type="hidden" name="csrf_token" value="{token}">'
+        # No interpolar token sin escapar (es hex, pero defendamos en profundidad)
+        safe = sanitize_html(token)
+        from markupsafe import Markup
+        return Markup(f'<input type="hidden" name="csrf_token" value="{safe}">')
 
 
 def csrf_protect(f):
     """Decorador para proteger endpoints contra CSRF."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
-            token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+        if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+            token = (
+                request.form.get('csrf_token')
+                or request.headers.get('X-CSRF-Token')
+                or request.headers.get('X-CSRFToken')
+            )
+            # Para JSON sin form, buscar en el body
+            if not token and request.is_json:
+                try:
+                    body = request.get_json(silent=True) or {}
+                    token = body.get('csrf_token')
+                except Exception:
+                    pass
             if not CSRFProtection.validate_token(token):
                 audit_logger.log_event('CSRF_FAIL', {
                     'method': request.method,
-                    'path': request.path
+                    'path': request.path,
                 })
-                abort(403, description='CSRF token inválido o expirado')
+                abort(403, description='CSRF token invalido o expirado')
         return f(*args, **kwargs)
     return decorated_function
+
+
+# Endpoints exentos (GET/HEAD nunca son protegidos; ademas autorizar
+# por nombre algunos endpoints publicos de read-only o webhooks externos).
+CSRF_EXEMPT_ENDPOINTS = set()
+
+
+def csrf_exempt(view_or_endpoint):
+    """Marca una vista como exenta de CSRF (acepta funcion o nombre)."""
+    name = view_or_endpoint if isinstance(view_or_endpoint, str) else view_or_endpoint.__name__
+    CSRF_EXEMPT_ENDPOINTS.add(name)
+    return view_or_endpoint
+
+
+def install_global_csrf(app):
+    """Activa CSRF global sobre todos los metodos mutantes.
+    Exenta endpoints listados via @csrf_exempt o en CSRF_EXEMPT_ENDPOINTS."""
+    if not SecurityConfig.CSRF_ENABLED:
+        print("[INFO] CSRF deshabilitado por config (CSRF_ENABLED=false).")
+        return
+
+    @app.before_request
+    def _global_csrf():
+        if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
+            return None
+        endpoint = (request.endpoint or '').rsplit('.', 1)[-1]
+        full_ep = request.endpoint or ''
+        if endpoint in CSRF_EXEMPT_ENDPOINTS or full_ep in CSRF_EXEMPT_ENDPOINTS:
+            return None
+        # Static y similares
+        if request.path.startswith('/static/'):
+            return None
+        token = (
+            request.form.get('csrf_token')
+            or request.headers.get('X-CSRF-Token')
+            or request.headers.get('X-CSRFToken')
+        )
+        if not token and request.is_json:
+            try:
+                body = request.get_json(silent=True) or {}
+                token = body.get('csrf_token')
+            except Exception:
+                pass
+        if not CSRFProtection.validate_token(token):
+            audit_logger.log_event('CSRF_FAIL', {
+                'method': request.method,
+                'path': request.path,
+                'endpoint': full_ep,
+            })
+            abort(403, description='CSRF token invalido o expirado')
+
+    print("[OK] CSRF global activado.")
 
 
 # ============================================
@@ -676,20 +937,28 @@ class SessionFingerprint:
         """
         if not SecurityConfig.SESSION_FINGERPRINT:
             return True, ''
-        
+
+        # Si la sesion esta autenticada pero no tiene fingerprint, forzar uno
+        # (defensa contra el bypass donde un atacante roba la cookie antes de
+        # que la victima haga login y por ende antes de que se almacene el FP).
         stored = session.get('_fingerprint')
         if not stored:
-            return True, ''  # Primera vez, no hay fingerprint
-        
+            try:
+                from flask_login import current_user
+                if getattr(current_user, 'is_authenticated', False):
+                    SessionFingerprint.store()
+            except Exception:
+                pass
+            return True, ''
+
         current = SessionFingerprint.generate()
-        
         if not hmac.compare_digest(stored, current):
             audit_logger.log_event('SESSION_HIJACK_ATTEMPT', {
                 'stored_fingerprint': stored[:16],
                 'current_fingerprint': current[:16]
             })
-            return False, 'Sesión inválida. Por favor inicia sesión de nuevo.'
-        
+            return False, 'Sesion invalida. Por favor inicia sesion de nuevo.'
+
         return True, ''
     
     @staticmethod
@@ -749,14 +1018,23 @@ def session_security_check(f):
 
 class IPWhitelist:
     """Control de acceso por IP."""
-    
+
     @staticmethod
     def get_client_ip() -> str:
-        """Obtiene la IP real del cliente."""
-        if request.headers.get('X-Forwarded-For'):
-            return request.headers.get('X-Forwarded-For').split(',')[0].strip()
-        if request.headers.get('X-Real-IP'):
-            return request.headers.get('X-Real-IP')
+        """
+        Obtiene la IP real del cliente.
+        Solo confia en X-Forwarded-For si TRUSTED_PROXY_COUNT > 0
+        (es decir, hay un reverse proxy conocido por delante).
+        """
+        if SecurityConfig.TRUSTED_PROXY_COUNT > 0:
+            xff = request.headers.get('X-Forwarded-For')
+            if xff:
+                parts = [p.strip() for p in xff.split(',') if p.strip()]
+                if parts:
+                    return parts[0]
+            real = request.headers.get('X-Real-IP')
+            if real:
+                return real.strip()
         return request.remote_addr or 'unknown'
     
     @staticmethod
@@ -997,65 +1275,101 @@ class AccountLockout:
 # ============================================
 
 class DataEncryption:
-    """Encriptación de datos sensibles."""
-    
+    """
+    Encriptacion de datos sensibles via Fernet.
+
+    Requiere ENCRYPTION_KEY explicita. Si no se configura una y
+    ENCRYPT_SENSITIVE_DATA esta activo, falla en produccion (en dev
+    se deriva una clave a partir de SECRET_KEY con salt PERSONALIZADA
+    por instalacion para evitar precomputo cross-tenant).
+    """
+
     _fernet = None
-    
+
     @staticmethod
-    def _get_fernet():
-        """Obtiene instancia de Fernet para encriptación."""
+    def _derive_dev_key() -> bytes:
+        """Solo desarrollo: deriva clave Fernet a partir de SECRET_KEY usando
+        salt persistido por instalacion. NUNCA usar en produccion."""
         if not CRYPTO_AVAILABLE:
             return None
-        
+
+        secret = os.environ.get('SECRET_KEY', '').encode() or b'dev-no-secret'
+        salt_file = os.path.join(
+            os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
+            '.fernet_salt_dev'
+        )
+        try:
+            if os.path.exists(salt_file):
+                with open(salt_file, 'rb') as fh:
+                    salt = fh.read()
+            else:
+                salt = secrets.token_bytes(16)
+                with open(salt_file, 'wb') as fh:
+                    fh.write(salt)
+                try:
+                    os.chmod(salt_file, 0o600)
+                except Exception:
+                    pass
+        except Exception:
+            salt = b'biostar-fallback-salt'
+
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=200_000,
+        )
+        return base64.urlsafe_b64encode(kdf.derive(secret))
+
+    @staticmethod
+    def _get_fernet():
+        if not CRYPTO_AVAILABLE or not SecurityConfig.ENCRYPT_SENSITIVE_DATA:
+            return None
+
         if DataEncryption._fernet is None:
             key = SecurityConfig.ENCRYPTION_KEY
             if not key:
-                # Generar clave derivada del SECRET_KEY
-                secret = os.environ.get('SECRET_KEY', 'default').encode()
-                kdf = PBKDF2HMAC(
-                    algorithm=hashes.SHA256(),
-                    length=32,
-                    salt=b'biostar_logs_salt',
-                    iterations=100000,
-                )
-                key = base64.urlsafe_b64encode(kdf.derive(secret))
+                if os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
+                    raise RuntimeError(
+                        "ENCRYPTION_KEY ausente y ENCRYPT_SENSITIVE_DATA=true. "
+                        "Genera con: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+                    )
+                key = DataEncryption._derive_dev_key()
+                print("[WARN] ENCRYPTION_KEY ausente; usando clave derivada local (.fernet_salt_dev).")
             else:
                 key = key.encode() if isinstance(key, str) else key
-            
+
             DataEncryption._fernet = Fernet(key)
-        
+
         return DataEncryption._fernet
-    
+
     @staticmethod
     def encrypt(data: str) -> str:
-        """Encripta un string."""
-        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA:
+        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA or data is None:
             return data
-        
         fernet = DataEncryption._get_fernet()
         if not fernet:
             return data
-        
         try:
-            encrypted = fernet.encrypt(data.encode())
-            return encrypted.decode()
-        except Exception:
+            return fernet.encrypt(str(data).encode()).decode()
+        except Exception as exc:
+            logging.getLogger('security').warning("encrypt fallido: %s", exc)
             return data
-    
+
     @staticmethod
     def decrypt(data: str) -> str:
-        """Desencripta un string."""
-        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA:
+        if not SecurityConfig.ENCRYPT_SENSITIVE_DATA or data is None:
             return data
-        
         fernet = DataEncryption._get_fernet()
         if not fernet:
             return data
-        
         try:
-            decrypted = fernet.decrypt(data.encode())
-            return decrypted.decode()
+            return fernet.decrypt(str(data).encode()).decode()
         except Exception:
+            # No retornar el ciphertext crudo: indicarlo explicitamente.
+            logging.getLogger('security').warning(
+                "decrypt fallido (clave rotada o data corrupta)"
+            )
             return data
 
 
@@ -1093,25 +1407,59 @@ def log_all_requests(app):
 def apply_government_security(app):
     """
     Aplica TODAS las medidas de seguridad nivel gobierno.
-    Llamar después de configure_flask_security().
+    Llamar despues de configure_flask_security().
     """
-    # Log de todas las peticiones si está habilitado
     log_all_requests(app)
-    
-    # Middleware de verificación de IP
+
+    # Middleware de verificacion de IP
     @app.before_request
     def check_ip_whitelist():
         if SecurityConfig.IP_WHITELIST_ENABLED:
             if not IPWhitelist.is_allowed():
-                abort(403, description='Acceso denegado desde esta ubicación')
-    
-    # Agregar token CSRF a contexto de templates
+                abort(403, description='Acceso denegado desde esta ubicacion')
+
+    # Sesion: validar fingerprint e inactividad en TODAS las peticiones
+    # autenticadas. Falla suave: redirige a login.
+    @app.before_request
+    def _session_security():
+        # Saltar archivos estaticos y endpoints publicos
+        if request.path.startswith('/static/') or request.endpoint in ('static',):
+            return None
+        try:
+            from flask_login import current_user
+            if not getattr(current_user, 'is_authenticated', False):
+                return None
+        except Exception:
+            return None
+
+        valid, error = SessionFingerprint.validate()
+        if not valid:
+            session.clear()
+            flash(error, 'danger')
+            try:
+                return redirect(url_for('login'))
+            except Exception:
+                return redirect('/login')
+
+        active, error = SessionFingerprint.check_inactivity()
+        if not active:
+            session.clear()
+            flash(error, 'warning')
+            try:
+                return redirect(url_for('login'))
+            except Exception:
+                return redirect('/login')
+
+    # Activar CSRF global sobre metodos mutantes
+    install_global_csrf(app)
+
+    # Exponer helpers CSRF a templates
     @app.context_processor
     def csrf_context():
         return {
             'csrf_token': CSRFProtection.generate_token,
-            'csrf_field': CSRFProtection.get_token_field
+            'csrf_field': CSRFProtection.get_token_field,
         }
-    
+
     print("[OK] Seguridad nivel gobierno aplicada")
     return app

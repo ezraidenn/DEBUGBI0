@@ -424,39 +424,54 @@ class RealtimeSSE:
                 'message': 'Error fatal en el servidor'
             }, event='error')
     
-    def stream_all_devices(self, interval: int = 3) -> Generator[str, None, None]:
+    def stream_all_devices(self, interval: int = 3, allowed_ids: Optional[List[int]] = None) -> Generator[str, None, None]:
         """
         Stream de eventos de todos los dispositivos.
-        
+
         Args:
             interval: Intervalo de polling en segundos (default: 3)
-            
+            allowed_ids: Si no es None, solo emite eventos de estos device_ids.
+                         None = admin (sin filtro).
+
         Yields:
             Mensajes SSE formateados
         """
-        logger.info("Iniciando stream SSE para todos los dispositivos")
-        
+        # Normalizar a set para lookup O(1); None significa sin filtro (admin)
+        allowed_set = set(allowed_ids) if allowed_ids is not None else None
+        if allowed_set is not None:
+            logger.info(f"Iniciando stream SSE filtrado a {len(allowed_set)} dispositivos permitidos")
+        else:
+            logger.info("Iniciando stream SSE para todos los dispositivos (admin)")
+
         # Enviar mensaje de conexión
         yield self.format_sse_message({
             'type': 'connected',
             'timestamp': datetime.now(MEXICO_TZ).isoformat()
         }, event='connection')
-        
+
         try:
             while True:
                 try:
                     # Obtener todos los dispositivos
                     devices = self.monitor.get_all_devices()
-                    
+
+                    # Filtrar por allowed_ids ANTES de iterar (no consultar dispositivos no permitidos)
+                    if allowed_set is not None:
+                        devices = [d for d in devices if d.get('id') in allowed_set]
+
                     # Revisar cada dispositivo
                     for device in devices:
                         device_id = device.get('id')
                         if not device_id:
                             continue
-                        
+
+                        # Doble verificacion: nunca emitir eventos de dispositivos no permitidos
+                        if allowed_set is not None and device_id not in allowed_set:
+                            continue
+
                         # Obtener eventos nuevos
                         new_events = self.get_new_events(device_id)
-                        
+
                         # Enviar eventos nuevos
                         if new_events:
                             for event in new_events:

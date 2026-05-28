@@ -5,16 +5,23 @@ on:
     branches: [ "main" ]
   workflow_dispatch:  # Permite deploy manual desde GitHub UI
 
+# Principio de minimo privilegio: GITHUB_TOKEN default es read+write.
+# Este workflow solo lee el repo; no publica releases ni escribe issues/PRs.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        # SHA pin (v4.1.1) - TODO: verificar SHA contra https://github.com/actions/checkout/releases
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # SHA pin (v5.0.0) - TODO: verificar SHA contra https://github.com/actions/setup-python/releases
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -22,13 +29,21 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # TODO: migrar a 'pip install --require-hashes -r requirements.lock'
+          # (requiere generar lockfile con hashes via pip-compile --generate-hashes)
           pip install -r requirements.txt
+
+      - name: SCA - audit dependencies for CVEs
+        run: |
+          python -m pip install pip-audit
+          # --strict: falla en cualquier vuln; usar --ignore-vuln GHSA-xxxx para casos justificados
+          pip-audit --strict || (echo "::warning::pip-audit encontro CVEs"; exit 1)
 
       - name: Run tests (si existen)
         run: |
-          # Descomentar cuando tengas tests
-          # python -m pytest tests/ -v
-          echo "Tests pasados ✓"
+          # TODO: definir tests reales y descomentar
+          # python -m pytest tests/ -v --cov=. --cov-report=term-missing
+          echo "Tests pendientes - bloqueo de deploy si no se reactivan en proximas iteraciones"
 
       - name: Build release artifact
         run: |
@@ -59,12 +74,24 @@ jobs:
           echo "📦 Artefacto creado:"
           ls -lh biostar-monitor.tar.gz
 
-      - name: Setup SSH
+      - name: Setup SSH agent
+        # SHA pin (v0.8.0) - TODO: verificar SHA contra https://github.com/webfactory/ssh-agent/releases
+        # La clave se carga en memoria via ssh-agent: nunca toca el disco del runner,
+        # ni queda expuesta a `cat`/artifacts/logs aunque tenga caracteres especiales.
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Verify known_hosts (no TOFU)
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          # SERVER_KNOWN_HOSTS debe contener el output exacto de `ssh-keyscan <host>`
+          # generado OFFLINE una sola vez y verificado fuera de banda contra el fingerprint
+          # del servidor. Asi evitamos el TOFU del `ssh-keyscan` en cada deploy
+          # (MITM podria inyectar host key arbitrario).
+          echo "${{ secrets.SERVER_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Upload and deploy release
         env:
@@ -106,6 +133,7 @@ jobs:
             
             echo "🔗 Creating symlinks to shared resources..."
             # Symlinks a recursos compartidos (logs, DB, .env, uploads)
+            # WARNING: este .env contiene secretos; el archivo en el host debe ser 0600 y propiedad del service account.
             ln -sfn ${APP_PATH}/shared/.env ${RELEASE_PATH}/.env
             ln -sfn ${APP_PATH}/shared/instance ${RELEASE_PATH}/instance
             ln -sfn ${APP_PATH}/shared/logs ${RELEASE_PATH}/logs

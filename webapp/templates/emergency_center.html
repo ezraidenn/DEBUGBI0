@@ -223,7 +223,7 @@
 let selectedZoneId = null;
 let activeEmergencyId = null;
 let emergencyEventSource = null;  // SSE para tiempo real
-let currentUserName = '{{ current_user.full_name or current_user.username }}';  // Usuario actual para timestamps
+let currentUserName = {{ (current_user.full_name or current_user.username) | tojson }};  // Usuario actual para timestamps
 window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};  // Verificar si usuario es admin
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -252,17 +252,21 @@ function renderZones(zones) {
         return;
     }
     
-    container.innerHTML = zones.map(zone => `
+    container.innerHTML = zones.map(zone => {
+        const zid = parseInt(zone.id, 10) || 0;
+        const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(zone.color || '') ? zone.color : '#999';
+        const safeIcon = String(zone.icon || '').replace(/[^a-zA-Z0-9_\- ]/g, '');
+        return `
         <div class="col-md-4 mb-3">
-            <div class="card zone-card" onclick="selectZone(${zone.id}, '${zone.name}')" style="border-left: 4px solid ${zone.color}; cursor: pointer;">
+            <div class="card zone-card" onclick="selectZone(${zid}, ${JSON.stringify(String(zone.name || ''))})" style="border-left: 4px solid ${safeColor}; cursor: pointer;">
                 <div class="card-body">
-                    <h5><i class="${zone.icon}"></i> ${zone.name}</h5>
-                    <p class="text-muted small">${zone.description || ''}</p>
-                    <span class="badge bg-secondary">${zone.groups_count} grupos</span>
+                    <h5><i class="${safeIcon}"></i> ${escapeHtml(zone.name)}</h5>
+                    <p class="text-muted small">${escapeHtml(zone.description || '')}</p>
+                    <span class="badge bg-secondary">${escapeHtml(zone.groups_count)} grupos</span>
                 </div>
             </div>
         </div>
-    `).join('');
+    `;}).join('');
 }
 
 function selectZone(zoneId, zoneName) {
@@ -300,24 +304,28 @@ function showActiveEmergencies(emergencies) {
     const alert = document.getElementById('active-emergencies-alert');
     const list = document.getElementById('active-emergencies-list');
     
-    list.innerHTML = emergencies.map(e => `
+    list.innerHTML = emergencies.map(e => {
+        const eid = parseInt(e.id, 10) || 0;
+        const zid = parseInt(e.zone_id, 10) || 0;
+        const zoneNameJson = JSON.stringify(String(e.zone_name || ''));
+        return `
         <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-white rounded">
             <div>
-                <strong>${e.zone_name}</strong> - ${e.emergency_type} 
-                <small class="text-muted">(${new Date(e.started_at).toLocaleTimeString()})</small>
+                <strong>${escapeHtml(e.zone_name)}</strong> - ${escapeHtml(e.emergency_type)}
+                <small class="text-muted">(${escapeHtml(new Date(e.started_at).toLocaleTimeString())})</small>
             </div>
             <div>
-                <button class="btn btn-sm btn-warning me-1" onclick="viewEmergency(${e.id}, ${e.zone_id}, '${e.zone_name}')">
+                <button class="btn btn-sm btn-warning me-1" onclick="viewEmergency(${eid}, ${zid}, ${zoneNameJson})">
                     <i class="bi bi-eye"></i> Ver
                 </button>
                 ${e.can_close ? `
-                <button class="btn btn-sm btn-success" onclick="quickResolveEmergency(${e.id}, '${e.zone_name}')">
+                <button class="btn btn-sm btn-success" onclick="quickResolveEmergency(${eid}, ${zoneNameJson})">
                     <i class="bi bi-check-circle"></i> Resolver
                 </button>
                 ` : ''}
             </div>
         </div>
-    `).join('');
+    `;}).join('');
     
     alert.style.display = 'block';
 }
@@ -621,7 +629,8 @@ function showAutoMarkedNotification(marked) {
 
 function updateMemberStatus(change) {
     // Buscar y actualizar el botón del miembro en la UI
-    const buttons = document.querySelectorAll(`button[onclick*="markAttendance(${change.id}"]`);
+    const cid = parseInt(change.id, 10) || 0;
+    const buttons = document.querySelectorAll(`button[onclick*="markAttendance(${cid}"]`);
     buttons.forEach(btn => {
         const row = btn.closest('.list-group-item');
         if (row) {
@@ -690,14 +699,15 @@ function renderRollCall(groups, preserveExpandedState = false) {
     
     container.innerHTML = groups.map((group, index) => {
         const isExpanded = preserveExpandedState && expandedGroups.has(index);
+        const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(group.group_color || '') ? group.group_color : '#999';
         return `
-        <div class="card mb-2" style="border-left: 4px solid ${group.group_color};">
-            <div class="card-header p-2" style="background-color: ${group.group_color}20; cursor: pointer;" 
+        <div class="card mb-2" style="border-left: 4px solid ${safeColor};">
+            <div class="card-header p-2" style="background-color: ${safeColor}20; cursor: pointer;"
                  data-bs-toggle="collapse" data-bs-target="#group-${index}" aria-expanded="${isExpanded}">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">
                         <i class="bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} collapse-icon" id="icon-${index}"></i>
-                        <i class="bi bi-people-fill ms-2"></i> ${group.group_name}
+                        <i class="bi bi-people-fill ms-2"></i> ${escapeHtml(group.group_name)}
                     </h6>
                     <span class="badge bg-secondary">${group.members.length} personas</span>
                 </div>
@@ -705,22 +715,25 @@ function renderRollCall(groups, preserveExpandedState = false) {
             <div id="group-${index}" class="collapse ${isExpanded ? 'show' : ''}">
                 <div class="card-body p-2">
                     <div class="list-group list-group-flush">
-                        ${group.members.map(member => `
-                            <div class="list-group-item px-2 py-3" data-entry-id="${member.id}">
+                        ${group.members.map(member => {
+                            const mid = parseInt(member.id, 10) || 0;
+                            const userNameJson = JSON.stringify(String(member.user_name || ''));
+                            return `
+                            <div class="list-group-item px-2 py-3" data-entry-id="${mid}">
                                 <div class="row align-items-center">
                                     <div class="col-12 col-md-4 mb-2 mb-md-0">
-                                        <strong class="d-block">${member.user_name}</strong>
-                                        <small class="text-muted">ID: ${member.biostar_user_id}</small>
+                                        <strong class="d-block">${escapeHtml(member.user_name)}</strong>
+                                        <small class="text-muted">ID: ${escapeHtml(member.biostar_user_id)}</small>
                                     </div>
                                     <div class="col-12 col-md-5 mb-2 mb-md-0">
                                         <div class="btn-group w-100" role="group" style="gap: 0.25rem;">
-                                            <button class="btn btn-sm ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
-                                                    onclick="markAttendance(${member.id}, 'present')"
+                                            <button class="btn btn-sm ${member.status === 'present' ? 'btn-success' : 'btn-outline-success'}"
+                                                    onclick="markAttendance(${mid}, 'present')"
                                                     style="flex: 1; font-size: 0.85rem; padding: 0.4rem 0.5rem;">
                                                 <i class="bi bi-check-circle"></i> <span class="d-none d-sm-inline">Presente</span>
                                             </button>
-                                            <button class="btn btn-sm ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
-                                                    onclick="markAttendance(${member.id}, 'absent')"
+                                            <button class="btn btn-sm ${member.status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}"
+                                                    onclick="markAttendance(${mid}, 'absent')"
                                                     style="flex: 1; font-size: 0.85rem; padding: 0.4rem 0.5rem;">
                                                 <i class="bi bi-x-circle"></i> <span class="d-none d-sm-inline">Ausente</span>
                                             </button>
@@ -728,19 +741,19 @@ function renderRollCall(groups, preserveExpandedState = false) {
                                     </div>
                                     <div class="col-12 col-md-3 mt-2 mt-md-0 d-flex justify-content-between align-items-center">
                                         <small class="text-muted timestamp-info" style="font-size: 0.75rem;">
-                                            ${member.marked_at ? 
-                                                `${new Date(member.marked_at).toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})} por ${member.marked_by}` 
+                                            ${member.marked_at ?
+                                                `${escapeHtml(new Date(member.marked_at).toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'}))} por ${escapeHtml(member.marked_by)}`
                                                 : '<span class="text-warning">Sin marcar</span>'}
                                         </small>
-                                        ${(member.biostar_user_id === 'MANUAL' || window.isAdmin) ? 
-                                            `<button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteEntry(${member.id}, '${member.user_name}')" title="Eliminar entrada">
+                                        ${(member.biostar_user_id === 'MANUAL' || window.isAdmin) ?
+                                            `<button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteEntry(${mid}, ${userNameJson})" title="Eliminar entrada">
                                                 <i class="bi bi-trash"></i>
-                                            </button>` 
+                                            </button>`
                                             : ''}
                                     </div>
                                 </div>
                             </div>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
                 </div>
             </div>
@@ -839,7 +852,7 @@ function updateTimestampOptimistic(entryId) {
     if (timestamp) {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'});
-        timestamp.innerHTML = `${timeStr} por ${currentUserName || 'admin'}`;
+        timestamp.innerHTML = `${escapeHtml(timeStr)} por ${escapeHtml(currentUserName || 'admin')}`;
     }
 }
 
@@ -941,7 +954,7 @@ async function deleteEntry(entryId, userName) {
             const toast = document.createElement('div');
             toast.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3';
             toast.style.zIndex = '9999';
-            toast.innerHTML = `<i class="bi bi-check-circle"></i> ${data.message}`;
+            toast.innerHTML = `<i class="bi bi-check-circle"></i> ${escapeHtml(data.message)}`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         } else {

@@ -5,14 +5,17 @@ Sistema de regularización de asistencias quincenal
 Este módulo funciona como una aplicación independiente con su propio login.
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for, after_this_request
+import os
+import re
+import uuid as _uuid
+import logging
+
+from flask import Blueprint, render_template, request, jsonify, send_file, session, redirect, url_for, after_this_request, abort
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta, date, time as time_type
 from calendar import monthrange
-import os
 import pytz
 import json
-import os
 from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Alignment
@@ -25,6 +28,56 @@ from src.utils.config import Config
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user
 import time as time_module
+
+from webapp.security import (
+    audit_logger,
+    check_login_rate_limit,
+    record_login_success,
+    record_login_failure,
+    rate_limit_api,
+    validate_password,
+    sanitize_input,
+    IPWhitelist,
+)
+
+_log = logging.getLogger(__name__)
+
+
+def _err(msg='Error interno', status=500, exc=None):
+    """Devuelve un JSON-error sin filtrar str(exc)."""
+    ref = _uuid.uuid4().hex[:12]
+    if exc is not None:
+        _log.exception("mobper error_ref=%s: %s", ref, exc)
+    else:
+        _log.warning("mobper error_ref=%s: %s", ref, msg)
+    return jsonify({'success': False, 'error': msg, 'ref': ref}), status
+
+
+# Endpoints publicos exentos de CSRF (formularios de login/register que
+# todavia no tienen sesion para guardar el token). El token CSRF se entrega
+# en la pagina GET y se valida via meta-tag en POST si esta presente; los
+# formularios mobper antiguos no lo enviaban, asi que mantenerlos exentos
+# y compensar con rate-limit + sin auto-admin.
+try:
+    from webapp.security import csrf_exempt as _csrf_exempt_register
+except Exception:
+    def _csrf_exempt_register(name):  # fallback no-op
+        return None
+
+
+# Output directory para tests Excel (configurable via env)
+OUTPUT_DIR_TESTS = os.environ.get(
+    'MOBPER_TESTS_OUTPUT_DIR',
+    os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), 'output', 'excel_tests'),
+)
+
+
+def _sanitize_filename(name: str, max_len: int = 120) -> str:
+    """Sanea filename para Content-Disposition: solo [A-Za-z0-9._-]."""
+    if not name:
+        return 'download.xlsx'
+    name = re.sub(r'[^A-Za-z0-9._-]', '_', name)[:max_len]
+    return name or 'download.xlsx'
 
 mobper_bp = Blueprint('mobper', __name__, url_prefix='/mobper')
 
@@ -209,13 +262,21 @@ def now_cdmx():
 def mobper_login_required(f):
     """Decorador para proteger rutas de MovPer"""
     from functools import wraps
-    
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'mobper_user_id' not in session:
             return redirect(url_for('mobper.login'))
+        # Verificar que el usuario sigue existiendo y activo
+        user = MobPerUser.query.get(session['mobper_user_id'])
+        if not user or not user.is_active:
+            session.pop('mobper_user_id', None)
+            session.pop('mobper_numero_socio', None)
+            session.pop('mobper_impersonate_id', None)
+            return redirect(url_for('mobper.login'))
         return f(*args, **kwargs)
     return decorated_function
+
 
 def mobper_admin_required(f):
     """Decorador para proteger rutas de admin MovPer"""
@@ -224,9 +285,14 @@ def mobper_admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'mobper_user_id' not in session:
-            return redirect(url_for('mobper.login'))
+            audit_logger.log_event('MOBPER_AUTHZ_UNAUTH', {'path': request.path})
+            return jsonify({'error': 'No autenticado'}), 401
         user = MobPerUser.query.get(session['mobper_user_id'])
-        if not user or not user.is_admin:
+        if not user or not user.is_active or not user.is_admin:
+            audit_logger.log_event('MOBPER_AUTHZ_DENIED', {
+                'user': (user.numero_socio if user else 'unknown'),
+                'path': request.path,
+            })
             return jsonify({'error': 'Acceso denegado'}), 403
         return f(*args, **kwargs)
     return decorated_function
@@ -818,39 +884,51 @@ def mobper_root():
 @mobper_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """
-    Página de login para usuarios existentes.
+    Pagina de login para usuarios existentes.
+    Con rate-limit dual-key (IP + numero_socio), mensaje generico y audit.
     """
     if request.method == 'POST':
-        numero_socio = request.form.get('numero_socio', '').strip()
+        numero_socio = sanitize_input(request.form.get('numero_socio', ''), max_length=20)
         password = request.form.get('password', '').strip()
-        
+        client_ip = IPWhitelist.get_client_ip()
+
         if not numero_socio or not password:
-            return render_template('mobper_login_new.html', 
-                                 error='Ingresa tu número de empleado y contraseña',
+            return render_template('mobper_login_new.html',
+                                 error='Credenciales invalidas.',
                                  numero_socio=numero_socio)
-        
-        # Buscar usuario
+
+        # Dual-key rate limit (IP + numero_socio)
+        allowed, err = check_login_rate_limit(client_ip, username=f'mobper:{numero_socio}')
+        if not allowed:
+            audit_logger.log_event('MOBPER_LOGIN_RATE_LIMITED',
+                                   {'user': numero_socio}, client_ip)
+            return render_template('mobper_login_new.html',
+                                 error='Credenciales invalidas.',
+                                 numero_socio=numero_socio), 429
+
         user = MobPerUser.query.filter_by(numero_socio=numero_socio).first()
-        
-        if not user:
-            return render_template('mobper_login_new.html', 
-                                 error='Usuario no encontrado. ¿Necesitas registrarte?',
+        password_ok = bool(user and user.check_password(password) and user.is_active)
+
+        if not password_ok:
+            record_login_failure(client_ip, username=f'mobper:{numero_socio}')
+            audit_logger.log_event('MOBPER_LOGIN_FAIL',
+                                   {'user': numero_socio}, client_ip)
+            return render_template('mobper_login_new.html',
+                                 error='Credenciales invalidas.',
                                  numero_socio=numero_socio)
-        
-        if not user.check_password(password):
-            return render_template('mobper_login_new.html', 
-                                 error='Contraseña incorrecta',
-                                 numero_socio=numero_socio)
-        
-        # Login exitoso
+
+        # Login OK: limpiar y regenerar sesion para defeat fixation
+        record_login_success(client_ip, username=f'mobper:{numero_socio}')
         user.last_login = datetime.utcnow()
         db.session.commit()
-        
+
+        session.clear()
         session['mobper_user_id'] = user.id
         session['mobper_numero_socio'] = user.numero_socio
-        
+        audit_logger.log_event('MOBPER_LOGIN_SUCCESS',
+                               {'user': numero_socio}, client_ip)
         return redirect(url_for('mobper.checklist'))
-    
+
     return render_template('mobper_login_new.html')
 
 @mobper_bp.route('/register', methods=['GET'])
@@ -860,28 +938,49 @@ def register_page():
 
 @mobper_bp.route('/register', methods=['POST'])
 def register():
-    """Procesar registro de nuevo usuario"""
-    numero_socio = request.form.get('numero_socio', '').strip()
-    nombre = request.form.get('nombre', '').strip()
+    """Procesar registro de nuevo usuario.
+    - Sin auto-promocion a admin por numero_socio (eliminado ADMIN_NUMEROS).
+    - Aplica validate_password() global.
+    - Rate-limit y audit.
+    """
+    numero_socio = sanitize_input(request.form.get('numero_socio', ''), max_length=20)
+    nombre = sanitize_input(request.form.get('nombre', ''), max_length=200)
     password = request.form.get('password', '').strip()
     password_confirm = request.form.get('password_confirm', '').strip()
-    
+    client_ip = IPWhitelist.get_client_ip()
+
+    # Rate-limit por IP para registros (mismo cubo que login dummy)
+    allowed, _err_msg = check_login_rate_limit(client_ip, username=f'register:{numero_socio}')
+    if not allowed:
+        audit_logger.log_event('MOBPER_REGISTER_RATE_LIMITED',
+                               {'user': numero_socio}, client_ip)
+        return render_template('mobper_register.html',
+                             error='Demasiados intentos. Espera unos minutos.',
+                             numero_socio=numero_socio, nombre=nombre), 429
+
     if not numero_socio or not nombre or not password:
-        return render_template('mobper_register.html', 
+        return render_template('mobper_register.html',
                              error='Completa todos los campos',
                              numero_socio=numero_socio,
                              nombre=nombre)
-    
+
     if password != password_confirm:
-        return render_template('mobper_register.html', 
-                             error='Las contraseñas no coinciden',
+        return render_template('mobper_register.html',
+                             error='Las contrase~nas no coinciden',
                              numero_socio=numero_socio,
                              nombre=nombre)
-    
+
+    # Politica de password global (>=12 chars, complexity)
+    pw_ok, pw_err = validate_password(password)
+    if not pw_ok:
+        return render_template('mobper_register.html',
+                             error=pw_err,
+                             numero_socio=numero_socio, nombre=nombre)
+
     # Verificar si ya existe
     if MobPerUser.query.filter_by(numero_socio=numero_socio).first():
-        return render_template('mobper_register.html', 
-                             error='Este número de empleado ya está registrado. Inicia sesión.',
+        return render_template('mobper_register.html',
+                             error='Este numero de empleado ya esta registrado. Inicia sesion.',
                              numero_socio=numero_socio)
     
     # Validar con BioStar
@@ -948,17 +1047,20 @@ def register():
         print(f"[MOVPER] Nombre BioStar original: {usuario_biostar.get('name')}")
         print(f"[MOVPER] Nombre normalizado: {nombre_normalizado}")
         
-        # Crear nuevo usuario (8490 es admin por defecto)
-        ADMIN_NUMEROS = {'8490'}
+        # Crear nuevo usuario SIN is_admin. La promocion a admin solo se hace
+        # por un admin existente via /admin/api/users/<id>/toggle-admin.
         nuevo_user = MobPerUser(
             numero_socio=numero_socio,
             nombre_completo=nombre_normalizado,
-            is_admin=(numero_socio in ADMIN_NUMEROS)
+            is_admin=False,
         )
-        nuevo_user.set_password(password)
-        
+        nuevo_user.set_password(password)  # ya validada arriba
+
         db.session.add(nuevo_user)
         db.session.commit()
+        audit_logger.log_event('MOBPER_REGISTER',
+                               {'user': numero_socio,
+                                'name': nombre_normalizado}, client_ip)
         
         # Crear preset inicial con nombre normalizado
         preset_inicial = PresetUsuario(
@@ -986,19 +1088,22 @@ def register():
         return redirect(url_for('mobper.config'))
         
     except Exception as e:
-        print(f"[MOVPER] Error en registro: {e}")
-        import traceback
-        traceback.print_exc()
-        return render_template('mobper_register.html', 
-                             error=f'Error validando con BioStar: {str(e)}',
+        _log.exception("Error en registro mobper: %s", e)
+        return render_template('mobper_register.html',
+                             error='Error validando con BioStar. Intenta mas tarde.',
                              numero_socio=numero_socio,
                              nombre=nombre)
 
-@mobper_bp.route('/logout')
+@mobper_bp.route('/logout', methods=['GET', 'POST'])
 def logout():
-    """Cerrar sesión de MobPer"""
+    """Cerrar sesion de MobPer."""
+    user_id = session.get('mobper_user_id')
     session.pop('mobper_user_id', None)
     session.pop('mobper_numero_socio', None)
+    session.pop('mobper_impersonate_id', None)
+    session.pop('mobper_first_config', None)
+    if user_id:
+        audit_logger.log_event('MOBPER_LOGOUT', {'user_id': user_id})
     return redirect(url_for('mobper.login'))
 
 @mobper_bp.route('/config', methods=['GET', 'POST'])
@@ -1150,10 +1255,7 @@ def api_clasificar_dia():
     
     except Exception as e:
         db.session.rollback()
-        print(f"[MOVPER API] Error en api_clasificar_dia: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error clasificando dia', status=500, exc=e)
 
 @mobper_bp.route('/api/clasificar-multiple', methods=['POST'])
 @mobper_login_required
@@ -1201,37 +1303,60 @@ def api_clasificar_multiple():
     
     except Exception as e:
         db.session.rollback()
-        print(f"[MOVPER] Error en api_clasificar_multiple: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error clasificando dias', status=500, exc=e)
 
 @mobper_bp.route('/api/check-user', methods=['POST'])
 def api_check_user():
-    """Verifica si un número de socio ya está registrado"""
-    data = request.get_json()
-    numero_socio = data.get('numero_socio', '').strip()
-    
-    if not numero_socio:
-        return jsonify({'exists': False})
-    
-    user = MobPerUser.query.filter_by(numero_socio=numero_socio).first()
-    return jsonify({'exists': user is not None})
+    """Endpoint OBSOLETO. Devuelve siempre 404 para no filtrar la existencia
+    de cuentas (account enumeration). El frontend debe quitar la llamada
+    al blur del numero_socio; el login da una respuesta uniforme."""
+    audit_logger.log_event('MOBPER_CHECK_USER_BLOCKED', {'path': request.path})
+    return jsonify({'error': 'Endpoint deshabilitado'}), 404
 
-@mobper_bp.route('/admin/impersonate/<int:user_id>')
+@mobper_bp.route('/admin/impersonate/<int:user_id>', methods=['POST'])
 @mobper_admin_required
 def admin_impersonate(user_id):
-    """Admin: ver el checklist de otro usuario sin cambiar su password."""
+    """Admin: ver el checklist de otro usuario sin cambiar su password.
+
+    Endurecimiento:
+      - POST (no GET): habilita CSRF protection
+      - re-auth con password del admin (X-Reauth-Password o body)
+      - audit log con actor + target
+    """
+    actor = get_current_mobper_user()
+    if not actor:
+        return jsonify({'error': 'No autenticado'}), 401
+
+    data = request.get_json(silent=True) or {}
+    reauth = (request.headers.get('X-Reauth-Password')
+              or data.get('reauth_password') or '')
+    if not reauth or not actor.check_password(reauth):
+        audit_logger.log_event('MOBPER_IMPERSONATE_REAUTH_FAIL', {
+            'user': actor.numero_socio, 'target_id': user_id,
+        })
+        return jsonify({'error': 'Re-autenticacion requerida'}), 401
+
     target = MobPerUser.query.get_or_404(user_id)
     session['mobper_impersonate_id'] = target.id
-    print(f"[ADMIN] Impersonando usuario #{target.numero_socio} ({target.nombre_completo})")
-    return redirect(url_for('mobper.checklist'))
+    audit_logger.log_event('MOBPER_IMPERSONATE_START', {
+        'user': actor.numero_socio,
+        'target_user': target.numero_socio,
+        'target_id': target.id,
+    })
+    return jsonify({'success': True, 'redirect': url_for('mobper.checklist')})
 
 
-@mobper_bp.route('/admin/stop-impersonate')
+@mobper_bp.route('/admin/stop-impersonate', methods=['POST'])
 @mobper_login_required
 def admin_stop_impersonate():
     """Dejar de impersonar y volver al checklist propio."""
-    session.pop('mobper_impersonate_id', None)
-    return redirect(url_for('mobper.checklist'))
+    actor = get_current_mobper_user()
+    target_id = session.pop('mobper_impersonate_id', None)
+    if actor and target_id:
+        audit_logger.log_event('MOBPER_IMPERSONATE_STOP', {
+            'user': actor.numero_socio, 'target_id': target_id,
+        })
+    return jsonify({'success': True, 'redirect': url_for('mobper.checklist')})
 
 
 @mobper_bp.route('/checklist', methods=['GET'])
@@ -1746,35 +1871,66 @@ def generar_excel():
             archivos.append((vac_path, vac_filename))
             print(f"[MOVPER ROUTES] Vacaciones generado: {vac_filename}")
 
-        # Devolver tokens de descarga
+        # Devolver tokens de descarga (bindeados al usuario)
         tokens = []
         for path, fname in archivos:
-            token = uuid.uuid4().hex
-            _excel_download_store[token] = (path, fname)
+            token = _register_download_token(path, fname, user.id)
             tokens.append({
                 'url': url_for('mobper.descargar_excel_token', token=token),
-                'filename': fname,
+                'filename': _sanitize_filename(fname),
             })
         return jsonify({'success': True, 'multiple': True, 'files': tokens})
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error generando Excel', status=500, exc=e)
 
 
-# Store temporal de archivos Excel pendientes de descarga {token: (path, filename)}
+# Store temporal de archivos Excel pendientes de descarga.
+# Cada token guarda (path, filename, owner_user_id, expires_at).
 _excel_download_store = {}
+_EXCEL_TOKEN_TTL_SECONDS = 600  # 10 minutos
+
+
+def _register_download_token(path, filename, owner_user_id):
+    """Crea un token de descarga bindeado a un usuario, con TTL."""
+    token = _uuid.uuid4().hex
+    _excel_download_store[token] = {
+        'path': path,
+        'filename': filename,
+        'owner_user_id': owner_user_id,
+        'expires_at': time_module.time() + _EXCEL_TOKEN_TTL_SECONDS,
+    }
+    return token
 
 
 @mobper_bp.route('/generar-excel/download/<token>')
 @mobper_login_required
 def descargar_excel_token(token):
-    """Sirve un archivo Excel generado previamente por su token de descarga."""
-    entry = _excel_download_store.pop(token, None)
+    """Sirve un Excel previamente generado, verificando owner y TTL."""
+    entry = _excel_download_store.get(token)
     if not entry:
         return jsonify({'error': 'Token invalido o expirado'}), 404
-    path, filename = entry
+
+    # TTL
+    if entry['expires_at'] < time_module.time():
+        _excel_download_store.pop(token, None)
+        return jsonify({'error': 'Token expirado'}), 404
+
+    # Owner check (IDOR fix): el caller debe ser el dueño o admin.
+    user = get_current_mobper_user()
+    if not user:
+        return jsonify({'error': 'No autenticado'}), 401
+    if entry['owner_user_id'] != user.id and not user.is_admin:
+        audit_logger.log_event('MOBPER_EXCEL_TOKEN_IDOR', {
+            'user': user.numero_socio,
+            'owner_user_id': entry['owner_user_id'],
+        })
+        return jsonify({'error': 'No autorizado'}), 403
+
+    # Consumir token (single-use)
+    _excel_download_store.pop(token, None)
+    path = entry['path']
+    filename = _sanitize_filename(entry['filename'])
 
     @after_this_request
     def remove_file(response):
@@ -1880,33 +2036,52 @@ def calcular_quincena(anio, mes, numero):
 # RUTAS DE PRUEBA WIN32COM EXCEL
 # ============================================================
 
+_TESTS_MAP_NAMES = (
+    'solo_retardo', 'solo_falta', 'falta_y_retardo', 'sin_goce_sueldo',
+    'olvido_checar', 'retirarse_temprano', 'quincena_completa', 'salir_regresar',
+)
+
+
+def _tests_enabled() -> bool:
+    """Rutas de tests Win32 solo en desarrollo, con flag explicito."""
+    return (
+        os.environ.get('FLASK_ENV', '').strip().lower() == 'development'
+        and os.environ.get('MOBPER_TESTS_ENABLED', '').strip() == '1'
+    )
+
+
 @mobper_bp.route('/test-excel', methods=['GET'])
+@mobper_admin_required
 def test_excel_page():
-    """Página de prueba para métodos de edición Excel (DEPRECATED)."""
-    # Redirigir a la nueva página
+    """Pagina de prueba Excel (admin + DEV only). Redirige a la nueva."""
+    if not _tests_enabled():
+        abort(404)
     return redirect(url_for('mobper.test_win32_page'))
 
 
 @mobper_bp.route('/test-win32', methods=['GET'])
+@mobper_admin_required
 def test_win32_page():
-    """Nueva página de prueba solo con Win32COM."""
+    """Pagina de prueba Win32COM (admin + DEV only)."""
+    if not _tests_enabled():
+        abort(404)
     return render_template('excel_win32_test.html')
 
 
 @mobper_bp.route('/test-win32/<test_id>', methods=['POST'])
+@mobper_admin_required
 def run_win32_test(test_id):
-    """Ejecutar un escenario de prueba Win32COM."""
+    """Ejecutar un escenario Win32COM (admin + DEV only, whitelist test_id)."""
+    if not _tests_enabled():
+        abort(404)
+    if test_id not in _TESTS_MAP_NAMES:
+        return jsonify({'success': False, 'error': 'Test no permitido'}), 400
+
     from webapp.excel_win32_tests import (
-        test_solo_retardo,
-        test_solo_falta,
-        test_falta_y_retardo,
-        test_sin_goce_sueldo,
-        test_olvido_checar,
-        test_retirarse_temprano,
-        test_formato_quincena_completa,
-        test_salir_y_regresar,
+        test_solo_retardo, test_solo_falta, test_falta_y_retardo,
+        test_sin_goce_sueldo, test_olvido_checar, test_retirarse_temprano,
+        test_formato_quincena_completa, test_salir_y_regresar,
     )
-    
     tests_map = {
         'solo_retardo': test_solo_retardo,
         'solo_falta': test_solo_falta,
@@ -1917,70 +2092,62 @@ def run_win32_test(test_id):
         'quincena_completa': test_formato_quincena_completa,
         'salir_regresar': test_salir_y_regresar,
     }
-    
-    if test_id not in tests_map:
-        return jsonify({'success': False, 'error': f'Test no encontrado: {test_id}'})
-    
     try:
         result = tests_map[test_id]()
-        
-        if result['success']:
-            filename = os.path.basename(result['output_file'])
-            return jsonify({
-                'success': True,
-                'filename': filename,
-                'test_name': result['test_name'],
-                'output_file': result['output_file']
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Error desconocido'),
-                'test_name': result['test_name']
-            })
-    except Exception as e:
+    except Exception as exc:
+        return _err('Error ejecutando test', status=500, exc=exc)
+
+    if result.get('success'):
         return jsonify({
-            'success': False,
-            'error': str(e),
-            'test_name': test_id
+            'success': True,
+            'filename': _sanitize_filename(os.path.basename(result.get('output_file', ''))),
+            'test_name': result.get('test_name'),
         })
+    return jsonify({
+        'success': False,
+        'error': 'Test fallo',
+        'test_name': result.get('test_name'),
+    }), 500
 
 
 @mobper_bp.route('/download-win32/<test_id>', methods=['GET'])
+@mobper_admin_required
 def download_win32_file(test_id):
-    """Descargar archivo generado por un test Win32COM."""
+    """Descargar archivo de test (admin + DEV only). test_id en whitelist."""
+    if not _tests_enabled():
+        abort(404)
+    if test_id not in _TESTS_MAP_NAMES:
+        return jsonify({'success': False, 'error': 'Test no permitido'}), 400
+
     import glob
-    
-    output_dir = r"C:\Users\raulc\Downloads\debug biostar para checadores\webapp\output\excel_tests"
-    
-    # Buscar el archivo más reciente para este test
+    output_dir = os.path.abspath(OUTPUT_DIR_TESTS)
+    if not os.path.isdir(output_dir):
+        return jsonify({'success': False, 'error': 'Directorio no existe'}), 404
+
+    # Build seguro: solo el prefix permitido + sufijo glob.
     pattern = os.path.join(output_dir, f"{test_id}_*.xlsx")
-    files = glob.glob(pattern)
-    
+    files = [
+        f for f in glob.glob(pattern)
+        if os.path.abspath(f).startswith(output_dir + os.sep)
+    ]
     if not files:
         return jsonify({'success': False, 'error': 'Archivo no encontrado'}), 404
-    
+
     latest_file = max(files, key=os.path.getmtime)
-    filename = os.path.basename(latest_file)
-    
+    filename = _sanitize_filename(os.path.basename(latest_file))
     return send_file(
-        latest_file,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        latest_file, as_attachment=True, download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
 
 
 @mobper_bp.route('/output-folder', methods=['GET'])
+@mobper_admin_required
 def open_output_folder():
-    """Abrir la carpeta de salida en el explorador."""
-    import subprocess
-    output_dir = r"C:\Users\raulc\Downloads\debug biostar para checadores\webapp\output\excel_tests"
-    try:
-        subprocess.Popen(f'explorer "{output_dir}"')
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    """Devuelve la ruta del directorio de salida. NO spawnea procesos."""
+    if not _tests_enabled():
+        abort(404)
+    return jsonify({'success': True, 'path': os.path.abspath(OUTPUT_DIR_TESTS)})
 
 
 # =============================================================================
@@ -2047,41 +2214,64 @@ def admin_api_get_user(user_id):
     return jsonify({'success': True, 'user': data})
 
 
+def _mobper_admin_count() -> int:
+    return MobPerUser.query.filter_by(is_admin=True, is_active=True).count()
+
+
 @mobper_bp.route('/admin/api/users/<int:user_id>', methods=['PUT'])
 @mobper_admin_required
 def admin_api_update_user(user_id):
     """API: Actualiza datos de un usuario."""
     current = get_current_mobper_user()
     u = MobPerUser.query.get_or_404(user_id)
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     try:
-        if 'nombre_completo' in data and data['nombre_completo'].strip():
-            u.nombre_completo = data['nombre_completo'].strip()
-        if 'is_active' in data:
-            u.is_active = bool(data['is_active'])
-        if 'is_admin' in data:
-            # No puede quitarse admin a sí mismo
-            if u.id != current.id:
-                u.is_admin = bool(data['is_admin'])
-        if 'password' in data and data['password'].strip():
-            u.set_password(data['password'].strip())
+        if 'nombre_completo' in data and (data['nombre_completo'] or '').strip():
+            u.nombre_completo = sanitize_input(data['nombre_completo'], max_length=200)
 
-        # Actualizar preset si viene
+        if 'is_active' in data:
+            new_active = bool(data['is_active'])
+            # last-admin guard: no desactivar al ultimo admin
+            if u.is_admin and not new_active and _mobper_admin_count() <= 1:
+                return jsonify({'success': False,
+                                'error': 'No puedes desactivar al ultimo admin'}), 400
+            u.is_active = new_active
+
+        if 'is_admin' in data and u.id != current.id:
+            new_admin = bool(data['is_admin'])
+            if u.is_admin and not new_admin and _mobper_admin_count() <= 1:
+                return jsonify({'success': False,
+                                'error': 'No puedes demoter al ultimo admin'}), 400
+            u.is_admin = new_admin
+
+        if 'password' in data and (data['password'] or '').strip():
+            try:
+                u.set_password(data['password'].strip())
+            except ValueError as ve:
+                return jsonify({'success': False, 'error': str(ve)}), 400
+
         if 'preset' in data and u.preset:
             p = u.preset
-            if 'nombre_formato' in data['preset']:
-                p.nombre_formato = data['preset']['nombre_formato']
-            if 'departamento_formato' in data['preset']:
-                p.departamento_formato = data['preset']['departamento_formato']
-            if 'jefe_directo_nombre' in data['preset']:
-                p.jefe_directo_nombre = data['preset']['jefe_directo_nombre']
+            preset = data['preset']
+            if 'nombre_formato' in preset:
+                p.nombre_formato = sanitize_input(preset['nombre_formato'], max_length=200)
+            if 'departamento_formato' in preset:
+                p.departamento_formato = sanitize_input(preset['departamento_formato'], max_length=100)
+            if 'jefe_directo_nombre' in preset:
+                p.jefe_directo_nombre = sanitize_input(preset['jefe_directo_nombre'], max_length=200)
 
         db.session.commit()
+        audit_logger.log_event('MOBPER_USER_UPDATE', {
+            'user': current.numero_socio,
+            'target_user': u.numero_socio,
+            'fields': [k for k in data.keys() if k != 'password'],
+            'password_changed': bool(data.get('password')),
+        })
         return jsonify({'success': True, 'message': f'Usuario {u.numero_socio} actualizado correctamente'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error actualizando usuario', status=500, exc=e)
 
 
 @mobper_bp.route('/admin/api/users/<int:user_id>', methods=['DELETE'])
@@ -2094,15 +2284,22 @@ def admin_api_delete_user(user_id):
     if u.id == current.id:
         return jsonify({'success': False, 'error': 'No puedes eliminar tu propia cuenta'}), 400
 
+    if u.is_admin and _mobper_admin_count() <= 1:
+        return jsonify({'success': False, 'error': 'No puedes eliminar al ultimo admin'}), 400
+
     try:
         nombre = u.nombre_completo
         numero = u.numero_socio
         db.session.delete(u)
         db.session.commit()
+        audit_logger.log_event('MOBPER_USER_DELETE', {
+            'user': current.numero_socio,
+            'target_user': numero,
+        })
         return jsonify({'success': True, 'message': f'Usuario {numero} - {nombre} eliminado'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error eliminando usuario', status=500, exc=e)
 
 
 @mobper_bp.route('/admin/api/users/<int:user_id>/toggle-active', methods=['POST'])
@@ -2115,14 +2312,23 @@ def admin_api_toggle_active(user_id):
     if u.id == current.id:
         return jsonify({'success': False, 'error': 'No puedes desactivar tu propia cuenta'}), 400
 
+    # last-admin guard
+    if u.is_admin and u.is_active and _mobper_admin_count() <= 1:
+        return jsonify({'success': False, 'error': 'No puedes desactivar al ultimo admin'}), 400
+
     try:
         u.is_active = not u.is_active
         db.session.commit()
         estado = 'activado' if u.is_active else 'desactivado'
+        audit_logger.log_event('MOBPER_USER_TOGGLE_ACTIVE', {
+            'user': current.numero_socio,
+            'target_user': u.numero_socio,
+            'is_active': u.is_active,
+        })
         return jsonify({'success': True, 'is_active': u.is_active, 'message': f'Usuario {estado}'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error cambiando estado', status=500, exc=e)
 
 
 @mobper_bp.route('/admin/api/users/<int:user_id>/toggle-admin', methods=['POST'])
@@ -2135,34 +2341,51 @@ def admin_api_toggle_admin(user_id):
     if u.id == current.id:
         return jsonify({'success': False, 'error': 'No puedes modificar tu propio rol'}), 400
 
+    # last-admin guard: no demoter al unico admin
+    if u.is_admin and _mobper_admin_count() <= 1:
+        return jsonify({'success': False, 'error': 'No puedes demoter al ultimo admin'}), 400
+
     try:
         u.is_admin = not u.is_admin
         db.session.commit()
         rol = 'Admin' if u.is_admin else 'Usuario'
+        audit_logger.log_event('MOBPER_USER_TOGGLE_ADMIN', {
+            'user': current.numero_socio,
+            'target_user': u.numero_socio,
+            'is_admin': u.is_admin,
+        })
         return jsonify({'success': True, 'is_admin': u.is_admin, 'message': f'Rol cambiado a {rol}'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error cambiando rol', status=500, exc=e)
 
 
 @mobper_bp.route('/admin/api/users/<int:user_id>/reset-password', methods=['POST'])
 @mobper_admin_required
 def admin_api_reset_password(user_id):
-    """API: Resetea la contraseña de un usuario."""
+    """API: Resetea la contrase~na de un usuario (aplica politica global)."""
+    current = get_current_mobper_user()
     u = MobPerUser.query.get_or_404(user_id)
-    data = request.get_json()
-    nueva = data.get('password', '').strip()
+    data = request.get_json(silent=True) or {}
+    nueva = (data.get('password') or '').strip()
 
-    if len(nueva) < 4:
-        return jsonify({'success': False, 'error': 'La contraseña debe tener al menos 4 caracteres'}), 400
+    ok, err = validate_password(nueva)
+    if not ok:
+        return jsonify({'success': False, 'error': err}), 400
 
     try:
         u.set_password(nueva)
         db.session.commit()
-        return jsonify({'success': True, 'message': f'Contraseña de {u.numero_socio} actualizada'})
+        audit_logger.log_event('MOBPER_PASSWORD_RESET_BY_ADMIN', {
+            'user': current.numero_socio,
+            'target_user': u.numero_socio,
+        })
+        return jsonify({'success': True, 'message': f'Contrase~na de {u.numero_socio} actualizada'})
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return _err('Error reseteando contrase~na', status=500, exc=e)
 
 
 # =============================================================================

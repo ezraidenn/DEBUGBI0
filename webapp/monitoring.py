@@ -9,6 +9,16 @@ from datetime import datetime
 from functools import wraps
 from typing import Callable, Dict, Any
 from flask import request, g
+from flask_login import login_required, current_user
+
+
+def _sanitize_error(exc: Exception) -> str:
+    """
+    Sanitiza un mensaje de excepcion para exposicion al cliente.
+    No revela rutas, credenciales, ni internals.
+    """
+    # Devolvemos solo el tipo de error, no el mensaje (que puede contener PII/secretos)
+    return f"{type(exc).__name__}"
 
 try:
     from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
@@ -128,7 +138,12 @@ class HealthChecker:
         """Inicializa el health checker."""
         self.app = app
         self.checks = {}
-        
+
+        # Cache para _check_biostar (evitar amplification / oraculo de credenciales)
+        self._biostar_cache = None  # tuple (status: bool, message: str)
+        self._biostar_cache_ts = 0.0
+        self._biostar_cache_ttl = 60  # segundos
+
         # Registrar checks básicos
         self.register_check('system', self._check_system)
         self.register_check('database', self._check_database)
@@ -167,8 +182,9 @@ class HealthChecker:
             
             return True, f"CPU: {cpu}%, RAM: {memory.percent}%, Disco: {disk.percent}%"
         except Exception as e:
-            return False, f"Error al verificar sistema: {str(e)}"
-    
+            logger.exception("Error en _check_system")
+            return False, f"Error al verificar sistema: {_sanitize_error(e)}"
+
     def _check_database(self) -> tuple:
         """Verifica la conexión a la base de datos."""
         try:
@@ -177,41 +193,55 @@ class HealthChecker:
             User.query.first()
             return True, "Base de datos conectada"
         except Exception as e:
-            return False, f"Error de base de datos: {str(e)}"
-    
+            logger.exception("Error en _check_database")
+            return False, f"Error de base de datos: {_sanitize_error(e)}"
+
     def _check_cache(self) -> tuple:
         """Verifica el estado del caché."""
         try:
             if not self.app:
                 return True, "Cache no configurado"
-            
+
             cache_manager = self.app.extensions.get('cache_manager')
             if not cache_manager:
                 return True, "Cache no habilitado"
-            
+
             stats = cache_manager.get_stats()
             if stats['enabled']:
                 return True, f"Cache activo ({stats['backend']}): {stats['keys_count']} keys"
             else:
                 return True, "Cache deshabilitado"
         except Exception as e:
-            return False, f"Error de caché: {str(e)}"
-    
+            logger.exception("Error en _check_cache")
+            return False, f"Error de caché: {_sanitize_error(e)}"
+
     def _check_biostar(self) -> tuple:
-        """Verifica la conexión con BioStar."""
+        """
+        Verifica la conexión con BioStar.
+        Resultado cacheado 60s para evitar amplification / oraculo de credenciales.
+        """
+        now = time.time()
+        if self._biostar_cache is not None and (now - self._biostar_cache_ts) < self._biostar_cache_ttl:
+            return self._biostar_cache
+
         try:
             from src.utils.config import Config
             from src.api.biostar_client import BioStarAPIClient
-            
+
             config = Config()
             client = BioStarAPIClient(config)
-            
+
             if client.login():
-                return True, "BioStar conectado"
+                result = (True, "BioStar conectado")
             else:
-                return False, "No se pudo autenticar con BioStar"
+                result = (False, "No se pudo autenticar con BioStar")
         except Exception as e:
-            return False, f"Error de BioStar: {str(e)}"
+            logger.exception("Error en _check_biostar")
+            result = (False, f"Error de BioStar: {_sanitize_error(e)}")
+
+        self._biostar_cache = result
+        self._biostar_cache_ts = now
+        return result
     
     def run_all_checks(self) -> Dict[str, Any]:
         """
@@ -238,9 +268,10 @@ class HealthChecker:
                     results['status'] = 'unhealthy'
                     
             except Exception as e:
+                logger.exception(f"Error ejecutando health check '{name}'")
                 results['checks'][name] = {
                     'status': 'error',
-                    'message': str(e)
+                    'message': _sanitize_error(e)
                 }
                 results['status'] = 'unhealthy'
         
@@ -275,8 +306,8 @@ class HealthChecker:
                 'timestamp': datetime.utcnow().isoformat()
             }
         except Exception as e:
-            logger.error(f"Error al obtener métricas: {e}")
-            return {'error': str(e)}
+            logger.exception("Error al obtener métricas")
+            return {'error': _sanitize_error(e)}
 
 
 # ==================== INICIALIZACIÓN ====================
@@ -301,8 +332,24 @@ def init_monitoring(app):
     # Registrar rutas de monitoreo
     @app.route('/health')
     def health_check():
-        """Endpoint de health check."""
+        """
+        Endpoint de health check PUBLICO minimal.
+        NO ejecuta checks externos (era oraculo de credenciales/amplification).
+        Solo confirma que el proceso responde HTTP. Para detalle, ver /health/detail.
+        """
         from flask import jsonify
+        return jsonify({'status': 'ok'}), 200
+
+    @app.route('/health/detail')
+    @login_required
+    def health_check_detail():
+        """
+        Endpoint de health check DETALLADO (admin only).
+        Ejecuta todos los checks (DB, Redis, BioStar). Resultados sanitizados.
+        """
+        from flask import jsonify, abort
+        if not getattr(current_user, 'is_admin', False):
+            abort(403)
         results = health_checker.run_all_checks()
         status_code = 200 if results['status'] == 'healthy' else 503
         return jsonify(results), status_code
@@ -351,6 +398,6 @@ def init_monitoring(app):
         from flask import jsonify
         return jsonify(health_checker.get_metrics())
     
-    logger.info("[OK] Endpoints de monitoreo registrados: /health, /health/ready, /health/live, /metrics, /metrics/app")
+    logger.info("[OK] Endpoints de monitoreo registrados: /health (publico), /health/detail (admin), /health/ready, /health/live, /metrics, /metrics/app")
     
     return health_checker

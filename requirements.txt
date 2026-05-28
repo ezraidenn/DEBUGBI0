@@ -1,9 +1,11 @@
 # ============================================================
-# BioStar Debug Monitor - Dependencias Python (Completo)
+# BioStar Debug Monitor - Dependencias Python
+# Versiones pinneadas con piso seguro contra CVEs conocidos.
+# Para reproducibilidad total usa pip-tools / uv y --require-hashes.
 # ============================================================
 
 # ==================== Framework Web ====================
-Flask==3.0.0
+Flask==3.0.3
 Jinja2==3.1.6
 MarkupSafe==3.0.2
 itsdangerous==2.2.0
@@ -12,61 +14,74 @@ blinker==1.9.0
 
 # ==================== Flask Extensions ====================
 Flask-Login==0.6.3
-Flask-SocketIO==5.3.5
+Flask-SocketIO==5.3.6
 Flask-SQLAlchemy==3.1.1
-Flask-Caching==2.1.0
+Flask-Caching>=2.3.1
 Flask-Compress==1.14
+Flask-WTF==1.2.2          # CSRF protection (CSRFProtect)
+WTForms==3.2.1
 
 # ==================== WebSockets y Tiempo Real ====================
-python-socketio==5.10.0
-python-engineio==4.8.0
+python-socketio==5.11.4
+python-engineio==4.9.1
 bidict==0.23.1
 simple-websocket==1.1.0
 
 # ==================== Base de Datos ====================
-SQLAlchemy==2.0.23
-greenlet==3.1.1
+SQLAlchemy==2.0.36
+# greenlet >=3.2.0 ofrece wheels prebuilt para CPython 3.14
+greenlet>=3.2.0
 
 # ==================== Seguridad ====================
-Werkzeug==3.0.1
+# Werkzeug 3.0.6 fija CVE-2024-34069 (debugger PIN bypass)
+# y CVE-2024-49766/49767 (multipart/safe_join).
+Werkzeug==3.0.6
 
 # ==================== Seguridad NIVEL GOBIERNO ====================
-cryptography>=41.0.0          # Encriptación de datos sensibles
-pyotp>=2.9.0                  # 2FA - TOTP (Google Authenticator)
-qrcode[pil]>=7.4.2           # QR codes para configurar 2FA
-pillow>=10.0.0                # Dependencia de qrcode[pil]
+# Fija CVE-2023-49083, CVE-2024-26130, CVE-2024-0727.
+cryptography>=43.0.1
+pyotp>=2.9.0
+qrcode[pil]>=7.4.2
+# Fija CVE-2023-50447, CVE-2024-28219.
+pillow>=10.3.0
 
 # ==================== HTTP Requests ====================
-requests==2.31.0
-urllib3==2.1.0
-certifi>=2023.0.0
-charset-normalizer>=3.0.0
-idna>=3.0
+# requests 2.32.4 fija CVE-2024-35195 (verify=False persistido).
+requests>=2.32.4
+# urllib3 2.5.0 fija CVE-2024-37891.
+urllib3>=2.5.0
+# certifi 2024.7.4 trust store al dia (sin e-Tugra).
+certifi>=2024.7.4
+charset-normalizer>=3.3.2
+# idna >=3.7 fija CVE-2024-3651.
+idna>=3.7
 
 # ==================== Procesamiento de Datos ====================
 pandas>=2.1.0
-numpy>=1.24.0
-openpyxl==3.1.2
+numpy>=1.26.4
+openpyxl==3.1.5
 
-pytz==2023.3
-python-dateutil==2.8.2
-six>=1.16.0                   # Dependencia de python-dateutil
+pytz==2024.2
+python-dateutil==2.9.0.post0
+six>=1.16.0
 
 # ==================== Utilidades ====================
-python-dotenv==1.0.0
+python-dotenv==1.0.1
 colorama==0.4.6
 
 # ==================== Monitoreo y Health Checks ====================
 psutil>=5.9.0
-prometheus-client>=0.19.0    # Métricas Prometheus (opcional pero usado en monitoring.py)
+prometheus-client>=0.20.0
 
-# ==================== Caché ====================
-redis==5.0.1                  # Opcional: Redis para caché distribuido (fallback a memoria si no disponible)
-cachelib>=0.9.0               # Backend de caché para Flask-Caching
+# ==================== Cache ====================
+redis==5.0.8
+cachelib>=0.13.0
 
-# ==================== Servidor de Producción ====================
-gunicorn==21.2.0              # Linux/macOS
-waitress==2.1.2               # Windows
+# ==================== Servidor de Produccion ====================
+# gunicorn 23.0.0 fija CVE-2024-1135 (HTTP request smuggling).
+gunicorn>=23.0.0
+# waitress 3.0.1 fija CVE-2024-49768/49769.
+waitress>=3.0.1
 
 # ==================== Desarrollo ====================
-watchdog>=4.0.0               # Auto-reload en modo debug
+watchdog>=4.0.0

@@ -16,12 +16,6 @@ DIAS_INHABILES_2026 = [
     # Natalicio de Benito Juárez (tercer lunes de marzo)
     date(2026, 3, 16),
     
-    # Jueves Santo (variable)
-    date(2026, 4, 2),
-    
-    # Viernes Santo (variable)
-    date(2026, 4, 3),
-    
     # Día del Trabajo
     date(2026, 5, 1),
     
@@ -153,8 +147,6 @@ def obtener_nombre_dia_inhabil(fecha):
         (3, 17): "Natalicio de Benito Juárez",
         (3, 25): "Jueves Santo",
         (3, 26): "Viernes Santo",
-        (4, 2): "Jueves Santo",
-        (4, 3): "Viernes Santo",
         (4, 17): "Jueves Santo",
         (4, 18): "Viernes Santo",
         (5, 1): "Día del Trabajo",

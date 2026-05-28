@@ -12,6 +12,21 @@ from datetime import datetime, timedelta
 import pythoncom
 from typing import List, Dict, Tuple
 
+try:
+    # Preferir el helper compartido si esta disponible
+    from excel_exporter import safe_cell  # type: ignore
+except Exception:
+    def safe_cell(value):
+        """Prefija ' a valores que empiezan con =, +, -, @, \\t, \\r o LF para
+        prevenir formula injection en Excel/CSV cuando el archivo se abre.
+        Aplica a TODO valor user-controlled escrito en una celda."""
+        if value is None:
+            return ''
+        s = str(value)
+        if s and s[0] in ('=', '+', '-', '@', '\t', '\r', '\n'):
+            return "'" + s
+        return s
+
 # Directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -241,6 +256,8 @@ def set_cell_text(sheet, celda: str, texto: str, campo: str):
         campo: Clave en CAMPO_CONFIG para calcular el font size
     """
     rng = sheet.Range(celda)
+    # Sanitizar contra formula injection antes de escribir a la celda
+    texto = safe_cell(texto)
     font_size = calcular_font_adaptativo(texto, campo)
     rng.Value = texto
     rng.Font.Size = font_size
@@ -621,14 +638,14 @@ def generar_aviso_vacaciones(
         f_sal_str = f"{f_salida.day:02d}-{mes_corto[f_salida.month]}-{str(f_salida.year)[2:]}"
         # Escribir directamente en la celda del merge area
         rng_sal = sheet.Range(CELDAS['VAC_FECHA_SALIDA'])
-        rng_sal.Value = f_sal_str
+        rng_sal.Value = safe_cell(f_sal_str)
         rng_sal.Font.Size = 10
         print(f"[MOVPER VACACIONES] VAC_FECHA_SALIDA={CELDAS['VAC_FECHA_SALIDA']} -> '{f_sal_str}'")
 
         # Fecha de regreso: dd-mmm-yy (ultimo dia de vacaciones)
         f_reg_str = f"{f_regreso.day:02d}-{mes_corto[f_regreso.month]}-{str(f_regreso.year)[2:]}"
         rng_reg = sheet.Range(CELDAS['VAC_FECHA_REGRESO'])
-        rng_reg.Value = f_reg_str
+        rng_reg.Value = safe_cell(f_reg_str)
         rng_reg.Font.Size = 10
         print(f"[MOVPER VACACIONES] VAC_FECHA_REGRESO={CELDAS['VAC_FECHA_REGRESO']} -> '{f_reg_str}'")
 

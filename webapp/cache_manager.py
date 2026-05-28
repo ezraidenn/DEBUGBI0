@@ -32,8 +32,11 @@ class CacheManager:
         self.enabled = enabled and REDIS_AVAILABLE
         self.redis_client = None
         self.memory_cache = {}  # Fallback cache
-        
+
         if self.enabled:
+            # Advertencia de seguridad: Redis sin TLS ni auth expone PII cacheada
+            if redis_url and not redis_url.startswith('rediss://') and '@' not in redis_url:
+                logger.warning("REDIS_URL sin TLS ni auth; PII cacheada en cleartext. Usa rediss:// + requirepass en produccion.")
             try:
                 self.redis_client = redis.from_url(
                     redis_url,
@@ -52,7 +55,8 @@ class CacheManager:
         """Genera una clave única para el caché."""
         key_parts = [prefix] + [str(arg) for arg in args]
         if kwargs:
-            key_parts.append(hashlib.md5(json.dumps(kwargs, sort_keys=True).encode()).hexdigest())
+            # sha256 truncado a 16 chars (suficiente colisión-resistencia para cache key)
+            key_parts.append(hashlib.sha256(json.dumps(kwargs, sort_keys=True).encode()).hexdigest()[:16])
         return ':'.join(key_parts)
     
     def get(self, key: str) -> Optional[Any]:

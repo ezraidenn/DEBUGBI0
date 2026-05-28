@@ -2,6 +2,7 @@
 Monitor especializado para dispositivos/checadores de BioStar 2.
 Enfocado en debugging y obtención de logs diarios.
 """
+import os
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
@@ -16,6 +17,20 @@ logger = get_logger(__name__)
 
 # Timezone de México
 MEXICO_TZ = pytz.timezone('America/Mexico_City')
+
+# Gate para logs verbosos con PII (solo en development)
+_IS_DEV = os.environ.get('FLASK_ENV', '').strip().lower() == 'development'
+
+
+def _safe_excel(value):
+    """Prefija ' a valores que empiezan con =, +, -, @, \\t, \\r para evitar
+    formula injection (CVE pattern)."""
+    if value is None:
+        return ''
+    s = str(value)
+    if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
+        return "'" + s
+    return s
 
 # Códigos de eventos de BioStar 2
 EVENT_CODES = {
@@ -336,11 +351,11 @@ class DeviceMonitor:
         
         events = self.client.search_events(conditions, limit=limit)
         
-        # DEBUG: Ver estructura del primer evento
-        if events and len(events) > 0:
+        # DEBUG: Ver estructura del primer evento (solo en dev, demoted a debug por PII)
+        if _IS_DEV and events and len(events) > 0:
             sample = events[0]
-            logger.warning(f"[ESTRUCTURA EVENTO RAW] Keys: {list(sample.keys())}")
-            logger.warning(f"[ESTRUCTURA user_id] Valor: {sample.get('user_id')} | Tipo: {type(sample.get('user_id')).__name__}")
+            logger.debug("[ESTRUCTURA EVENTO RAW] Keys: %s", list(sample.keys()))
+            logger.debug("[ESTRUCTURA user_id] Tipo: %s", type(sample.get('user_id')).__name__)
         
         return events
     
@@ -396,13 +411,12 @@ class DeviceMonitor:
         """
         processed = []
         
-        # Debug: mostrar estructura del primer evento
-        if events:
+        # Debug: mostrar estructura del primer evento (solo en dev, sin PII)
+        if _IS_DEV and events:
             sample = events[0]
             user_sample = sample.get('user_id')
-            logger.warning(f"[DEBUG-ESTRUCTURA] user_id completo: {user_sample}")
             if isinstance(user_sample, dict):
-                logger.warning(f"[DEBUG-ESTRUCTURA] Keys disponibles: {list(user_sample.keys())}")
+                logger.debug("[DEBUG-ESTRUCTURA] Keys user_id disponibles: %s", list(user_sample.keys()))
         
         for event in events:
             # Extraer user_id de forma robusta
@@ -477,9 +491,16 @@ class DeviceMonitor:
         
         # Exportar a Excel con formato
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            # Hoja principal con todos los eventos
-            df.to_excel(writer, sheet_name='Eventos', index=False)
-            
+            # Hoja principal con todos los eventos.
+            # Escape formula injection en columnas de texto antes de escribir.
+            df_safe = df.copy()
+            if not df_safe.empty:
+                text_cols = [c for c in df_safe.columns
+                             if df_safe[c].dtype == object and c not in ('datetime', 'server_datetime')]
+                for c in text_cols:
+                    df_safe[c] = df_safe[c].map(_safe_excel)
+            df_safe.to_excel(writer, sheet_name='Eventos', index=False)
+
             # Hoja de resumen
             if not df.empty:
                 # Calcular métricas con códigos correctos
@@ -488,7 +509,7 @@ class DeviceMonitor:
                 if 'event_code' in df.columns:
                     access_granted = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_GRANTED'])])
                     access_denied = len(df[df['event_code'].isin(EVENT_CODES['ACCESS_DENIED'])])
-                
+
                 summary_data = {
                     'Métrica': [
                         'Total de eventos',
@@ -508,12 +529,18 @@ class DeviceMonitor:
                     ]
                 }
                 summary_df = pd.DataFrame(summary_data)
+                # Escape de fórmula en columnas de texto
+                for c in summary_df.columns:
+                    if summary_df[c].dtype == object:
+                        summary_df[c] = summary_df[c].map(_safe_excel)
                 summary_df.to_excel(writer, sheet_name='Resumen', index=False)
-                
+
                 # Hoja de eventos por tipo
                 if 'event_type' in df.columns:
                     event_counts = df['event_type'].value_counts().reset_index()
                     event_counts.columns = ['Tipo de Evento', 'Cantidad']
+                    # Escape solo en la columna de texto
+                    event_counts['Tipo de Evento'] = event_counts['Tipo de Evento'].map(_safe_excel)
                     event_counts.to_excel(writer, sheet_name='Por Tipo', index=False)
         
         logger.info(f"✓ Debug exportado a: {filename}")
@@ -532,11 +559,11 @@ class DeviceMonitor:
         """
         events = self.get_device_events_today(device_id)
         
-        # Debug: ver estructura de un evento RAW
-        if events and len(events) > 0:
+        # Debug: ver estructura de un evento RAW (solo dev, sin PII)
+        if _IS_DEV and events and len(events) > 0:
             sample = events[0]
             user_raw = sample.get('user_id')
-            logger.warning(f"[DEBUG-RAW] Device {device_id}: user_id RAW = {user_raw} (tipo: {type(user_raw).__name__})")
+            logger.debug("[DEBUG-RAW] Device %s: user_id tipo=%s", device_id, type(user_raw).__name__)
         
         # Filtrar eventos por horario (5:30 AM - 11:59 PM hora local)
         events = self._filter_events_by_time(events)
@@ -562,12 +589,11 @@ class DeviceMonitor:
         # Calcular usuarios únicos SOLO de accesos concedidos
         unique_users = 0
         if 'user_id' in granted_df.columns and not granted_df.empty:
-            # Debug: ver los primeros user_ids
+            # Debug: contar user_ids (sin loguear los valores - PII)
             raw_user_ids = granted_df['user_id'].tolist()
-            if raw_user_ids:
-                logger.warning(f"[DEBUG-DF] Primeros 5 user_ids del DataFrame: {raw_user_ids[:5]}")
-                logger.warning(f"[DEBUG-DF] Tipos: {[type(x).__name__ for x in raw_user_ids[:5]]}")
-            
+            if _IS_DEV and raw_user_ids:
+                logger.debug("[DEBUG-DF] Tipos primeros 5: %s", [type(x).__name__ for x in raw_user_ids[:5]])
+
             valid_user_ids = set()
             for uid in raw_user_ids:
                 # Si es diccionario, extraer el user_id
@@ -577,8 +603,8 @@ class DeviceMonitor:
                 uid_str = str(uid) if uid is not None else ''
                 if uid_str and uid_str not in ['', 'None', 'nan', 'NaN', '<NA>']:
                     valid_user_ids.add(uid_str)
-            
-            logger.warning(f"[DEBUG-DF] Total eventos: {len(raw_user_ids)}, Usuarios únicos: {len(valid_user_ids)}")
+
+            logger.debug("[DEBUG-DF] Total eventos: %d, Usuarios unicos: %d", len(raw_user_ids), len(valid_user_ids))
             unique_users = len(valid_user_ids)
         
         result = {
@@ -590,8 +616,8 @@ class DeviceMonitor:
             'last_event': granted_df['datetime'].max() if 'datetime' in granted_df.columns and not granted_df.empty else None
         }
         
-        # LOG IMPORTANTE: verificar cálculo
-        logger.warning(f"[SUMMARY] Device {device_id}: {access_granted} accesos, {unique_users} usuarios únicos")
+        # LOG: verificar cálculo (sin PII, conteos agregados)
+        logger.info("[SUMMARY] Device %s: %d accesos, %d usuarios unicos", device_id, access_granted, unique_users)
         
         return result
     

@@ -2,6 +2,7 @@
 Control de puertas para BioStar 2 API.
 Funciones para activar/desactivar modo pánico.
 """
+from src.api.biostar_client import _get_tls_verify
 from src.api.device_monitor import DeviceMonitor
 from src.utils.config import Config
 from src.utils.logger import get_logger
@@ -55,10 +56,10 @@ def biostar_unlock_door(device_id: str, activate_alarm: bool = False) -> tuple[b
         logger.info(f"🔓 Desbloqueando puerta del dispositivo {device_id} (alarma: {activate_alarm})")
         
         response = monitor.client.session.post(
-            url, 
-            json=payload, 
-            headers=headers, 
-            verify=False, 
+            url,
+            json=payload,
+            headers=headers,
+            verify=_get_tls_verify(),
             timeout=10
         )
         
@@ -128,10 +129,10 @@ def biostar_lock_door(device_id: str, deactivate_alarm: bool = False) -> tuple[b
         logger.info(f"🔒 Bloqueando puerta del dispositivo {device_id} (desactivar alarma: {deactivate_alarm})")
         
         response = monitor.client.session.post(
-            url, 
-            json=payload, 
-            headers=headers, 
-            verify=False, 
+            url,
+            json=payload,
+            headers=headers,
+            verify=_get_tls_verify(),
             timeout=10
         )
         
@@ -191,10 +192,10 @@ def biostar_open_door_temporary(device_id: str) -> tuple[bool, str]:
         logger.info(f"🚪 Abriendo puerta temporalmente: {device_id}")
         
         response = monitor.client.session.post(
-            url, 
-            json=payload, 
-            headers=headers, 
-            verify=False, 
+            url,
+            json=payload,
+            headers=headers,
+            verify=_get_tls_verify(),
             timeout=10
         )
         

@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>MovPer — Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- TODO: añadir SRI hash -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -235,6 +237,28 @@ tbody td{padding:12px 14px;vertical-align:middle}
 <div id="tc2"></div>
 
 <script>
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Configurar CSRF token para todas las peticiones fetch (template standalone)
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const originalFetch = window.fetch;
+    window.fetch = function (url, options = {}) {
+        if (options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+            options.headers = options.headers || {};
+            if (typeof options.headers === 'object' && !(options.headers instanceof Headers)) {
+                options.headers['X-CSRF-Token'] = csrfToken;
+            } else if (options.headers instanceof Headers) {
+                options.headers.append('X-CSRF-Token', csrfToken);
+            }
+        }
+        return originalFetch(url, options);
+    };
+})();
 let allUsers=[], BASE='';
 
 // Compute base URL from current path
@@ -267,30 +291,32 @@ function renderTable(users) {
     return;
   }
   tb.innerHTML = users.map(u => {
-    const ini = u.nombre_completo.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    const ini = (u.nombre_completo || '').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const sb = u.is_active
       ? '<span class="badge bg"><i class="fas fa-circle" style="font-size:7px"></i> Activo</span>'
       : '<span class="badge bx"><i class="fas fa-circle" style="font-size:7px"></i> Inactivo</span>';
     const rb = u.is_admin
       ? '<span class="badge bb"><i class="fas fa-shield-alt"></i> Admin</span>'
       : '<span class="badge ba"><i class="fas fa-user"></i> Usuario</span>';
-    const co = u.empresa ? `<span class="co-badge"><i class="fas fa-building"></i> ${u.empresa}</span>` : '<span style="color:var(--mu);font-size:12px">—</span>';
+    const co = u.empresa ? `<span class="co-badge"><i class="fas fa-building"></i> ${escapeHtml(u.empresa)}</span>` : '<span style="color:var(--mu);font-size:12px">—</span>';
     const lockIcon = u.is_active ? 'fa-lock-open' : 'fa-lock';
     const lockTitle = u.is_active ? 'Desactivar' : 'Activar';
+    const uid = parseInt(u.id, 10) || 0;
+    const nameJson = JSON.stringify(String(u.nombre_completo || '')).replace(/</g, '\\u003c');
     return `<tr>
-      <td><div class="uc"><div class="av">${ini}</div><div><div class="un">${u.nombre_completo}</div><div class="us">#${u.numero_socio}</div></div></div></td>
+      <td><div class="uc"><div class="av">${escapeHtml(ini)}</div><div><div class="un">${escapeHtml(u.nombre_completo)}</div><div class="us">#${escapeHtml(u.numero_socio)}</div></div></div></td>
       <td>${co}</td>
-      <td>${u.departamento||'<span style="color:var(--mu)">—</span>'}</td>
-      <td>${u.jefe||'<span style="color:var(--mu)">—</span>'}</td>
+      <td>${u.departamento ? escapeHtml(u.departamento) : '<span style="color:var(--mu)">—</span>'}</td>
+      <td>${u.jefe ? escapeHtml(u.jefe) : '<span style="color:var(--mu)">—</span>'}</td>
       <td>${sb}</td><td>${rb}</td>
-      <td style="font-size:12px;color:var(--mu)">${u.last_login}</td>
-      <td style="font-size:12px;color:var(--mu)">${u.created_at}</td>
+      <td style="font-size:12px;color:var(--mu)">${escapeHtml(u.last_login)}</td>
+      <td style="font-size:12px;color:var(--mu)">${escapeHtml(u.created_at)}</td>
       <td>
         <div class="acts">
-          <button class="bi" title="Editar" onclick="openEdit(${u.id})"><i class="fas fa-pen"></i></button>
-          <button class="bi" title="Resetear contraseña" onclick="openPw(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')"><i class="fas fa-key"></i></button>
-          <button class="bi" title="${lockTitle}" onclick="toggleActive(${u.id})"><i class="fas ${lockIcon}"></i></button>
-          <button class="bi d" title="Eliminar" onclick="openDelete(${u.id},'${u.nombre_completo.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+          <button class="bi" title="Editar" onclick="openEdit(${uid})"><i class="fas fa-pen"></i></button>
+          <button class="bi" title="Resetear contraseña" onclick='openPw(${uid}, ${nameJson})'><i class="fas fa-key"></i></button>
+          <button class="bi" title="${escapeHtml(lockTitle)}" onclick="toggleActive(${uid})"><i class="fas ${lockIcon}"></i></button>
+          <button class="bi d" title="Eliminar" onclick='openDelete(${uid}, ${nameJson})'><i class="fas fa-trash"></i></button>
         </div>
       </td>
     </tr>`;

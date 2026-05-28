@@ -1,12 +1,50 @@
 """
 Database models for the web application.
 """
+import os
+import json
+import hmac
+import hashlib
+
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 db = SQLAlchemy()
+
+
+# ============================================
+# HELPERS DE INTEGRIDAD (HMAC) PARA JSON STORAGE
+# ============================================
+
+def _hmac_key() -> bytes:
+    """Clave HMAC derivada de SECRET_KEY para sellar JSON sensibles en BD."""
+    secret = os.environ.get('SECRET_KEY', 'dev-no-secret').encode()
+    return hashlib.sha256(b'debugbi0-hmac-v1|' + secret).digest()
+
+
+def sign_json(obj) -> str:
+    """Serializa `obj` como JSON y le adjunta un HMAC al final.
+    Formato: <json>|<hex-hmac>"""
+    payload = json.dumps(obj, sort_keys=True, separators=(',', ':'))
+    mac = hmac.new(_hmac_key(), payload.encode(), hashlib.sha256).hexdigest()
+    return f'{payload}|{mac}'
+
+
+def verify_signed_json(blob: str):
+    """Devuelve el objeto si la firma valida; si no, lanza ValueError."""
+    if not blob or '|' not in blob:
+        # Permite migracion suave: blobs viejos sin firma se aceptan como tales
+        try:
+            return json.loads(blob)
+        except Exception:
+            return None
+    payload, mac = blob.rsplit('|', 1)
+    expected = hmac.new(_hmac_key(), payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, mac):
+        raise ValueError('JSON firma invalida (tampering detectado)')
+    return json.loads(payload)
 
 
 # ============================================
@@ -139,41 +177,63 @@ class User(UserMixin, db.Model):
     device_permissions = db.relationship('UserDevicePermission', backref='user', 
                                          lazy='dynamic', cascade='all, delete-orphan')
     
-    def set_password(self, password, save_history=True):
-        """Hash and set password con historial."""
+    def set_password(self, password, save_history=True, validate=True):
+        """Hash and set password con historial firmado HMAC.
+
+        Si `validate` es True, aplica la politica global de contrase~nas
+        (validate_password). Levanta ValueError si la contrase~na no cumple.
+        """
+        if validate:
+            try:
+                from webapp.security import validate_password
+            except Exception:
+                try:
+                    from security import validate_password
+                except Exception:
+                    validate_password = None
+            if validate_password is not None:
+                ok, err = validate_password(password)
+                if not ok:
+                    raise ValueError(err)
+
+        # Usar scheme explicito y pinneado (no depender del default de Werkzeug,
+        # que cambia entre versiones).
         old_hash = self.password_hash
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(
+            password,
+            method='pbkdf2:sha256:600000',
+            salt_length=16,
+        )
         self.password_changed_at = datetime.utcnow()
         self.must_change_password = False
-        
-        # Guardar en historial si es necesario
+
         if save_history and old_hash:
-            import json
-            try:
-                history = json.loads(self.password_history) if self.password_history else []
-            except (json.JSONDecodeError, TypeError):
-                history = []
+            history = []
+            if self.password_history:
+                try:
+                    history = verify_signed_json(self.password_history) or []
+                except ValueError:
+                    history = []
             history.insert(0, old_hash)
-            self.password_history = json.dumps(history[:5])  # Últimas 5
-    
+            self.password_history = sign_json(history[:5])
+
     def check_password(self, password):
         """Check if password is correct."""
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
-    
+
     def check_password_reuse(self, new_password) -> bool:
-        """Verifica si la contraseña ya fue usada. Retorna True si es reutilizada."""
-        import json
+        """Verifica si la contrase~na ya fue usada. Retorna True si es reutilizada."""
         if not self.password_history:
             return False
-        
         try:
-            history = json.loads(self.password_history)
-            for old_hash in history:
-                if check_password_hash(old_hash, new_password):
-                    return True
-        except (json.JSONDecodeError, TypeError):
-            pass
-        
+            history = verify_signed_json(self.password_history) or []
+        except ValueError:
+            return False
+        for old_hash in history:
+            if check_password_hash(old_hash, new_password):
+                return True
         return False
     
     def is_password_expired(self, max_age_days=90) -> bool:
@@ -232,13 +292,24 @@ class User(UserMixin, db.Model):
         return self.is_admin or self.is_auditor
     
     def can_close_emergency(self, emergency):
-        """Verifica si el usuario puede cerrar una emergencia específica."""
+        """Verifica si el usuario puede cerrar una emergencia especifica."""
         if self.is_admin:
             return True  # Admin puede cerrar cualquier emergencia
         if self.is_auditor and emergency.started_by == self.id:
             return True  # Auditor solo puede cerrar sus propias emergencias
         return False
-    
+
+    @classmethod
+    def admin_count(cls):
+        """Cuenta de administradores activos. Usado por el last-admin guard."""
+        return cls.query.filter_by(is_admin=True, is_active=True).count()
+
+    def is_last_admin(self) -> bool:
+        """True si demoter/eliminar este usuario dejaria al sistema sin admin."""
+        if not self.is_admin:
+            return False
+        return User.admin_count() <= 1
+
     def __repr__(self):
         return f'<User {self.username}>'
 
@@ -266,72 +337,101 @@ def get_or_create_device_config(device_id, device_name=None, location=None):
 def init_db(app):
     """Initialize database with default data."""
     db.init_app(app)
-    
+
     with app.app_context():
         db.create_all()
-        
-        # Crear categorías por defecto si no existen
+
+        # Crear categorias por defecto si no existen
         default_categories = [
-            {'name': 'Checador', 'color': '#1976D2', 'icon': 'bi-fingerprint', 
-             'description': 'Checador de huella/facial - Aplica lógica de pares (entrada/salida)'},
-            {'name': 'Puerta', 'color': '#FF9800', 'icon': 'bi-door-open', 
-             'description': 'Control de puerta - Sin lógica de pares'},
+            {'name': 'Checador', 'color': '#1976D2', 'icon': 'bi-fingerprint',
+             'description': 'Checador de huella/facial - Aplica logica de pares (entrada/salida)'},
+            {'name': 'Puerta', 'color': '#FF9800', 'icon': 'bi-door-open',
+             'description': 'Control de puerta - Sin logica de pares'},
         ]
-        
+
         for cat_data in default_categories:
             if not DeviceCategory.query.filter_by(name=cat_data['name']).first():
                 category = DeviceCategory(**cat_data)
                 db.session.add(category)
-                print(f"[OK] Categoría '{cat_data['name']}' creada")
-        
-        # Crear usuario admin por defecto si no existe
-        import os
+                print(f"[OK] Categoria '{cat_data['name']}' creada")
+
+        # Crear usuario admin por defecto SOLO si no existe.
+        # NUNCA resetear el admin en cada arranque (eso anula password policy,
+        # lockouts y 2FA). Para recuperacion usar el CLI/manage.py o setear
+        # explicitamente RESET_ADMIN=1 ADMIN_DEFAULT_PASSWORD=<segura>.
         import secrets
-        
+
         admin = User.query.filter_by(username='admin').first()
+
+        force_reset = (
+            os.environ.get('FLASK_ENV', '').strip().lower() == 'development'
+            and os.environ.get('RESET_ADMIN', '').strip() == '1'
+        )
+
         if not admin:
-            # Usar contraseña de variable de entorno o generar una segura
             admin_password = os.environ.get('ADMIN_DEFAULT_PASSWORD')
-            
+            generated = False
             if not admin_password:
-                # Generar contraseña segura aleatoria
-                admin_password = secrets.token_urlsafe(16)
-                print("=" * 60)
-                print("⚠️  CONTRASEÑA ADMIN GENERADA AUTOMÁTICAMENTE")
-                print(f"    Usuario: admin")
-                print(f"    Contraseña: {admin_password}")
-                print("    ¡GUARDA ESTA CONTRASEÑA! No se mostrará de nuevo.")
-                print("    Cámbiala después del primer inicio de sesión.")
-                print("=" * 60)
-            
+                # Generar password segura aleatoria que CUMPLA la politica
+                # (mayus/minus/digito/especial, 16 chars).
+                alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+                lower = 'abcdefghijkmnopqrstuvwxyz'
+                digits = '23456789'
+                special = '!@#$%^&*?'
+                base = (
+                    secrets.choice(alphabet)
+                    + secrets.choice(lower)
+                    + secrets.choice(digits)
+                    + secrets.choice(special)
+                )
+                rest = ''.join(
+                    secrets.choice(alphabet + lower + digits + special)
+                    for _ in range(12)
+                )
+                admin_password = base + rest
+                generated = True
+
             admin = User(
                 username='admin',
                 email='admin@biostar.local',
                 full_name='Administrador',
                 is_admin=True,
                 can_see_all_events=True,
-                can_manage_devices=True
+                can_manage_devices=True,
+                must_change_password=True,
             )
-            admin.set_password(admin_password)
+            admin.set_password(admin_password, save_history=False, validate=False)
             db.session.add(admin)
-            print("[OK] Usuario admin creado")
+            print("[OK] Usuario admin creado.")
+            if generated:
+                print("=" * 60)
+                print("ATENCION: contrase~na admin generada automaticamente")
+                print(f"    Usuario:     admin")
+                print(f"    Contrase~na: {admin_password}")
+                print("    GUARDALA AHORA; no se vuelve a mostrar.")
+                print("    Cambiala en el primer login (must_change_password=True).")
+                print("=" * 60)
         else:
-            # Actualizar admin existente con nuevos permisos
+            # Solo actualizar permisos no destructivos. No tocar password ni locks.
             if not admin.can_see_all_events:
                 admin.can_see_all_events = True
             if not admin.can_manage_devices:
                 admin.can_manage_devices = True
-            
-            # Siempre resetear contraseña y desbloquear admin en desarrollo
-            admin.set_password('admin123', save_history=False)
-            admin.is_active = True
-            admin.is_permanently_locked = False
-            admin.locked_until = None
-            admin.failed_login_attempts = 0
-            admin.must_change_password = False
-            admin.last_failed_login = None
-            print("[OK] Admin reseteado: admin / admin123")
-        
+            if force_reset:
+                new_pw = os.environ.get('ADMIN_DEFAULT_PASSWORD')
+                if not new_pw:
+                    raise RuntimeError(
+                        "RESET_ADMIN=1 requiere ADMIN_DEFAULT_PASSWORD definido."
+                    )
+                admin.set_password(new_pw, save_history=False, validate=True)
+                admin.is_active = True
+                admin.is_permanently_locked = False
+                admin.locked_until = None
+                admin.failed_login_attempts = 0
+                admin.must_change_password = True
+                admin.last_failed_login = None
+                print("[OK] Admin reseteado por RESET_ADMIN=1.")
+
         db.session.commit()
 
 
@@ -410,7 +510,22 @@ class EmergencySession(db.Model):
     zone = db.relationship('Zone', backref='emergencies')
     started_by_user = db.relationship('User', backref='started_emergencies')
     roll_call_entries = db.relationship('RollCallEntry', backref='emergency', lazy='dynamic', cascade='all, delete-orphan')
-    
+
+    def get_unlocked_doors(self) -> list:
+        """Devuelve la lista de puertas desbloqueadas, verificando HMAC.
+        Levanta ValueError si el blob fue tampered."""
+        if not self.unlocked_doors:
+            return []
+        try:
+            data = verify_signed_json(self.unlocked_doors)
+            return list(data) if isinstance(data, list) else []
+        except ValueError:
+            raise
+
+    def set_unlocked_doors(self, door_ids: list):
+        """Almacena la lista de puertas con HMAC para evitar tampering."""
+        self.unlocked_doors = sign_json(list(door_ids or []))
+
     def __repr__(self):
         return f'<EmergencySession {self.zone.name} - {self.status}>'
 
@@ -539,14 +654,31 @@ class MobPerUser(db.Model):
     preset = db.relationship('PresetUsuario', backref='user', uselist=False, cascade='all, delete-orphan')
     incidencias_dia = db.relationship('IncidenciaDia', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     
-    def set_password(self, password):
-        from werkzeug.security import generate_password_hash
-        self.password_hash = generate_password_hash(password)
-    
+    def set_password(self, password, validate=True):
+        """Aplica la politica global de contrase~nas por defecto."""
+        if validate:
+            try:
+                from webapp.security import validate_password
+            except Exception:
+                try:
+                    from security import validate_password
+                except Exception:
+                    validate_password = None
+            if validate_password is not None:
+                ok, err = validate_password(password)
+                if not ok:
+                    raise ValueError(err)
+        self.password_hash = generate_password_hash(
+            password,
+            method='pbkdf2:sha256:600000',
+            salt_length=16,
+        )
+
     def check_password(self, password):
-        from werkzeug.security import check_password_hash
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
-    
+
     def __repr__(self):
         return f'<MobPerUser {self.numero_socio} - {self.nombre_completo}>'
 

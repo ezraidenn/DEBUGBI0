@@ -291,6 +291,7 @@
             {% endif %}
 
             <form method="POST" action="{{ url_for('mobper.login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="numero_socio">Numero de empleado</label>
                     <div class="input-wrapper">

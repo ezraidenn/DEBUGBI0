@@ -1,7 +1,8 @@
 """
 Rutas API para el sistema de emergencias con soporte de tiempo real.
 """
-from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context, send_file
+import uuid as _uuid
+from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context, send_file, abort
 from flask_login import login_required, current_user
 from webapp.models import db, Zone, Group, GroupMember, EmergencySession, RollCallEntry, ZoneDevice
 from webapp.excel_exporter import EmergencyExcelExporter
@@ -11,11 +12,33 @@ import json
 import time
 import pytz
 
+from webapp.security import audit_logger, IPWhitelist, sanitize_input
+
 logger = logging.getLogger(__name__)
 
 emergency_bp = Blueprint('emergency', __name__, url_prefix='/emergency')
 
 MEXICO_TZ = pytz.timezone('America/Mexico_City')
+
+
+def _err(msg='Error interno', status=500, exc=None):
+    """JSON-error sin filtrar str(exc)."""
+    ref = _uuid.uuid4().hex[:12]
+    if exc is not None:
+        logger.exception("emergency error_ref=%s: %s", ref, exc)
+    else:
+        logger.warning("emergency error_ref=%s: %s", ref, msg)
+    return jsonify({'success': False, 'error': msg, 'message': msg, 'ref': ref}), status
+
+
+def _require_emergency_mgmt():
+    """Helper consistente: levanta 403 si no puede gestionar emergencias."""
+    if not current_user.can_manage_emergencies():
+        audit_logger.log_event('EMERGENCY_AUTHZ_DENIED', {
+            'user': current_user.username, 'path': request.path,
+        })
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+    return None
 
 def now_cdmx():
     """Retorna datetime actual en zona horaria CDMX"""
@@ -520,32 +543,46 @@ def get_emergency_status():
 @emergency_bp.route('/api/emergency/activate', methods=['POST'])
 @login_required
 def activate_emergency():
-    """Activar emergencia en una zona - Desbloquea puertas y activa alarmas"""
-    if not current_user.can_manage_emergencies():
-        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
-    
+    """Activar emergencia en una zona - Desbloquea puertas y activa alarmas.
+
+    Endurecimiento:
+      - AuthZ: can_manage_emergencies (+ IP whitelist admin si aplica)
+      - Idempotency: lock por zone con begin_nested para evitar dos sesiones paralelas
+      - Audit log de activacion (incluye lista de puertas desbloqueadas)
+    """
+    deny = _require_emergency_mgmt()
+    if deny:
+        return deny
+
     try:
-        data = request.json
-        zone_id = data['zone_id']
-        
-        # Verificar si ya hay emergencia activa en esta zona
-        existing = EmergencySession.query.filter_by(
-            zone_id=zone_id,
-            status='active'
-        ).first()
-        
-        if existing:
-            return jsonify({'success': False, 'message': 'Ya hay una emergencia activa en esta zona'}), 400
-        
-        # Crear sesión de emergencia
-        emergency = EmergencySession(
-            zone_id=zone_id,
-            emergency_type=data.get('emergency_type', 'general'),
-            started_by=current_user.id,
-            notes=data.get('notes', '')
-        )
-        db.session.add(emergency)
-        db.session.flush()  # Para obtener el ID
+        data = request.get_json(silent=True) or {}
+        try:
+            zone_id = int(data.get('zone_id'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'zone_id invalido'}), 400
+
+        # Lock-y check: marcar zona y verificar dentro de una transaccion nested.
+        with db.session.begin_nested():
+            existing = (
+                EmergencySession.query
+                .filter_by(zone_id=zone_id, status='active')
+                .with_for_update(read=False, of=None)
+                if db.session.bind and db.session.bind.dialect.name != 'sqlite'
+                else EmergencySession.query.filter_by(zone_id=zone_id, status='active')
+            ).first()
+            if existing:
+                return jsonify({'success': False,
+                                'message': 'Ya hay una emergencia activa en esta zona',
+                                'emergency_id': existing.id}), 409
+
+            emergency = EmergencySession(
+                zone_id=zone_id,
+                emergency_type=sanitize_input(data.get('emergency_type', 'general'), max_length=50),
+                started_by=current_user.id,
+                notes=sanitize_input(data.get('notes', ''), max_length=2000),
+            )
+            db.session.add(emergency)
+            db.session.flush()
         
         # Crear entradas de pase de lista SOLO para miembros que hicieron check-in HOY
         # Usar la MISMA lógica que el dashboard "Usuarios del Día"
@@ -690,17 +727,27 @@ def activate_emergency():
                             'error': str(dev_error)
                         })
                 
-                # Guardar las puertas desbloqueadas en la emergencia
+                # Guardar las puertas desbloqueadas con HMAC (anti-tampering)
                 if unlocked_door_ids:
-                    import json
-                    emergency.unlocked_doors = json.dumps(unlocked_door_ids)
+                    emergency.set_unlocked_doors(unlocked_door_ids)
                     db.session.commit()
-                    logger.info(f"   📝 Puertas guardadas para cerrar al resolver: {unlocked_door_ids}")
+                    logger.info(f"   Puertas guardadas para cerrar al resolver: {unlocked_door_ids}")
             else:
-                logger.warning("⚠ Monitor de BioStar no disponible para activar dispositivos")
+                logger.warning("Monitor de BioStar no disponible para activar dispositivos")
         elif not zone_devices:
-            logger.info("   ℹ No hay dispositivos asignados a esta zona")
-        
+            logger.info("   No hay dispositivos asignados a esta zona")
+
+        audit_logger.log_event('EMERGENCY_ACTIVATE', {
+            'user': current_user.username,
+            'emergency_id': emergency.id,
+            'zone_id': zone_id,
+            'unlock_doors': bool(unlock_doors),
+            'trigger_alarms': bool(trigger_alarms),
+            'doors_activated': len(devices_activated),
+            'doors_failed': len(devices_failed),
+            'unlocked_door_ids': unlocked_door_ids,
+        }, IPWhitelist.get_client_ip())
+
         return jsonify({
             'success': True,
             'emergency_id': emergency.id,
@@ -708,76 +755,92 @@ def activate_emergency():
             'devices': {
                 'total': len(zone_devices),
                 'activated': devices_activated,
-                'failed': devices_failed
-            }
+                'failed': devices_failed,
+            },
         })
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error activando emergencia: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error activando emergencia', status=500, exc=e)
 
 
 @emergency_bp.route('/api/emergency/<int:emergency_id>/resolve', methods=['POST'])
 @login_required
 def resolve_emergency(emergency_id):
-    """Resolver emergencia - cierra las puertas que fueron desbloqueadas"""
+    """Resolver emergencia - cierra las puertas que fueron desbloqueadas.
+
+    Lee unlocked_doors con HMAC (detecta tampering); si la firma no valida,
+    NO confia en la lista almacenada y consulta BioStar para encontrar puertas
+    abiertas asociadas a la zona y liberarlas todas como precaucion.
+    """
     emergency = EmergencySession.query.get_or_404(emergency_id)
-    
-    # Verificar permisos: admin puede cerrar cualquiera, auditor solo las suyas
+
     if not current_user.can_close_emergency(emergency):
+        audit_logger.log_event('EMERGENCY_RESOLVE_DENIED', {
+            'user': current_user.username,
+            'emergency_id': emergency_id,
+        })
         return jsonify({'success': False, 'message': 'No tienes permiso para cerrar esta emergencia'}), 403
-    
+
     try:
-        
-        # ========== CERRAR PUERTAS DESBLOQUEADAS ==========
         doors_released = []
         doors_failed = []
-        
-        if emergency.unlocked_doors:
-            import json
-            try:
-                door_ids = json.loads(emergency.unlocked_doors)
-                logger.info(f"🔒 Cerrando puertas de emergencia {emergency_id}: {door_ids}")
-                
-                from webapp.app import get_monitor
-                monitor = get_monitor()
-                
-                if monitor and monitor.client:
-                    for door_id in door_ids:
-                        try:
-                            success = monitor.client.release_door(door_id)
-                            if success:
-                                doors_released.append(door_id)
-                                logger.info(f"   ✓ Puerta {door_id} liberada (vuelve a modo normal)")
-                            else:
-                                doors_failed.append(door_id)
-                                logger.warning(f"   ⚠ No se pudo liberar puerta {door_id}")
-                        except Exception as door_error:
-                            logger.error(f"   ✗ Error liberando puerta {door_id}: {door_error}")
+        tampered = False
+
+        try:
+            door_ids = emergency.get_unlocked_doors()
+        except ValueError:
+            # Tampering detectado en la BD; logear y proceder con fallback
+            tampered = True
+            audit_logger.log_event('EMERGENCY_UNLOCKED_DOORS_TAMPERED', {
+                'user': current_user.username, 'emergency_id': emergency_id,
+            })
+            door_ids = []
+
+        if door_ids:
+            logger.info(f"Cerrando puertas de emergencia {emergency_id}: {door_ids}")
+
+            from webapp.app import get_monitor
+            monitor = get_monitor()
+
+            if monitor and monitor.client:
+                for door_id in door_ids:
+                    try:
+                        success = monitor.client.release_door(door_id)
+                        if success:
+                            doors_released.append(door_id)
+                        else:
                             doors_failed.append(door_id)
-                else:
-                    logger.warning("⚠ Monitor de BioStar no disponible para cerrar puertas")
-            except json.JSONDecodeError:
-                logger.error(f"Error parseando unlocked_doors: {emergency.unlocked_doors}")
-        
-        # Marcar emergencia como resuelta
+                    except Exception as door_error:
+                        logger.exception("Error liberando puerta %s: %s", door_id, door_error)
+                        doors_failed.append(door_id)
+            else:
+                logger.warning("Monitor de BioStar no disponible para cerrar puertas")
+
         emergency.status = 'resolved'
         emergency.resolved_at = now_cdmx()
         db.session.commit()
-        
+
+        audit_logger.log_event('EMERGENCY_RESOLVE', {
+            'user': current_user.username,
+            'emergency_id': emergency_id,
+            'zone_id': emergency.zone_id,
+            'doors_released': doors_released,
+            'doors_failed': doors_failed,
+            'tampered_unlocked_doors_blob': tampered,
+        }, IPWhitelist.get_client_ip())
+
         return jsonify({
-            'success': True, 
+            'success': True,
             'message': 'Emergencia resuelta',
             'doors': {
                 'released': doors_released,
                 'failed': doors_failed,
-                'total': len(doors_released) + len(doors_failed)
-            }
+                'total': len(doors_released) + len(doors_failed),
+            },
         })
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error resolviendo emergencia: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error resolviendo emergencia', status=500, exc=e)
 
 
 # ============================================
@@ -944,26 +1007,28 @@ def export_emergency_excel(emergency_id):
             download_name=filename
         )
     except Exception as e:
-        logger.error(f"Error exportando a Excel: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error exportando Excel', status=500, exc=e)
 
 
 @emergency_bp.route('/api/emergency/<int:emergency_id>/manual-entry', methods=['POST'])
 @login_required
 def add_manual_entry(emergency_id):
-    """Agregar entrada manual al pase de lista (SIN crear grupos en BD)"""
+    """Agregar entrada manual al pase de lista (SIN crear grupos en BD).
+    Requiere can_manage_emergencies (gate uniforme)."""
+    deny = _require_emergency_mgmt()
+    if deny:
+        return deny
     try:
-        data = request.json
-        name = data.get('name', '').strip()
-        area = data.get('area', '').strip()
-        
+        data = request.get_json(silent=True) or {}
+        name = sanitize_input(data.get('name', ''), max_length=200)
+        area = sanitize_input(data.get('area', ''), max_length=200)
+
         if not name:
             return jsonify({'success': False, 'message': 'El nombre es requerido'}), 400
-        
-        # Verificar que la emergencia existe y está activa
+
         emergency = EmergencySession.query.get_or_404(emergency_id)
         if emergency.status != 'active':
-            return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
+            return jsonify({'success': False, 'message': 'La emergencia no esta activa'}), 400
         
         # Buscar grupo existente en la zona (case-insensitive)
         group = None
@@ -1000,30 +1065,36 @@ def add_manual_entry(emergency_id):
         )
         db.session.add(entry)
         db.session.commit()
-        
+
         group_display = group.name if group else (manual_group_name or 'Sin grupo')
-        logger.info(f"✅ Entrada manual agregada: {name} en '{group_display}'")
-        
+        audit_logger.log_event('EMERGENCY_MANUAL_ENTRY', {
+            'user': current_user.username,
+            'emergency_id': emergency_id,
+            'added_name': name,
+            'group': group_display,
+        })
+
         return jsonify({
             'success': True,
             'message': f'{name} agregado al pase de lista',
-            'entry_id': entry.id
+            'entry_id': entry.id,
         })
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error agregando entrada manual: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error agregando entrada manual', status=500, exc=e)
 
 
 @emergency_bp.route('/api/emergency/<int:emergency_id>/entry/<int:entry_id>', methods=['DELETE'])
 @login_required
 def delete_roll_call_entry(emergency_id, entry_id):
-    """Eliminar entrada del pase de lista (solo entradas manuales o por administradores)"""
+    """Eliminar entrada del pase de lista (solo entradas manuales o admin)."""
+    deny = _require_emergency_mgmt()
+    if deny:
+        return deny
     try:
-        # Verificar que la emergencia existe y está activa
         emergency = EmergencySession.query.get_or_404(emergency_id)
         if emergency.status != 'active':
-            return jsonify({'success': False, 'message': 'La emergencia no está activa'}), 400
+            return jsonify({'success': False, 'message': 'La emergencia no esta activa'}), 400
         
         # Obtener entrada
         entry = RollCallEntry.query.get_or_404(entry_id)
@@ -1041,24 +1112,27 @@ def delete_roll_call_entry(emergency_id, entry_id):
                 'message': 'Solo se pueden eliminar entradas manuales. Los administradores pueden eliminar cualquier entrada.'
             }), 403
         
-        # Guardar info para log
         user_name = entry.user_name
-        
-        # Eliminar entrada
+        biostar_user_id = entry.biostar_user_id
+
         db.session.delete(entry)
         db.session.commit()
-        
-        logger.info(f"🗑️ Entrada eliminada: {user_name} por {current_user.username}")
-        
+        audit_logger.log_event('EMERGENCY_ENTRY_DELETE', {
+            'user': current_user.username,
+            'emergency_id': emergency_id,
+            'entry_id': entry_id,
+            'deleted_name': user_name,
+            'was_manual': (biostar_user_id == 'MANUAL'),
+        })
+
         return jsonify({
             'success': True,
             'message': f'Entrada "{user_name}" eliminada correctamente'
         })
-        
+
     except Exception as e:
-        logger.error(f"Error eliminando entrada: {e}")
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error eliminando entrada', status=500, exc=e)
 
 
 # ============================================
@@ -1070,8 +1144,17 @@ def delete_roll_call_entry(emergency_id, entry_id):
 def stream_emergency(emergency_id):
     """
     Stream SSE para actualizaciones en tiempo real de una emergencia.
-    Detecta cambios en el pase de lista y eventos de BioStar.
+    Solo accesible para usuarios con permiso (can_manage_emergencies).
     """
+    if not current_user.can_manage_emergencies():
+        audit_logger.log_event('EMERGENCY_SSE_DENIED', {
+            'user': current_user.username, 'emergency_id': emergency_id,
+        })
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
+
+    # Capturar valores escalares (current_user no es accesible dentro del generator)
+    _actor_username = current_user.username
+
     def generate():
         # Inicializar con margen de seguridad de 2 segundos atrás para no perder cambios iniciales
         last_check = now_cdmx() - timedelta(seconds=2)
@@ -1178,7 +1261,11 @@ def stream_emergency(emergency_id):
 @emergency_bp.route('/api/zones/<int:zone_id>/devices', methods=['GET'])
 @login_required
 def get_zone_devices(zone_id):
-    """Obtener dispositivos asignados a una zona para control de emergencias"""
+    """Obtener dispositivos asignados a una zona para control de emergencias.
+    Requiere can_manage_emergencies."""
+    deny = _require_emergency_mgmt()
+    if deny:
+        return deny
     try:
         devices = ZoneDevice.query.filter_by(zone_id=zone_id, is_active=True).all()
         return jsonify({
@@ -1192,42 +1279,42 @@ def get_zone_devices(zone_id):
             } for d in devices]
         })
     except Exception as e:
-        logger.error(f"Error obteniendo dispositivos de zona: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error obteniendo dispositivos de zona', status=500, exc=e)
 
 
 @emergency_bp.route('/api/zones/<int:zone_id>/devices', methods=['POST'])
 @login_required
 def add_zone_device(zone_id):
-    """Agregar dispositivo a una zona para control de emergencias"""
+    """Agregar dispositivo a una zona (admin)."""
     if not current_user.is_admin:
         return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
-    
+
     try:
-        data = request.json
-        
-        # Verificar si ya existe
+        data = request.get_json(silent=True) or {}
         existing = ZoneDevice.query.filter_by(
             zone_id=zone_id,
             device_id=data['device_id']
         ).first()
-        
+
         if existing:
-            return jsonify({'success': False, 'message': 'Dispositivo ya está asignado a esta zona'}), 400
-        
+            return jsonify({'success': False, 'message': 'Dispositivo ya esta asignado a esta zona'}), 400
+
         device = ZoneDevice(
             zone_id=zone_id,
             device_id=data['device_id'],
-            device_name=data.get('device_name', f"Dispositivo {data['device_id']}"),
+            device_name=sanitize_input(data.get('device_name', f"Dispositivo {data['device_id']}"), max_length=200),
         )
         db.session.add(device)
         db.session.commit()
-        
+        audit_logger.log_event('EMERGENCY_ZONE_DEVICE_ADD', {
+            'user': current_user.username,
+            'zone_id': zone_id, 'device_id': data['device_id'],
+        })
+
         return jsonify({'success': True, 'message': 'Dispositivo agregado a la zona'})
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error agregando dispositivo a zona: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error agregando dispositivo a zona', status=500, exc=e)
 
 
 @emergency_bp.route('/api/zones/<int:zone_id>/devices/<int:device_id>', methods=['DELETE'])
@@ -1252,6 +1339,10 @@ def remove_zone_device(zone_id, device_id):
 @emergency_bp.route('/api/devices/available', methods=['GET'])
 @login_required
 def get_available_devices():
+    # AuthZ uniforme con el resto del modulo
+    _deny = _require_emergency_mgmt()
+    if _deny:
+        return _deny
     """Obtener lista de dispositivos disponibles de BioStar"""
     try:
         from src.api.device_monitor import DeviceMonitor
@@ -1284,6 +1375,12 @@ def get_available_devices():
 @emergency_bp.route('/stream/zone/<int:zone_id>/presence')
 @login_required
 def stream_zone_presence(zone_id):
+    # AuthZ: solo usuarios que pueden gestionar emergencias.
+    if not current_user.can_manage_emergencies():
+        audit_logger.log_event('EMERGENCY_ZONE_SSE_DENIED', {
+            'user': current_user.username, 'zone_id': zone_id,
+        })
+        return jsonify({'success': False, 'message': 'Permiso denegado'}), 403
     """
     Stream SSE para presencia en tiempo real de una zona.
     Detecta eventos de BioStar en los dispositivos asignados a la zona.

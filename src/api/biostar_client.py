@@ -1,16 +1,39 @@
 """
 Cliente básico para la API de BioStar 2.
 """
+import hashlib
+import os
 import requests
-import urllib3
 from typing import Dict, List, Optional
 
 from src.utils.logger import get_logger
 
-# Deshabilitar advertencias SSL para certificados autofirmados
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 logger = get_logger(__name__)
+
+
+def _get_tls_verify():
+    """Devuelve el path al CA bundle, o False si BIOSTAR_CA_BUNDLE no esta seteado.
+    En produccion debe ser un path; en dev se permite False con warning."""
+    ca = os.environ.get('BIOSTAR_CA_BUNDLE', '').strip()
+    if ca:
+        if not os.path.exists(ca):
+            logger.warning("BIOSTAR_CA_BUNDLE='%s' no existe; usando verify=False", ca)
+            return False
+        return ca
+    # Sin CA bundle configurado
+    if os.environ.get('FLASK_ENV', '').strip().lower() == 'production':
+        raise RuntimeError(
+            "BIOSTAR_CA_BUNDLE requerido en produccion. "
+            "Extraelo con: openssl s_client -connect HOST:443 ... | openssl x509 > config/biostar_ca.pem"
+        )
+    # En dev, advertir UNA vez
+    if not getattr(_get_tls_verify, '_warned', False):
+        logger.warning(
+            "BIOSTAR_CA_BUNDLE no configurado; TLS sin verificar (DEV). "
+            "Genera el cert con: openssl s_client -connect HOST:443 ... | openssl x509 > config/biostar_ca.pem"
+        )
+        _get_tls_verify._warned = True
+    return False
 
 
 class BioStarAPIClient:
@@ -30,7 +53,7 @@ class BioStarAPIClient:
         self.password = password
         self.token = None
         self.session = requests.Session()
-        self.session.verify = False  # Desactivar verificación SSL
+        self.session.verify = _get_tls_verify()
     
     def login(self) -> bool:
         """
@@ -40,7 +63,7 @@ class BioStarAPIClient:
             True si la autenticación fue exitosa, False en caso contrario
         """
         url = f"{self.host}/api/login"
-        
+
         # BioStar 2 API requiere el formato con objeto "User"
         payload = {
             "User": {
@@ -48,15 +71,15 @@ class BioStarAPIClient:
                 "password": self.password
             }
         }
-        
+
         headers = {
             "Content-Type": "application/json"
         }
-        
-        # Reintentar hasta 3 veces en caso de error de conexión
+
+        # Reintentar SOLO en errores de conexión o 5xx; NUNCA en 401/403 (terminal)
         max_retries = 3
         retry_delay = 2
-        
+
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
@@ -65,36 +88,45 @@ class BioStarAPIClient:
                     time.sleep(retry_delay)
                 else:
                     logger.info(f"Autenticando en BioStar 2: {self.host}")
-                
+
                 # Recrear sesión en cada intento para evitar conexiones corruptas
                 if attempt > 0:
                     self.session.close()
                     self.session = requests.Session()
-                    self.session.verify = False
-                
-                response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
-                
+                    self.session.verify = _get_tls_verify()
+
+                response = self.session.post(url, json=payload, headers=headers, timeout=30)
+
                 if response.status_code == 200:
                     # Extraer token del header
                     self.token = response.headers.get('bs-session-id')
-                    
+
                     if self.token:
                         # Agregar el token como cookie
-                        self.session.cookies.set('bs-session-id', self.token, 
+                        self.session.cookies.set('bs-session-id', self.token,
                                                 domain=self.host.replace('https://', '').replace('http://', ''))
-                        logger.info(f"✓ Autenticación exitosa. Token: {self.token[:20]}...")
+                        token_fp = hashlib.sha256(self.token.encode()).hexdigest()[:8] if self.token else 'none'
+                        logger.info("Autenticacion BioStar exitosa (token=%s)", token_fp)
                         return True
                     else:
                         logger.error("Token no encontrado en la respuesta")
-                        if attempt < max_retries - 1:
-                            continue
+                        # Sin token: no tiene sentido reintentar con las mismas credenciales
                         return False
-                else:
-                    logger.error(f"Error de autenticación: {response.status_code} - {response.text}")
+                elif response.status_code in (401, 403):
+                    # Terminal: credenciales inválidas o sin permisos. NO reintentar.
+                    logger.error(f"Error de autenticación (terminal): {response.status_code}")
+                    return False
+                elif 500 <= response.status_code < 600:
+                    # 5xx: server-side, sí reintentar
+                    logger.warning(f"Error del servidor BioStar ({response.status_code}); intento {attempt + 1}/{max_retries}")
                     if attempt < max_retries - 1:
                         continue
                     return False
-                    
+                else:
+                    # Otros códigos: tratar como terminal
+                    logger.error(f"Error de autenticación: {response.status_code}")
+                    return False
+
             except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
                 logger.warning(f"Error de conexión (intento {attempt + 1}/{max_retries}): {str(e)}")
                 if attempt < max_retries - 1:
@@ -106,7 +138,7 @@ class BioStarAPIClient:
                 if attempt < max_retries - 1:
                     continue
                 return False
-        
+
         return False
     
     def get_event_types(self) -> List[Dict]:
@@ -124,7 +156,7 @@ class BioStarAPIClient:
         headers = {"bs-session-id": self.token}
         
         try:
-            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -153,7 +185,7 @@ class BioStarAPIClient:
         headers = {"bs-session-id": self.token}
         
         try:
-            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -185,7 +217,7 @@ class BioStarAPIClient:
         headers = {"bs-session-id": self.token}
         
         try:
-            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -249,7 +281,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -278,7 +310,7 @@ class BioStarAPIClient:
         headers = {"bs-session-id": self.token}
         
         try:
-            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -311,7 +343,7 @@ class BioStarAPIClient:
         params = {"limit": limit}
         
         try:
-            response = self.session.get(url, headers=headers, params=params, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, params=params, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -360,7 +392,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -391,7 +423,7 @@ class BioStarAPIClient:
         headers = {"bs-session-id": self.token}
         
         try:
-            response = self.session.get(url, headers=headers, verify=False, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -512,7 +544,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code in [200, 204]:
                 logger.info(f"✓ Puerta {door_id} abierta correctamente")
@@ -551,7 +583,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code in [200, 204]:
                 logger.info(f"✓ Puerta {door_id} desbloqueada correctamente")
@@ -590,7 +622,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code in [200, 204]:
                 logger.info(f"✓ Puerta {door_id} bloqueada correctamente")
@@ -629,7 +661,7 @@ class BioStarAPIClient:
         }
         
         try:
-            response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=30)
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
             
             if response.status_code in [200, 204]:
                 logger.info(f"✓ Puerta {door_id} liberada correctamente")
@@ -674,7 +706,7 @@ class BioStarAPIClient:
         
         for url, payload in endpoints_to_try:
             try:
-                response = self.session.post(url, json=payload, headers=headers, verify=False, timeout=10)
+                response = self.session.post(url, json=payload, headers=headers, timeout=10)
                 
                 if response.status_code in [200, 204]:
                     logger.info(f"✓ Alarma activada en dispositivo {device_id} via {url}")

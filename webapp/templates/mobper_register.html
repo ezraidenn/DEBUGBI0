@@ -293,6 +293,7 @@
             </div>
 
             <form method="POST" action="{{ url_for('mobper.register') }}" id="registerForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="numero_socio">Numero de empleado</label>
                     <div class="input-wrapper">

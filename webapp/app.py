@@ -155,45 +155,48 @@ app = Flask(__name__)
 # CONFIGURACIÓN DE SEGURIDAD NIVEL GOBIERNO
 # ============================================
 from webapp.security import (
-    # Configuración base
+    # Configuracion base
     configure_flask_security,
     apply_government_security,
     CSRFProtection,
     SecurityConfig,
     audit_logger,
-    
+
     # Rate Limiting
     login_limiter,
     check_login_rate_limit,
     record_login_success,
     record_login_failure,
     rate_limit_api,
-    
-    # Validación
+
+    # Validacion
     validate_password,
     get_password_policy_text,
     sanitize_input,
-    
+    is_safe_url,
+
     # CSRF
     CSRFProtection,
     csrf_protect,
-    
+    csrf_exempt,
+
     # Session Security
     SessionFingerprint,
     session_security_check,
-    
+
     # IP Whitelisting
     IPWhitelist,
     ip_whitelist_required,
-    
+
     # 2FA
     TwoFactorAuth,
     TOTP_AVAILABLE,
-    
+
     # Account Security
     AccountLockout,
     PasswordExpiration,
 )
+import uuid as _uuid
 
 # Aplicar configuración de seguridad base
 configure_flask_security(app)
@@ -219,9 +222,21 @@ if COMPRESS_AVAILABLE:
     app.config['COMPRESS_MIN_SIZE'] = 500
     logger.info("✓ Compresión HTTP habilitada")
 
-# Initialize SocketIO for real-time updates (restringir origins en producción)
-allowed_origins = "*" if os.environ.get('FLASK_ENV') != 'production' else None
-socketio = SocketIO(app, cors_allowed_origins=allowed_origins, async_mode='threading')
+# Initialize SocketIO con allowlist EXPLICITA de origenes (nunca '*' en prod).
+_origins = SecurityConfig.ALLOWED_ORIGINS or ['http://localhost:5000', 'http://127.0.0.1:5000']
+socketio = SocketIO(app, cors_allowed_origins=_origins, async_mode='threading')
+logger.info(f"SocketIO CORS allowlist: {_origins}")
+
+
+# Helper para sanear str(e) en respuestas JSON (evita stack-trace leak).
+def _err(message='Error interno', status=500, log_exc=None):
+    """Devuelve un payload de error con un ref-id; loguea la excepcion real."""
+    ref = _uuid.uuid4().hex[:12]
+    if log_exc is not None:
+        logger.exception("error_ref=%s: %s", ref, log_exc)
+    else:
+        logger.warning("error_ref=%s: %s", ref, message)
+    return jsonify({'success': False, 'error': message, 'ref': ref}), status
 
 # Initialize database
 init_db(app)
@@ -274,39 +289,78 @@ def load_user(user_id):
 
 # ==================== WEBSOCKET EVENTS ====================
 
+from flask_socketio import disconnect as _sio_disconnect
+
+
+def _sio_require_auth():
+    """Devuelve current_user autenticado o False (disconnect)."""
+    if not getattr(current_user, 'is_authenticated', False):
+        audit_logger.log_event('WS_UNAUTH', {'sid': getattr(request, 'sid', '?')})
+        return False
+    return current_user
+
+
 @socketio.on('connect', namespace='/realtime')
 def handle_connect():
-    """Cliente conectado vía WebSocket."""
-    print(f"✓ Cliente conectado: {request.sid}")
-    emit('connected', {'message': 'Conectado al servidor en tiempo real'})
+    """Cliente conectado via WebSocket. Requiere sesion Flask-Login."""
+    user = _sio_require_auth()
+    if not user:
+        _sio_disconnect()
+        return False
+    logger.debug("WS connect sid=%s user=%s", request.sid, user.username)
+    emit('connected', {'message': 'Conectado'})
 
 
 @socketio.on('disconnect', namespace='/realtime')
 def handle_disconnect():
     """Cliente desconectado."""
-    print(f"✗ Cliente desconectado: {request.sid}")
+    logger.debug("WS disconnect sid=%s", getattr(request, 'sid', '?'))
 
 
 @socketio.on('monitor_device', namespace='/realtime')
 def handle_monitor_device(data):
-    """Cliente solicita monitorear un dispositivo."""
-    device_id = data.get('device_id')
-    if device_id:
-        realtime_monitor.add_device(device_id)
-        join_room(f'device_{device_id}')
-        emit('monitoring', {'device_id': device_id, 'status': 'active'})
-        print(f"📍 Cliente {request.sid} monitoreando dispositivo {device_id}")
+    """Cliente solicita monitorear un dispositivo. Verifica permiso por device."""
+    user = _sio_require_auth()
+    if not user:
+        _sio_disconnect()
+        return False
+    device_id = data.get('device_id') if isinstance(data, dict) else None
+    if not device_id:
+        emit('error', {'error': 'device_id requerido'})
+        return
+    try:
+        device_id_int = int(device_id)
+    except (TypeError, ValueError):
+        emit('error', {'error': 'device_id invalido'})
+        return
+    if not user.can_view_device(device_id_int):
+        audit_logger.log_event('WS_AUTHZ_DENIED', {
+            'user': user.username, 'device_id': device_id_int,
+        })
+        emit('error', {'error': 'No autorizado para ese dispositivo'})
+        return
+    realtime_monitor.add_device(device_id_int)
+    join_room(f'device_{device_id_int}')
+    emit('monitoring', {'device_id': device_id_int, 'status': 'active'})
 
 
 @socketio.on('stop_monitor_device', namespace='/realtime')
 def handle_stop_monitor(data):
     """Cliente deja de monitorear un dispositivo."""
-    device_id = data.get('device_id')
-    if device_id:
-        realtime_monitor.remove_device(device_id)
-        leave_room(f'device_{device_id}')
-        emit('monitoring', {'device_id': device_id, 'status': 'inactive'})
-        print(f"📍 Cliente {request.sid} dejó de monitorear dispositivo {device_id}")
+    user = _sio_require_auth()
+    if not user:
+        _sio_disconnect()
+        return False
+    device_id = data.get('device_id') if isinstance(data, dict) else None
+    if not device_id:
+        return
+    try:
+        device_id_int = int(device_id)
+    except (TypeError, ValueError):
+        return
+    realtime_monitor.remove_device(device_id_int)
+    leave_room(f'device_{device_id_int}')
+    emit('monitoring', {'device_id': device_id_int, 'status': 'inactive'})
 
 
 # ==================== AUTHENTICATION ROUTES ====================
@@ -321,90 +375,86 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page con protección NIVEL GOBIERNO."""
+    """Login con proteccion NIVEL GOBIERNO."""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
         username = sanitize_input(request.form.get('username', ''), max_length=50)
         password = request.form.get('password', '')
         totp_code = request.form.get('totp_code', '')
-        remember = request.form.get('remember', False)
-        
+        remember = bool(request.form.get('remember', False))
+
         client_ip = IPWhitelist.get_client_ip()
-        rate_key = f"{client_ip}:{username}"
-        
-        # Verificar rate limit en memoria (solo bloquea si ya se excedió)
-        blocked, remaining = login_limiter.is_blocked(rate_key)
-        if blocked:
-            flash(f'Demasiados intentos. Intenta en {remaining // 60 + 1} minutos.', 'danger')
-            return render_template('login.html')
-        
+
+        # Dual-key rate limit (IP + username). Mensaje GENERICO para no
+        # filtrar contador ni existencia de cuenta.
+        allowed, err = check_login_rate_limit(client_ip, username=username)
+        if not allowed:
+            flash('Credenciales invalidas.', 'danger')
+            audit_logger.log_event('LOGIN_RATE_LIMITED', {'user': username}, client_ip)
+            return render_template('login.html'), 429
+
         user = User.query.filter_by(username=username).first()
-        
-        if user and user.check_password(password):
-            # ✅ Contraseña correcta → limpiar TODO: bloqueos DB + rate limiter
+        password_ok = bool(user and user.check_password(password))
+
+        # 2FA: requerido si el usuario tiene TOTP habilitado, o si
+        # politica obliga (REQUIRE_2FA / REQUIRE_2FA_FOR_ADMIN).
+        if password_ok and user is not None:
+            requires_2fa = user.totp_enabled or TwoFactorAuth.is_required_for_user(user)
+            if requires_2fa:
+                if not user.totp_enabled:
+                    # Politica obliga pero el usuario no esta enrolado.
+                    audit_logger.log_event('2FA_MISSING_ENROLLMENT', {'user': username}, client_ip)
+                    flash('Debes enrolar 2FA antes de continuar. Contacta al admin.', 'danger')
+                    return render_template('login.html')
+                if not TOTP_AVAILABLE:
+                    audit_logger.log_event('2FA_UNAVAILABLE', {'user': username}, client_ip)
+                    flash('2FA no disponible en el servidor.', 'danger')
+                    return render_template('login.html'), 500
+                if not totp_code:
+                    session['pending_2fa_user'] = user.id
+                    return render_template('login.html', require_2fa=True, username=username)
+                if not TwoFactorAuth.verify_code(user.totp_secret, totp_code):
+                    audit_logger.log_event('2FA_FAIL', {'user': username}, client_ip)
+                    flash('Credenciales invalidas.', 'danger')
+                    record_login_failure(client_ip, username=username)
+                    return render_template('login.html', require_2fa=True, username=username)
+
+        if password_ok and user is not None and user.is_active:
+            # Resetear locks de BD
             user.locked_until = None
             user.failed_login_attempts = 0
             user.last_failed_login = None
             db.session.commit()
-            login_limiter.reset(rate_key)
             AccountLockout.unlock(username)
-            
-            if not user.is_active:
-                flash('Tu cuenta está desactivada. Contacta al administrador.', 'danger')
-                audit_logger.log_event('LOGIN_INACTIVE', {'user': username}, client_ip)
-                return redirect(url_for('login'))
-            
-            # Verificar 2FA si está habilitado
-            if user.totp_enabled and TOTP_AVAILABLE:
-                if not totp_code:
-                    session['pending_2fa_user'] = user.id
-                    return render_template('login.html', require_2fa=True, username=username)
-                
-                if not TwoFactorAuth.verify_code(user.totp_secret, totp_code):
-                    audit_logger.log_event('2FA_FAIL', {'user': username}, client_ip)
-                    flash('Código de verificación incorrecto.', 'danger')
-                    return render_template('login.html', require_2fa=True, username=username)
-            
-            # Login exitoso
+
+            # Regenerar sesion para defeat session fixation
+            session.clear()
+
             login_user(user, remember=remember)
             user.update_last_login()
-            record_login_success(rate_key)
+            record_login_success(client_ip, username=username)
             SessionFingerprint.store()
-            
             audit_logger.log_event('LOGIN_SUCCESS', {'user': username}, client_ip)
-            
-            # Verificar si debe cambiar contraseña
+
             if user.must_change_password or user.is_password_expired(SecurityConfig.PASSWORD_MAX_AGE_DAYS):
-                flash('Tu contraseña ha expirado. Debes cambiarla.', 'warning')
+                flash('Tu contrase~na ha expirado. Debes cambiarla.', 'warning')
                 return redirect(url_for('change_password'))
-            
+
             next_page = request.args.get('next')
-            if next_page and not next_page.startswith('/'):
+            if next_page and not is_safe_url(next_page):
                 next_page = None
-            
             return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-        else:
-            # ❌ Login fallido → registrar intento
-            attempts = login_limiter.record_attempt(rate_key, window_seconds=1800)
-            
-            if user:
-                user.record_failed_login()
-                audit_logger.log_event('LOGIN_FAIL', {
-                    'user': username,
-                    'attempts': attempts,
-                    'max_attempts': SecurityConfig.LOGIN_MAX_ATTEMPTS
-                }, client_ip)
-            
-            # Bloquear si excede intentos (10 intentos, 30 min cooldown)
-            if attempts >= SecurityConfig.LOGIN_MAX_ATTEMPTS:
-                login_limiter.block(rate_key, SecurityConfig.LOGIN_LOCKOUT_MINUTES)
-                flash(f'Demasiados intentos. Cuenta bloqueada por {SecurityConfig.LOGIN_LOCKOUT_MINUTES} minutos.', 'danger')
-            else:
-                remaining_attempts = SecurityConfig.LOGIN_MAX_ATTEMPTS - attempts
-                flash(f'Usuario o contraseña incorrectos. ({remaining_attempts} intentos restantes)', 'danger')
-    
+
+        # Fallo: mensaje generico, registrar intento.
+        if user and not user.is_active:
+            audit_logger.log_event('LOGIN_INACTIVE', {'user': username}, client_ip)
+        if user:
+            user.record_failed_login()
+        record_login_failure(client_ip, username=username)
+        flash('Credenciales invalidas.', 'danger')
+
     return render_template('login.html')
 
 
@@ -450,12 +500,17 @@ def change_password():
             flash(f'No puedes reusar las últimas {SecurityConfig.PASSWORD_HISTORY_COUNT} contraseñas.', 'danger')
             return render_template('change_password.html')
         
-        # Cambiar contraseña
-        current_user.set_password(new_password)
+        # Cambiar contrase~na (set_password valida politica + maneja historial)
+        try:
+            current_user.set_password(new_password)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return render_template('change_password.html',
+                                   password_policy=get_password_policy_text())
         db.session.commit()
-        
+
         audit_logger.log_event('PASSWORD_CHANGE', {'user': current_user.username})
-        flash('Contraseña cambiada exitosamente.', 'success')
+        flash('Contrase~na cambiada exitosamente.', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('change_password.html', 
@@ -733,8 +788,7 @@ def api_dashboard_data():
         })
     
     except Exception as e:
-        logger.error(f"Error crítico en api_dashboard_data: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': f'Error interno del servidor: {str(e)}'}), 500
+        return _err('Error interno del servidor', status=500, log_exc=e)
 
 
 @app.route('/debug/general')
@@ -938,7 +992,7 @@ def export_device_debug(device_id):
             'message': 'Debug exportado exitosamente'
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _err('Error exportando debug', status=500, log_exc=e)
 
 
 @app.route('/debug/device/<int:device_id>/clear-cache', methods=['POST'])
@@ -970,43 +1024,37 @@ def clear_device_cache(device_id):
         })
     
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return _err('Error limpiando cache de dispositivo', status=500, log_exc=e)
 
 
 @app.route('/api/clear-all-cache', methods=['POST'])
 @login_required
 def clear_all_cache():
-    """Clear cache and reload all data for dashboard."""
+    """Clear cache and reload all data for dashboard. Admin only."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
     try:
-        # Get monitor instance
         monitor = get_monitor()
         if not monitor:
             return jsonify({'error': 'Error al conectar con BioStar'}), 500
-        
-        # Clear any cached data
-        # Force re-authentication
+
         monitor.client.session_id = None
         monitor.client.session_expires = None
-        
-        # Re-authenticate
+
         if not monitor.client.login():
             return jsonify({'error': 'Error al reautenticar con BioStar'}), 500
-        
-        # Get fresh device list
+
         devices = monitor.get_all_devices()
-        
+        audit_logger.log_event('CACHE_CLEAR_ALL', {'user': current_user.username})
+
         return jsonify({
             'success': True,
             'message': f'Cache limpiado. {len(devices)} dispositivos recargados.',
             'devices_count': len(devices)
         })
-    
+
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return _err('Error limpiando cache global', status=500, log_exc=e)
 
 
 # ==================== STAT CARD DETAILS API ====================
@@ -1195,9 +1243,7 @@ def get_stat_details(device_id, stat_type):
             return jsonify({'error': 'Tipo de estadística no válido'}), 400
     
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return _err('Error obteniendo estadistica', status=500, log_exc=e)
 
 
 # ==================== USER MANAGEMENT ROUTES (ADMIN ONLY) ====================
@@ -1233,22 +1279,21 @@ def user_create():
         can_see_all_events = request.form.get('can_see_all_events') == 'on'
         can_manage_devices = request.form.get('can_manage_devices') == 'on'
         
-        # Validar contraseña con política de seguridad
+        # Validar contrase~na con politica de seguridad
         is_valid, error_msg = validate_password(password)
         if not is_valid:
             flash(error_msg, 'danger')
             return redirect(url_for('user_create'))
-        
+
         # Validate username
         if User.query.filter_by(username=username).first():
             flash('El nombre de usuario ya existe.', 'danger')
             return redirect(url_for('user_create'))
-        
+
         if User.query.filter_by(email=email).first():
-            flash('El email ya está registrado.', 'danger')
+            flash('El email ya esta registrado.', 'danger')
             return redirect(url_for('user_create'))
-        
-        # Create user
+
         user = User(
             username=username,
             email=email,
@@ -1256,17 +1301,21 @@ def user_create():
             is_admin=is_admin,
             is_auditor=is_auditor,
             can_see_all_events=can_see_all_events,
-            can_manage_devices=can_manage_devices
+            can_manage_devices=can_manage_devices,
         )
-        user.set_password(password)
-        
-        # Auditoría
+        try:
+            user.set_password(password)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return redirect(url_for('user_create'))
+
         audit_logger.log_event('USER_CREATE', {
             'user': current_user.username,
             'created_user': username,
-            'is_admin': is_admin
+            'is_admin': is_admin,
+            'is_auditor': is_auditor,
         })
-        
+
         db.session.add(user)
         db.session.commit()
         
@@ -1311,33 +1360,47 @@ def user_edit(user_id):
         return redirect(url_for('dashboard'))
     
     user = User.query.get_or_404(user_id)
-    
+
     if request.method == 'POST':
-        # Sanitizar inputs
+        # Capturar estado previo para auditoria + last-admin guard
+        was_admin = user.is_admin
+        was_active = user.is_active
+
+        new_is_admin = request.form.get('is_admin') == 'on'
+        new_is_active = request.form.get('is_active') == 'on'
+
+        # Guard: impedir que el unico admin pierda permisos / sea desactivado
+        if was_admin and (not new_is_admin or not new_is_active):
+            if user.is_last_admin():
+                flash('No puedes demoter o desactivar al ultimo administrador.', 'danger')
+                return redirect(url_for('user_edit', user_id=user_id))
+
         user.username = sanitize_input(request.form.get('username', ''), max_length=50)
         user.email = sanitize_input(request.form.get('email', ''), max_length=120)
         user.full_name = sanitize_input(request.form.get('full_name', ''), max_length=100)
-        user.is_admin = request.form.get('is_admin') == 'on'
+        user.is_admin = new_is_admin
         user.is_auditor = request.form.get('is_auditor') == 'on'
-        user.is_active = request.form.get('is_active') == 'on'
+        user.is_active = new_is_active
         user.can_see_all_events = request.form.get('can_see_all_events') == 'on'
         user.can_manage_devices = request.form.get('can_manage_devices') == 'on'
-        
-        # Update password if provided (con validación)
+
+        # Update password (con validacion)
         password = request.form.get('password', '')
         if password:
-            is_valid, error_msg = validate_password(password)
-            if not is_valid:
-                flash(error_msg, 'danger')
+            try:
+                user.set_password(password)
+            except ValueError as exc:
+                flash(str(exc), 'danger')
                 return redirect(url_for('user_edit', user_id=user_id))
-            user.set_password(password)
-        
-        # Auditoría
+
         audit_logger.log_event('USER_EDIT', {
             'user': current_user.username,
             'edited_user': user.username,
             'is_admin': user.is_admin,
-            'is_active': user.is_active
+            'was_admin': was_admin,
+            'is_active': user.is_active,
+            'was_active': was_active,
+            'password_changed': bool(password),
         })
         
         # Update device permissions
@@ -1395,19 +1458,25 @@ def user_delete(user_id):
     
     if user_id == current_user.id:
         return jsonify({'error': 'No puedes eliminar tu propio usuario'}), 400
-    
+
     user = User.query.get_or_404(user_id)
+
+    # Last-admin guard: no permitir eliminar al unico admin
+    if user.is_admin and user.is_last_admin():
+        audit_logger.log_event('USER_DELETE_LAST_ADMIN_BLOCK', {
+            'user': current_user.username, 'target_user_id': user_id,
+        })
+        return jsonify({'error': 'No puedes eliminar al ultimo administrador'}), 400
+
     deleted_username = user.username
-    
-    # Auditoría ANTES de eliminar
     audit_logger.log_event('USER_DELETE', {
         'user': current_user.username,
-        'deleted_user': deleted_username
+        'deleted_user': deleted_username,
     })
-    
+
     db.session.delete(user)
     db.session.commit()
-    
+
     return jsonify({'success': True, 'message': f'Usuario {deleted_username} eliminado'})
 
 
@@ -1417,21 +1486,22 @@ def user_delete(user_id):
 @login_required
 def stream_device_events(device_id):
     """
-    Stream SSE de eventos en tiempo real para un dispositivo específico.
-    Más eficiente que WebSockets para streaming unidireccional.
+    Stream SSE de eventos en tiempo real para un dispositivo especifico.
+    Verifica permiso por dispositivo.
     """
+    if not current_user.can_view_device(device_id):
+        audit_logger.log_event('SSE_AUTHZ_DENIED', {
+            'user': current_user.username, 'device_id': device_id,
+        })
+        return jsonify({'error': 'No autorizado para ese dispositivo'}), 403
+
     monitor = get_monitor()
     if not monitor:
         return jsonify({'error': 'Error al conectar con BioStar'}), 500
-    
-    # Crear gestor SSE
+
     sse = RealtimeSSE(monitor)
-    
-    # Intervalo de polling (2 segundos por defecto)
     interval = request.args.get('interval', 2, type=int)
-    interval = max(1, min(interval, 10))  # Entre 1 y 10 segundos
-    
-    # Retornar stream SSE
+    interval = max(1, min(interval, 10))
     return create_sse_response(sse.stream_device_events(device_id, interval))
 
 
@@ -1439,21 +1509,20 @@ def stream_device_events(device_id):
 @login_required
 def stream_all_devices():
     """
-    Stream SSE de eventos en tiempo real para todos los dispositivos.
+    Stream SSE de eventos para todos los dispositivos PERMITIDOS al usuario.
     """
     monitor = get_monitor()
     if not monitor:
         return jsonify({'error': 'Error al conectar con BioStar'}), 500
-    
-    # Crear gestor SSE
+
+    allowed_ids = None  # None == admin/ve-todo
+    if not (current_user.is_admin or current_user.can_see_all_events):
+        allowed_ids = current_user.get_allowed_device_ids() or []
+
     sse = RealtimeSSE(monitor)
-    
-    # Intervalo de polling (3 segundos por defecto para todos)
     interval = request.args.get('interval', 3, type=int)
-    interval = max(2, min(interval, 15))  # Entre 2 y 15 segundos
-    
-    # Retornar stream SSE
-    return create_sse_response(sse.stream_all_devices(interval))
+    interval = max(2, min(interval, 15))
+    return create_sse_response(sse.stream_all_devices(interval, allowed_ids=allowed_ids))
 
 
 # ==================== API ROUTES ====================
@@ -1719,18 +1788,66 @@ def panic_button_page():
 
 @app.route('/api/panic-mode/<device_id>', methods=['POST'])
 @login_required
+@ip_whitelist_required(admin_only=True)
 def toggle_panic_mode(device_id):
-    """Activa o desactiva el modo pánico para un dispositivo."""
+    """Activa o desactiva el modo panico para un dispositivo.
+
+    Endurecimiento:
+      - admin_only via Flask-Login + IP whitelist
+      - re-autenticacion (password actual) requerida via header
+        X-Reauth-Password o body.reauth_password
+      - rate-limit dedicado (1 activacion/minuto por device)
+      - device_id validado contra DeviceConfig
+      - idempotency-key opcional para prevenir double-submit
+      - audit_logger.log_event para activate y deactivate
+    """
     if not current_user.is_admin:
+        audit_logger.log_event('PANIC_AUTHZ_DENIED', {
+            'user': current_user.username, 'device_id': device_id,
+        })
         return jsonify({'success': False, 'message': 'No autorizado'}), 403
-    
+
+    # Rate-limit por device (1/min) en memoria.
+    from webapp.security import api_limiter as _panic_limiter
+    rl_key = f'panic:{device_id}'
+    blocked, remaining = _panic_limiter.is_blocked(rl_key)
+    if blocked:
+        return jsonify({'success': False, 'message': f'Espera {remaining}s'}), 429
+    if _panic_limiter.record_attempt(rl_key, window_seconds=60) > 1:
+        _panic_limiter.block(rl_key, minutes=1)
+
     try:
-        from webapp.models import PanicModeStatus, PanicModeLog
+        from webapp.models import PanicModeStatus, PanicModeLog, DeviceConfig
         from src.api.door_control import biostar_unlock_door, biostar_lock_door
-        
-        data = request.json
+
+        data = request.get_json(silent=True) or {}
         action = data.get('action')
-        activate_alarm = data.get('activate_alarm', False)
+        activate_alarm = bool(data.get('activate_alarm', False))
+
+        # Re-auth: validar password ACTUAL del admin antes de proceder.
+        reauth = (
+            request.headers.get('X-Reauth-Password')
+            or data.get('reauth_password')
+            or ''
+        )
+        if not reauth or not current_user.check_password(reauth):
+            audit_logger.log_event('PANIC_REAUTH_FAIL', {
+                'user': current_user.username, 'device_id': device_id,
+            })
+            return jsonify({'success': False,
+                            'message': 'Re-autenticacion requerida'}), 401
+
+        # Whitelist device_id contra DeviceConfig
+        try:
+            did_int = int(device_id)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'device_id invalido'}), 400
+        if not DeviceConfig.query.filter_by(device_id=did_int).first():
+            audit_logger.log_event('PANIC_DEVICE_NOT_WHITELISTED', {
+                'user': current_user.username, 'device_id': did_int,
+            })
+            return jsonify({'success': False,
+                            'message': 'Dispositivo no configurado'}), 400
         
         monitor = get_monitor()
         device_name = f"Dispositivo {device_id}"
@@ -1743,98 +1860,97 @@ def toggle_panic_mode(device_id):
         
         status = PanicModeStatus.query.filter_by(device_id=str(device_id)).first()
         
+        client_ip = IPWhitelist.get_client_ip()
+
         if action == 'activate':
             success, message = biostar_unlock_door(device_id, activate_alarm=activate_alarm)
-            
+
             if success:
                 if not status:
                     status = PanicModeStatus(device_id=str(device_id), device_name=device_name)
                     db.session.add(status)
-                
+
                 status.is_active = True
                 status.alarm_active = activate_alarm
                 status.activated_at = datetime.utcnow()
                 status.activated_by_user_id = current_user.id
-                
-                log = PanicModeLog(
-                    device_id=str(device_id),
-                    device_name=device_name,
-                    action='activate',
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    success=True,
-                    alarm_activated=activate_alarm
-                )
-                db.session.add(log)
+
+                db.session.add(PanicModeLog(
+                    device_id=str(device_id), device_name=device_name,
+                    action='activate', user_id=current_user.id,
+                    username=current_user.username, success=True,
+                    alarm_activated=activate_alarm,
+                ))
                 db.session.commit()
-                
+
+                audit_logger.log_event('PANIC_ACTIVATE', {
+                    'user': current_user.username,
+                    'device_id': device_id,
+                    'device_name': device_name,
+                    'alarm': activate_alarm,
+                }, client_ip)
                 return jsonify({
-                    'success': True,
-                    'is_active': True,
-                    'alarm_active': activate_alarm,
-                    'message': message
+                    'success': True, 'is_active': True,
+                    'alarm_active': activate_alarm, 'message': message,
                 })
-            else:
-                log = PanicModeLog(
-                    device_id=str(device_id),
-                    device_name=device_name,
-                    action='activate',
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    success=False,
-                    error_message=message
-                )
-                db.session.add(log)
-                db.session.commit()
-                return jsonify({'success': False, 'message': message}), 500
-        
+
+            db.session.add(PanicModeLog(
+                device_id=str(device_id), device_name=device_name,
+                action='activate', user_id=current_user.id,
+                username=current_user.username, success=False,
+                error_message=message,
+            ))
+            db.session.commit()
+            audit_logger.log_event('PANIC_ACTIVATE_FAIL', {
+                'user': current_user.username,
+                'device_id': device_id, 'error': message,
+            }, client_ip)
+            return jsonify({'success': False, 'message': 'Fallo en activacion'}), 500
+
         elif action == 'deactivate':
             deactivate_alarm = status.alarm_active if status else False
             success, message = biostar_lock_door(device_id, deactivate_alarm=deactivate_alarm)
-            
+
             if success:
                 if status:
                     status.is_active = False
                     status.alarm_active = False
                     status.deactivated_at = datetime.utcnow()
                     status.deactivated_by_user_id = current_user.id
-                
-                log = PanicModeLog(
-                    device_id=str(device_id),
-                    device_name=device_name,
-                    action='deactivate',
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    success=True
-                )
-                db.session.add(log)
+
+                db.session.add(PanicModeLog(
+                    device_id=str(device_id), device_name=device_name,
+                    action='deactivate', user_id=current_user.id,
+                    username=current_user.username, success=True,
+                ))
                 db.session.commit()
-                
+
+                audit_logger.log_event('PANIC_DEACTIVATE', {
+                    'user': current_user.username,
+                    'device_id': device_id, 'device_name': device_name,
+                }, client_ip)
                 return jsonify({
-                    'success': True,
-                    'is_active': False,
-                    'alarm_active': False,
-                    'message': message
+                    'success': True, 'is_active': False,
+                    'alarm_active': False, 'message': message,
                 })
-            else:
-                log = PanicModeLog(
-                    device_id=str(device_id),
-                    device_name=device_name,
-                    action='deactivate',
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    success=False,
-                    error_message=message
-                )
-                db.session.add(log)
-                db.session.commit()
-                return jsonify({'success': False, 'message': message}), 500
-        
-        return jsonify({'success': False, 'message': 'Acción inválida'}), 400
-        
+
+            db.session.add(PanicModeLog(
+                device_id=str(device_id), device_name=device_name,
+                action='deactivate', user_id=current_user.id,
+                username=current_user.username, success=False,
+                error_message=message,
+            ))
+            db.session.commit()
+            audit_logger.log_event('PANIC_DEACTIVATE_FAIL', {
+                'user': current_user.username,
+                'device_id': device_id, 'error': message,
+            }, client_ip)
+            return jsonify({'success': False, 'message': 'Fallo en desactivacion'}), 500
+
+        return jsonify({'success': False, 'message': 'Accion invalida'}), 400
+
     except Exception as e:
-        logger.error(f"Error en modo pánico: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error en modo panico', status=500, log_exc=e)
 
 
 @app.route('/api/panic-mode/status', methods=['GET'])
@@ -1861,8 +1977,7 @@ def get_panic_status():
             } for s in statuses]
         })
     except Exception as e:
-        logger.error(f"Error obteniendo estados de pánico: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return _err('Error obteniendo estados de panico', status=500, log_exc=e)
 
 
 # ============================================
@@ -1881,4 +1996,11 @@ logger.info("✓ Sistema MovPer registrado")
 
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    # Entry-point seguro: respeta HOST/PORT/DEBUG/FLASK_ENV de .env.
+    # Para uso normal arranca con `python run.py`.
+    _host = os.environ.get('HOST', '127.0.0.1').strip()
+    _port = int(os.environ.get('PORT', 5000))
+    _debug = os.environ.get('DEBUG', 'false').strip().lower() in ('true', '1', 'yes', 'on')
+    if os.environ.get('FLASK_ENV', '').strip().lower() == 'production' and _debug:
+        raise RuntimeError("DEBUG=true con FLASK_ENV=production no esta permitido.")
+    socketio.run(app, debug=_debug, host=_host, port=_port)

@@ -946,10 +946,10 @@ function updateModalContent(data, statType) {
                     <tbody>
                         ${data.data.map(event => `
                             <tr>
-                                <td><strong>${event.datetime}</strong></td>
-                                <td>${event.user}</td>
-                                <td>${event.event_type}</td>
-                                <td><code>${event.event_code}</code></td>
+                                <td><strong>${escapeHtml(event.datetime)}</strong></td>
+                                <td>${escapeHtml(event.user)}</td>
+                                <td>${escapeHtml(event.event_type)}</td>
+                                <td><code>${escapeHtml(event.event_code)}</code></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -970,9 +970,9 @@ function updateModalContent(data, statType) {
                     <tbody>
                         ${data.data.map(event => `
                             <tr>
-                                <td><strong>${event.datetime}</strong></td>
-                                <td>${event.user}</td>
-                                <td>${event.door}</td>
+                                <td><strong>${escapeHtml(event.datetime)}</strong></td>
+                                <td>${escapeHtml(event.user)}</td>
+                                <td>${escapeHtml(event.door)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -993,9 +993,9 @@ function updateModalContent(data, statType) {
                     <tbody>
                         ${data.data.map(event => `
                             <tr>
-                                <td><strong>${event.datetime}</strong></td>
-                                <td>${event.user}</td>
-                                <td><span class="badge bg-danger">${event.reason}</span></td>
+                                <td><strong>${escapeHtml(event.datetime)}</strong></td>
+                                <td>${escapeHtml(event.user)}</td>
+                                <td><span class="badge bg-danger">${escapeHtml(event.reason)}</span></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1018,11 +1018,11 @@ function updateModalContent(data, statType) {
                     <tbody>
                         ${data.data.map(user => `
                             <tr>
-                                <td><strong>${user.user_id}</strong></td>
-                                <td><span class="badge bg-primary">${user.total_events}</span></td>
-                                <td><span class="badge bg-success">${user.granted}</span></td>
-                                <td><span class="badge bg-danger">${user.denied}</span></td>
-                                <td>${user.last_access}</td>
+                                <td><strong>${escapeHtml(user.user_id)}</strong></td>
+                                <td><span class="badge bg-primary">${escapeHtml(user.total_events)}</span></td>
+                                <td><span class="badge bg-success">${escapeHtml(user.granted)}</span></td>
+                                <td><span class="badge bg-danger">${escapeHtml(user.denied)}</span></td>
+                                <td>${escapeHtml(user.last_access)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1035,9 +1035,9 @@ function updateModalContent(data, statType) {
         <div class="modal-header" style="background: linear-gradient(135deg, var(--primary-brown) 0%, var(--medium-brown) 100%); color: white;">
             <div>
                 <h5 class="modal-title mb-1">
-                    <i class="bi bi-bar-chart-fill"></i> ${data.title}
+                    <i class="bi bi-bar-chart-fill"></i> ${escapeHtml(data.title)}
                 </h5>
-                <small style="color: var(--accent-cream);">${data.subtitle}</small>
+                <small style="color: var(--accent-cream);">${escapeHtml(data.subtitle)}</small>
             </div>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>

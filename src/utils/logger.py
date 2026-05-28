@@ -3,9 +3,14 @@ Logging configuration and utilities.
 """
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+# TODO: PII filter - agregar un logging.Filter que redacte emails/CURP/RFC/nombres
+# en records INFO+ antes de emitir. No se aplica ahora para no romper formatos
+# existentes que parsean los logs.
 
 
 def setup_logger(
@@ -41,10 +46,15 @@ def setup_logger(
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # File handler (if specified)
+    # File handler (if specified) - con rotacion para evitar crecimiento ilimitado
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding='utf-8'
+        )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     
