@@ -10,6 +10,27 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <script>
+        // CSRF token para todas las peticiones fetch (template standalone)
+        (function () {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            const originalFetch = window.fetch;
+            window.fetch = function (url, options = {}) {
+                if (options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+                    options.headers = options.headers || {};
+                    if (typeof options.headers === 'object' && !(options.headers instanceof Headers)) {
+                        options.headers['X-CSRF-Token'] = csrfToken;
+                    } else if (options.headers instanceof Headers) {
+                        options.headers.append('X-CSRF-Token', csrfToken);
+                    }
+                }
+                return originalFetch(url, options);
+            };
+        })();
+    </script>
+
     <title>MovPer - Checklist</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">

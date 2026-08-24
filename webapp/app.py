@@ -373,6 +373,17 @@ def index():
     return redirect(url_for('login'))
 
 
+@app.route('/favicon.ico')
+def favicon():
+    """Sirve el logo como favicon para evitar 404s ruidosos."""
+    from flask import send_from_directory
+    return send_from_directory(
+        os.path.join(app.root_path, 'static', 'img'),
+        'logo-white.png',
+        mimetype='image/png',
+    )
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login con proteccion NIVEL GOBIERNO."""

@@ -530,19 +530,14 @@ def add_security_headers(response):
         'geolocation=(), microphone=(), camera=(), payment=(), usb=()'
     )
 
-    # CSP: usa nonce por request (almacenado en g.csp_nonce por context processor).
-    # Mantiene 'unsafe-inline' como fallback porque las templates aun tienen
-    # handlers inline; el nonce es la migracion futura.
-    try:
-        from flask import g
-        nonce = getattr(g, 'csp_nonce', '')
-        nonce_src = f" 'nonce-{nonce}'" if nonce else ''
-    except Exception:
-        nonce_src = ''
-
+    # CSP: 'unsafe-inline' es REQUERIDO mientras las templates tengan handlers
+    # inline (onclick=, onload=) y bloques <script> sin nonce.
+    # NOTA: en CSP 3, si presentas un nonce el browser IGNORA 'unsafe-inline'.
+    # Por eso NO se incluye nonce aqui. TODO: migrar inline JS a archivos .js
+    # servidos desde 'self' y entonces SI activar nonces (eliminar unsafe-inline).
     csp = (
         "default-src 'self'; "
-        f"script-src 'self'{nonce_src} 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
         "img-src 'self' data: blob:; "
@@ -707,12 +702,12 @@ def configure_flask_security(app):
         except Exception as exc:
             print(f"[WARN] ProxyFix no aplicado: {exc}")
 
-    # Generar nonce CSP por peticion
+    # CSP nonce: dejamos el hook expuesto para futuro (cuando se migren los
+    # inline scripts), pero NO se incluye en el header CSP (rompe unsafe-inline).
     @app.before_request
     def _set_csp_nonce():
         g.csp_nonce = secrets.token_urlsafe(16)
 
-    # Exponer nonce a templates: {{ csp_nonce }}
     @app.context_processor
     def _inject_csp_nonce():
         return {'csp_nonce': getattr(g, 'csp_nonce', '')}
@@ -915,13 +910,20 @@ class SessionFingerprint:
     
     @staticmethod
     def generate() -> str:
-        """Genera fingerprint de la sesión actual."""
-        ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+        """Genera fingerprint de la sesion actual.
+
+        Solo usa User-Agent (NO incluye IP). Razon: los IPs cambian
+        legitimamente (WiFi -> celular, VPN, NAT, doble-proxy de carrier,
+        port-forward a un IP publico distinto al de login) y validar IP
+        kickea al usuario en escenarios normales sin aportar seguridad
+        real contra un atacante que ya robo la cookie (puede falsificar IP
+        via XFF si confiamos en proxies, o proxiar al mismo origen).
+        El UA SI cambia entre navegadores robados/legitimos, mitigando
+        algo de session hijacking. La proteccion REAL contra robo de
+        cookie es Secure + HttpOnly + SameSite=Strict (ya aplicado).
+        """
         ua = request.headers.get('User-Agent', 'unknown')
-        
-        # Hash del fingerprint
-        data = f"{ip}:{ua}"
-        return hashlib.sha256(data.encode()).hexdigest()
+        return hashlib.sha256(f"ua:{ua}".encode()).hexdigest()
     
     @staticmethod
     def store():
