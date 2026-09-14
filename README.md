@@ -109,6 +109,38 @@ MovPer: http://localhost:5000/mobper
 Emergencia: http://localhost:5000/emergency
 ```
 
+## Ejecución permanente (Windows)
+
+Para que la webapp quede encendida sola en el servidor hay una tarea programada
+que la supervisa. Se instala una sola vez, desde una consola **como administrador**:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-task.ps1
+powershell -ExecutionPolicy Bypass -File scripts\service.ps1 start
+```
+
+La tarea `DEBUGBI0-Webapp` corre como SYSTEM (sin contraseña guardada, arranca
+sin sesión iniciada) y ejecuta `scripts\watchdog.ps1`, que:
+
+- arranca la app en el **inicio del sistema**, así vuelve sola tras un reinicio;
+- la **relanza si se cae**, con backoff si entra en bucle de fallos;
+- se **revive a sí misma** cada 5 minutos si el supervisor muere;
+- no levanta una segunda instancia si la app ya está corriendo.
+
+Control diario:
+
+```powershell
+scripts\service.ps1 status    # tarea, PID, puerto y últimas líneas del log
+scripts\service.ps1 stop      # única forma de bajarla de verdad
+scripts\service.ps1 restart
+scripts\service.ps1 logs      # sigue logs\watchdog.log en vivo
+```
+
+Logs en `logs\`: `watchdog.log` (supervisor), `webapp.out.log` y
+`webapp.err.log` (salida de la app). Rotan solos a los 5 MB.
+
+Para desinstalar la tarea: `scripts\install-task.ps1 -Uninstall`.
+
 ## Configuración
 
 ### Variables de Entorno (.env)
